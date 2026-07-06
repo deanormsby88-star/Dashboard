@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — ONE-TIME password setup
+ * Nunu's Bakery — ONE-TIME password setup
  * ------------------------------------------------------------------
  * Open this file in your browser (e.g. https://yourdomain.com/set_password.php),
  * choose a password, submit — it writes a secure bcrypt hash into config.php.
@@ -52,24 +52,26 @@ if (!file_exists($configPath)) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bake Book — Set Password</title>
+<title>Nunu's Bakery — Set Password</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap');
   * { box-sizing: border-box; }
   body {
     margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    font-family: 'DM Sans', system-ui, sans-serif; color: #3B2A1A;
-    background: #FAF7F2;
-    background-image: repeating-linear-gradient(#FAF7F2, #FAF7F2 31px, #E7DDCB 32px);
+    font-family: 'DM Sans', system-ui, sans-serif; color: #402A19;
+    background: #F7F0E8;
+    background-image: repeating-linear-gradient(#F7F0E8, #F7F0E8 31px, #E7DDCB 32px);
     padding: 24px;
   }
   .card {
     background: #FFFFFF; border: 1px solid #E7DDCB; border-radius: 18px;
-    padding: 32px; max-width: 420px; width: 100%;
+    padding: 32px; max-width: 420px; width: 100%; text-align: center;
     box-shadow: 0 12px 40px rgba(59,42,26,0.10);
   }
-  h1 { font-family: 'Playfair Display', serif; margin: 0 0 4px; font-size: 28px; }
+  .logo { width: 132px; height: 132px; display: block; margin: 0 auto 8px; }
+  h1 { font-family: 'Playfair Display', serif; margin: 0 0 4px; font-size: 26px; }
   p.sub { margin: 0 0 20px; color: #8a7a63; font-size: 14px; }
+  form { text-align: left; }
   label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
   input {
     width: 100%; padding: 12px 14px; border: 1px solid #C4A882; border-radius: 10px;
@@ -77,19 +79,20 @@ if (!file_exists($configPath)) {
   }
   button {
     margin-top: 22px; width: 100%; padding: 13px; border: 0; border-radius: 10px;
-    background: #7A9E7E; color: #fff; font-family: inherit; font-weight: 600; font-size: 16px;
+    background: #C98E8E; color: #fff; font-family: inherit; font-weight: 600; font-size: 16px;
     cursor: pointer;
   }
-  button:hover { background: #6b8d6f; }
-  .msg { margin-top: 18px; padding: 12px 14px; border-radius: 10px; font-size: 14px; }
-  .msg.ok  { background: #EAF1EA; color: #3f6144; border: 1px solid #7A9E7E; }
+  button:hover { background: #B27575; }
+  .msg { margin-top: 18px; padding: 12px 14px; border-radius: 10px; font-size: 14px; text-align: left; }
+  .msg.ok  { background: #F6E9E9; color: #8a4a4a; border: 1px solid #C98E8E; }
   .msg.err { background: #FBEEE3; color: #8a4b1f; border: 1px solid #E0A86A; }
   .warn { margin-top: 16px; font-size: 13px; color: #a33; font-weight: 600; }
 </style>
 </head>
 <body>
   <div class="card">
-    <h1>Bake Book</h1>
+    <img class="logo" src="assets/img/logo.png" alt="Nunu's Bakery">
+    <h1>Nunu's Bakery</h1>
     <p class="sub">One-time password setup</p>
 
     <?php if ($message): ?>

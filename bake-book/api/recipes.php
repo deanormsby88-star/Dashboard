@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — recipes endpoint
+ * Nunu's Bakery — recipes endpoint
  * GET    list recipes with ingredient lines + live cost calculations
  * POST   create recipe (optionally with an ingredients array)
  * PUT    update recipe (id in body; replaces ingredient lines if given)

@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — authentication endpoint
+ * Nunu's Bakery — authentication endpoint
  * POST actions: login, logout, change_password, set_currency
  * GET: status (safe, no CSRF required)
  */

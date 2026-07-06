@@ -1,18 +1,22 @@
 /* ==================================================================
-   Bake Book — stylesheet
+   Nunu's Bakery — stylesheet
    Warm, handcrafted, recipe-notebook aesthetic.
    ================================================================== */
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
 
 :root {
-  --cream:   #FAF7F2;   /* warm cream background        */
+  --cream:   #F7F0E8;   /* warm cream background (matches logo ground) */
   --flour:   #FFFFFF;   /* soft flour white (cards)     */
-  --taupe:   #C4A882;   /* warm taupe (borders/accents) */
+  --taupe:   #C4A882;   /* warm taupe (borders)         */
   --taupe-soft: #E7DDCB;
-  --cocoa:   #3B2A1A;   /* deep cocoa (text)            */
+  --cocoa:   #402A19;   /* deep cocoa (wordmark / text) */
   --cocoa-soft: #8a7a63;
-  --sage:    #7A9E7E;   /* sage accent                  */
-  --sage-dark: #6b8d6f;
+  /* Brand accent is the logo's dusty rose. Kept under the --sage names
+     so every existing accent reference picks up the brand colour. */
+  --rose:    #C98E8E;
+  --rose-tint: #F6E9E9;
+  --sage:    #C98E8E;   /* accent (dusty rose)          */
+  --sage-dark: #B27575;
   --amber:   #C77D3A;   /* warnings                     */
   --amber-bg: #FBEEE3;
   --danger:  #B4552F;
@@ -83,8 +87,9 @@ body {
   box-shadow: var(--shadow-lg);
 }
 .login-mark { font-size: 44px; }
+.login-logo { width: 188px; height: 188px; display: block; margin: 0 auto 10px; }
 .login-card .brand { font-size: 34px; margin: 8px 0 2px; }
-.login-sub { color: var(--cocoa-soft); margin: 0 0 26px; font-size: 15px; }
+.login-sub { color: var(--cocoa-soft); margin: 4px 0 26px; font-size: 15px; }
 .login-card form { text-align: left; }
 .login-card label { font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; }
 .login-card input {
@@ -102,8 +107,9 @@ body {
   background: var(--flour); border-right: 1px solid var(--taupe-soft);
   padding: 26px 18px; display: none; flex-direction: column;
 }
-.sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 26px; font-size: 22px; }
+.sidebar-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 26px; font-size: 20px; }
 .sidebar-mark { font-size: 26px; }
+.sidebar-logo { width: 40px; height: 40px; flex: none; }
 .side-nav { display: flex; flex-direction: column; gap: 4px; }
 .nav-item {
   display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
@@ -112,7 +118,7 @@ body {
   color: var(--cocoa-soft); cursor: pointer; transition: background .15s, color .15s;
 }
 .nav-item:hover { background: #FBF8F2; color: var(--cocoa); }
-.nav-item.active { background: #EEF3EE; color: var(--sage-dark); }
+.nav-item.active { background: var(--rose-tint); color: var(--sage-dark); }
 .nav-ico { font-size: 18px; }
 
 .content { padding: 24px 20px 96px; max-width: 1100px; margin: 0 auto; }
@@ -179,7 +185,7 @@ body {
 
 .badge {
   display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px;
-  background: #EEF3EE; color: var(--sage-dark); text-transform: uppercase; letter-spacing: .5px;
+  background: var(--rose-tint); color: var(--sage-dark); text-transform: uppercase; letter-spacing: .5px;
 }
 .badge.low { background: var(--amber-bg); color: var(--amber); }
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — Configuration
+ * Nunu's Bakery — Configuration
  * ------------------------------------------------------------------
  * Fill in your MySQL database details below. You get these from your
  * GoDaddy cPanel when you create a database (see README.md).

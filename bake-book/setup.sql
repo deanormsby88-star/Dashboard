@@ -1,5 +1,5 @@
 -- ============================================================
--- Bake Book — database setup
+-- Nunu's Bakery — database setup
 -- Run this ONCE in phpMyAdmin (Import tab) after creating your
 -- database in cPanel. It creates the three tables the app needs.
 --

@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — recipe_ingredients endpoint
+ * Nunu's Bakery — recipe_ingredients endpoint
  * Granular management of individual ingredient lines within a recipe.
  * (The recipes.php endpoint can also replace all lines at once; this
  *  endpoint operates on single rows.)

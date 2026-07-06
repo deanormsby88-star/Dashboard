@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — import / clear endpoint
+ * Nunu's Bakery — import / clear endpoint
  * POST { action: 'import', data: {...} }  overwrite all data from a backup
  * POST { action: 'clear' }                wipe all data
  */

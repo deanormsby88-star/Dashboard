@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — ingredients (pantry) endpoint
+ * Nunu's Bakery — ingredients (pantry) endpoint
  * GET    list all ingredients (with computed cost fields)
  * POST   create ingredient
  * PUT    update ingredient (id in body)

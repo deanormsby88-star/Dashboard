@@ -1,4 +1,4 @@
-# 🥖 Bake Book
+# 🧁 Nunu's Bakery
 
 A warm, handcrafted **home baking cost tracker** for a single household. Track
 what your pantry ingredients cost, work out the exact food cost of every recipe

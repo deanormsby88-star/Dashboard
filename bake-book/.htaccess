@@ -1,4 +1,4 @@
-# Bake Book — basic hardening for shared hosting
+# Nunu's Bakery — basic hardening for shared hosting
 
 # Never list directory contents
 Options -Indexes

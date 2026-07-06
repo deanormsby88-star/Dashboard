@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — shared API bootstrap
+ * Nunu's Bakery — shared API bootstrap
  * Loaded by every endpoint. Handles sessions, config, PDO, auth,
  * CSRF protection and JSON helpers.
  */

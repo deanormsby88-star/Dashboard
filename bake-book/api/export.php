@@ -1,6 +1,6 @@
 <?php
 /**
- * Bake Book — export endpoint
+ * Nunu's Bakery — export endpoint
  * GET: dumps all tables as a downloadable JSON file.
  */
 require_once __DIR__ . '/common.php';
@@ -13,7 +13,7 @@ if (request_method() !== 'GET') {
 $db = get_db();
 
 $data = [
-    'app'                => 'Bake Book',
+    'app'                => "Nunu's Bakery",
     'version'            => 1,
     'exported_at'        => date('c'),
     'ingredients'        => $db->query('SELECT * FROM ingredients ORDER BY id')->fetchAll(),

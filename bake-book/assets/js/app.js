@@ -1,5 +1,5 @@
 /* ==================================================================
-   Bake Book — single-page app (vanilla JS)
+   Nunu's Bakery — single-page app (vanilla JS)
    ================================================================== */
 (function () {
   'use strict';
