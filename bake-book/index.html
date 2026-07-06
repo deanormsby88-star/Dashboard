@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FAF7F2">
+  <title>Bake Book</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <!-- ============ LOGIN SCREEN ============ -->
+  <div id="login-screen" class="login-screen hidden">
+    <div class="login-card">
+      <div class="login-mark">🥖</div>
+      <h1 class="brand">Bake Book</h1>
+      <p class="login-sub">Your home baking cost journal</p>
+      <form id="login-form">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="Enter household password" autocomplete="current-password" required>
+        <button type="submit" class="btn btn-primary btn-block">Open the book</button>
+        <p id="login-error" class="login-error hidden"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============ APP SHELL ============ -->
+  <div id="app" class="app hidden">
+
+    <!-- Sidebar (desktop) -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="sidebar-mark">🥖</span>
+        <span class="brand">Bake Book</span>
+      </div>
+      <nav class="side-nav">
+        <button class="nav-item" data-tab="pantry"><span class="nav-ico">🧺</span><span>Pantry</span></button>
+        <button class="nav-item" data-tab="recipes"><span class="nav-ico">📖</span><span>Recipes</span></button>
+        <button class="nav-item" data-tab="calculator"><span class="nav-ico">🧮</span><span>Calculator</span></button>
+        <button class="nav-item" data-tab="settings"><span class="nav-ico">⚙️</span><span>Settings</span></button>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <main class="content">
+
+      <!-- ===== PANTRY ===== -->
+      <section id="tab-pantry" class="tab">
+        <header class="page-head">
+          <div>
+            <h2 class="page-title">Pantry</h2>
+            <p class="page-sub">Your raw ingredients &amp; what they cost</p>
+          </div>
+          <button class="btn btn-primary" id="add-ingredient-btn">+ Add ingredient</button>
+        </header>
+
+        <div id="pantry-summary" class="summary-row"></div>
+
+        <div class="toolbar">
+          <label class="field-inline">
+            <span>Sort</span>
+            <select id="pantry-sort">
+              <option value="name">Name A–Z</option>
+              <option value="recent">Most recent</option>
+              <option value="cheapest">Lowest cost / kg&nbsp;·&nbsp;L</option>
+            </select>
+          </label>
+          <input type="search" id="pantry-search" class="search" placeholder="Filter by name…">
+        </div>
+
+        <div id="pantry-list" class="card-grid"></div>
+      </section>
+
+      <!-- ===== RECIPES ===== -->
+      <section id="tab-recipes" class="tab hidden">
+        <header class="page-head">
+          <div>
+            <h2 class="page-title">Recipes</h2>
+            <p class="page-sub">Cost per batch &amp; per unit</p>
+          </div>
+          <button class="btn btn-primary" id="add-recipe-btn">+ New recipe</button>
+        </header>
+        <div id="recipe-list" class="card-grid recipe-grid"></div>
+      </section>
+
+      <!-- ===== CALCULATOR ===== -->
+      <section id="tab-calculator" class="tab hidden">
+        <header class="page-head">
+          <div>
+            <h2 class="page-title">Cost Calculator</h2>
+            <p class="page-sub">Quick price checks while you shop — nothing is saved</p>
+          </div>
+        </header>
+
+        <div class="card notebook calc-card">
+          <div class="form-grid">
+            <label class="field">
+              <span>Ingredient name</span>
+              <input type="text" id="calc-name" placeholder="e.g. Cake flour">
+            </label>
+            <label class="field">
+              <span>Pack size</span>
+              <input type="number" step="any" min="0" id="calc-size" placeholder="e.g. 1000">
+            </label>
+            <label class="field">
+              <span>Unit</span>
+              <select id="calc-unit">
+                <option value="grams">grams (g)</option>
+                <option value="ml">millilitres (ml)</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Price paid</span>
+              <input type="number" step="any" min="0" id="calc-price" placeholder="e.g. 24.99">
+            </label>
+          </div>
+
+          <div id="calc-results" class="calc-results hidden">
+            <div class="calc-stat"><span class="calc-label">Per <span class="calc-unit-lbl">g</span></span><strong id="calc-per-unit">—</strong></div>
+            <div class="calc-stat"><span class="calc-label">Per 500<span class="calc-unit-lbl">g</span></span><strong id="calc-per-500">—</strong></div>
+            <div class="calc-stat"><span class="calc-label">Per <span class="calc-big-lbl">kg</span></span><strong id="calc-per-1000">—</strong></div>
+          </div>
+
+          <button class="btn btn-secondary" id="calc-add-btn" disabled>Add to Pantry</button>
+        </div>
+      </section>
+
+      <!-- ===== SETTINGS ===== -->
+      <section id="tab-settings" class="tab hidden">
+        <header class="page-head">
+          <div>
+            <h2 class="page-title">Settings</h2>
+            <p class="page-sub">Preferences &amp; your data</p>
+          </div>
+        </header>
+
+        <div class="settings-stack">
+          <div class="card notebook">
+            <h3 class="card-h">Currency</h3>
+            <label class="field">
+              <span>Currency label shown before prices</span>
+              <input type="text" id="currency-input" maxlength="5" style="max-width:120px">
+            </label>
+            <button class="btn btn-secondary" id="save-currency-btn">Save currency</button>
+          </div>
+
+          <div class="card notebook">
+            <h3 class="card-h">Change password</h3>
+            <label class="field"><span>Current password</span><input type="password" id="cur-pass" autocomplete="current-password"></label>
+            <label class="field"><span>New password</span><input type="password" id="new-pass" autocomplete="new-password"></label>
+            <button class="btn btn-secondary" id="change-pass-btn">Update password</button>
+          </div>
+
+          <div class="card notebook">
+            <h3 class="card-h">Your data</h3>
+            <div class="btn-row">
+              <button class="btn btn-secondary" id="export-btn">Export as JSON</button>
+              <button class="btn btn-secondary" id="import-btn">Import from JSON</button>
+              <input type="file" id="import-file" accept="application/json,.json" class="hidden">
+            </div>
+            <button class="btn btn-danger" id="clear-btn">Clear all data</button>
+          </div>
+
+          <div class="card notebook">
+            <h3 class="card-h">Session</h3>
+            <button class="btn btn-danger" id="logout-btn">Log out</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom tab bar (mobile) -->
+    <nav class="tabbar">
+      <button class="tabbar-item" data-tab="pantry"><span class="nav-ico">🧺</span><span>Pantry</span></button>
+      <button class="tabbar-item" data-tab="recipes"><span class="nav-ico">📖</span><span>Recipes</span></button>
+      <button class="tabbar-item" data-tab="calculator"><span class="nav-ico">🧮</span><span>Calc</span></button>
+      <button class="tabbar-item" data-tab="settings"><span class="nav-ico">⚙️</span><span>Settings</span></button>
+    </nav>
+  </div>
+
+  <!-- ============ MODAL ============ -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal notebook" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h3 id="modal-title">Title</h3>
+        <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ============ TOAST ============ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
