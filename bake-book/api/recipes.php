@@ -13,15 +13,6 @@ require_csrf();
 $db     = get_db();
 $method = request_method();
 
-/** Parse a leading number out of a yield string, e.g. "12 muffins" -> 12. */
-function parse_yield_qty(string $text): ?float
-{
-    if (preg_match('/^\s*([0-9]+(?:\.[0-9]+)?)/', $text, $m)) {
-        return (float) $m[1];
-    }
-    return null;
-}
-
 /** Build the full computed representation of one recipe. */
 function build_recipe(PDO $db, array $recipe): array
 {
@@ -58,16 +49,28 @@ function build_recipe(PDO $db, array $recipe): array
     }
 
     $yieldQty = $recipe['yield_quantity'] !== null ? (float) $recipe['yield_quantity'] : null;
-    $perUnitCost = ($yieldQty && $yieldQty > 0) ? round($total / $yieldQty, 4) : null;
+    $mode     = ($recipe['yield_mode'] ?? 'divide') === 'multiply' ? 'multiply' : 'divide';
+
+    // divide:   the recipe makes `yieldQty` units → cost each = total / qty; batch = total.
+    // multiply: the recipe makes one → cost each = total; batch of qty = total * qty.
+    if ($mode === 'multiply') {
+        $unitCost   = round($total, 4);
+        $batchTotal = ($yieldQty && $yieldQty > 0) ? round($total * $yieldQty, 4) : round($total, 4);
+    } else {
+        $unitCost   = ($yieldQty && $yieldQty > 0) ? round($total / $yieldQty, 4) : null;
+        $batchTotal = round($total, 4);
+    }
 
     return [
         'id'             => (int) $recipe['id'],
         'name'           => $recipe['name'],
         'yield_text'     => $recipe['yield_text'],
         'yield_quantity' => $yieldQty,
+        'yield_mode'     => $mode,
         'ingredients'    => $lines,
         'total_cost'     => round($total, 4),
-        'cost_per_unit'  => $perUnitCost,
+        'unit_cost'      => $unitCost,
+        'batch_total'    => $batchTotal,
         'updated_at'     => $recipe['updated_at'],
         'calculated_at'  => date('Y-m-d H:i:s'),
     ];
@@ -86,7 +89,7 @@ function save_recipe_ingredients(PDO $db, int $recipeId, array $ingredients): vo
     foreach ($ingredients as $line) {
         $iid  = isset($line['ingredient_id']) && $line['ingredient_id'] !== '' && $line['ingredient_id'] !== null
                 ? (int) $line['ingredient_id'] : null;
-        $unit = ($line['unit'] ?? 'grams') === 'ml' ? 'ml' : 'grams';
+        $unit = in_array($line['unit'] ?? 'grams', ['grams', 'ml', 'units'], true) ? $line['unit'] : 'grams';
         $ins->execute([
             ':rid'  => $recipeId,
             ':iid'  => $iid,
@@ -109,11 +112,12 @@ if ($method === 'POST') {
         json_response(['error' => 'Recipe name is required'], 422);
     }
     $yieldText = trim((string) ($b['yield_text'] ?? ''));
-    $yieldQty  = parse_yield_qty($yieldText);
+    $yieldMode = ($b['yield_mode'] ?? 'divide') === 'multiply' ? 'multiply' : 'divide';
+    $yieldQty  = isset($b['yield_quantity']) && $b['yield_quantity'] !== '' ? (float) $b['yield_quantity'] : null;
 
     $db->beginTransaction();
-    $stmt = $db->prepare('INSERT INTO recipes (name, yield_text, yield_quantity) VALUES (?, ?, ?)');
-    $stmt->execute([$name, $yieldText ?: null, $yieldQty]);
+    $stmt = $db->prepare('INSERT INTO recipes (name, yield_text, yield_quantity, yield_mode) VALUES (?, ?, ?, ?)');
+    $stmt->execute([$name, $yieldText ?: null, $yieldQty, $yieldMode]);
     $id = (int) $db->lastInsertId();
     if (isset($b['ingredients']) && is_array($b['ingredients'])) {
         save_recipe_ingredients($db, $id, $b['ingredients']);
@@ -136,11 +140,12 @@ if ($method === 'PUT') {
         json_response(['error' => 'Recipe name is required'], 422);
     }
     $yieldText = trim((string) ($b['yield_text'] ?? ''));
-    $yieldQty  = parse_yield_qty($yieldText);
+    $yieldMode = ($b['yield_mode'] ?? 'divide') === 'multiply' ? 'multiply' : 'divide';
+    $yieldQty  = isset($b['yield_quantity']) && $b['yield_quantity'] !== '' ? (float) $b['yield_quantity'] : null;
 
     $db->beginTransaction();
-    $stmt = $db->prepare('UPDATE recipes SET name = ?, yield_text = ?, yield_quantity = ? WHERE id = ?');
-    $stmt->execute([$name, $yieldText ?: null, $yieldQty, $id]);
+    $stmt = $db->prepare('UPDATE recipes SET name = ?, yield_text = ?, yield_quantity = ?, yield_mode = ? WHERE id = ?');
+    $stmt->execute([$name, $yieldText ?: null, $yieldQty, $yieldMode, $id]);
     if (isset($b['ingredients']) && is_array($b['ingredients'])) {
         save_recipe_ingredients($db, $id, $b['ingredients']);
     }

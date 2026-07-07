@@ -22,6 +22,7 @@ function wipe_all(PDO $db): void
     $db->exec('DELETE FROM recipe_ingredients');
     $db->exec('DELETE FROM recipes');
     $db->exec('DELETE FROM ingredients');
+    $db->exec('DELETE FROM suppliers');
 }
 
 if ($action === 'clear') {
@@ -41,30 +42,34 @@ if ($action === 'import') {
     try {
         wipe_all($db);
 
+        $cleanUnit = fn($u) => in_array($u, ['grams', 'ml', 'units'], true) ? $u : 'grams';
+        $cleanCat  = fn($c) => in_array($c, ['ingredient', 'packaging', 'consumable'], true) ? $c : 'ingredient';
+
         $insIng = $db->prepare(
             'INSERT INTO ingredients
-              (id, name, brand, pack_size, pack_unit, price_paid, date_purchased, quantity_in_stock, created_at, updated_at)
-             VALUES (:id,:name,:brand,:pack_size,:pack_unit,:price_paid,:date_purchased,:qty,
+              (id, name, brand, store, category, pack_size, pack_unit, price_paid, quantity_in_stock, created_at, updated_at)
+             VALUES (:id,:name,:brand,:store,:category,:pack_size,:pack_unit,:price_paid,:qty,
                      COALESCE(:created_at, NOW()), COALESCE(:updated_at, NOW()))'
         );
         foreach ($data['ingredients'] as $r) {
             $insIng->execute([
-                ':id'             => (int) ($r['id'] ?? 0) ?: null,
-                ':name'           => (string) ($r['name'] ?? ''),
-                ':brand'          => $r['brand'] ?? null,
-                ':pack_size'      => (float) ($r['pack_size'] ?? 0),
-                ':pack_unit'      => ($r['pack_unit'] ?? 'grams') === 'ml' ? 'ml' : 'grams',
-                ':price_paid'     => (float) ($r['price_paid'] ?? 0),
-                ':date_purchased' => $r['date_purchased'] ?? null,
-                ':qty'            => (float) ($r['quantity_in_stock'] ?? 0),
-                ':created_at'     => $r['created_at'] ?? null,
-                ':updated_at'     => $r['updated_at'] ?? null,
+                ':id'         => (int) ($r['id'] ?? 0) ?: null,
+                ':name'       => (string) ($r['name'] ?? ''),
+                ':brand'      => $r['brand'] ?? null,
+                ':store'      => $r['store'] ?? null,
+                ':category'   => $cleanCat($r['category'] ?? 'ingredient'),
+                ':pack_size'  => (float) ($r['pack_size'] ?? 0),
+                ':pack_unit'  => $cleanUnit($r['pack_unit'] ?? 'grams'),
+                ':price_paid' => (float) ($r['price_paid'] ?? 0),
+                ':qty'        => (float) ($r['quantity_in_stock'] ?? 0),
+                ':created_at' => $r['created_at'] ?? null,
+                ':updated_at' => $r['updated_at'] ?? null,
             ]);
         }
 
         $insRec = $db->prepare(
-            'INSERT INTO recipes (id, name, yield_text, yield_quantity, created_at, updated_at)
-             VALUES (:id,:name,:yield_text,:yield_quantity, COALESCE(:created_at, NOW()), COALESCE(:updated_at, NOW()))'
+            'INSERT INTO recipes (id, name, yield_text, yield_quantity, yield_mode, created_at, updated_at)
+             VALUES (:id,:name,:yield_text,:yield_quantity,:yield_mode, COALESCE(:created_at, NOW()), COALESCE(:updated_at, NOW()))'
         );
         foreach ($data['recipes'] as $r) {
             $insRec->execute([
@@ -72,6 +77,7 @@ if ($action === 'import') {
                 ':name'           => (string) ($r['name'] ?? ''),
                 ':yield_text'     => $r['yield_text'] ?? null,
                 ':yield_quantity' => isset($r['yield_quantity']) && $r['yield_quantity'] !== '' ? (float) $r['yield_quantity'] : null,
+                ':yield_mode'     => ($r['yield_mode'] ?? 'divide') === 'multiply' ? 'multiply' : 'divide',
                 ':created_at'     => $r['created_at'] ?? null,
                 ':updated_at'     => $r['updated_at'] ?? null,
             ]);
@@ -87,8 +93,30 @@ if ($action === 'import') {
                 ':recipe_id'     => (int) ($r['recipe_id'] ?? 0),
                 ':ingredient_id' => isset($r['ingredient_id']) && $r['ingredient_id'] !== '' && $r['ingredient_id'] !== null ? (int) $r['ingredient_id'] : null,
                 ':quantity_used' => (float) ($r['quantity_used'] ?? 0),
-                ':unit'          => ($r['unit'] ?? 'grams') === 'ml' ? 'ml' : 'grams',
+                ':unit'          => $cleanUnit($r['unit'] ?? 'grams'),
             ]);
+        }
+
+        // Suppliers are optional in older backups.
+        if (!empty($data['suppliers']) && is_array($data['suppliers'])) {
+            $insSup = $db->prepare(
+                'INSERT INTO suppliers (id, name, company, phone, email, website, notes, created_at, updated_at)
+                 VALUES (:id,:name,:company,:phone,:email,:website,:notes,
+                         COALESCE(:created_at, NOW()), COALESCE(:updated_at, NOW()))'
+            );
+            foreach ($data['suppliers'] as $r) {
+                $insSup->execute([
+                    ':id'         => (int) ($r['id'] ?? 0) ?: null,
+                    ':name'       => (string) ($r['name'] ?? ''),
+                    ':company'    => $r['company'] ?? null,
+                    ':phone'      => $r['phone'] ?? null,
+                    ':email'      => $r['email'] ?? null,
+                    ':website'    => $r['website'] ?? null,
+                    ':notes'      => $r['notes'] ?? null,
+                    ':created_at' => $r['created_at'] ?? null,
+                    ':updated_at' => $r['updated_at'] ?? null,
+                ]);
+            }
         }
 
         $db->commit();

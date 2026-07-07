@@ -35,8 +35,9 @@
         <span class="brand">Nunu's Bakery</span>
       </div>
       <nav class="side-nav">
-        <button class="nav-item" data-tab="pantry"><span class="nav-ico">🧺</span><span>Pantry</span></button>
+        <button class="nav-item" data-tab="pantry"><span class="nav-ico">🧺</span><span>Stock</span></button>
         <button class="nav-item" data-tab="recipes"><span class="nav-ico">📖</span><span>Recipes</span></button>
+        <button class="nav-item" data-tab="suppliers"><span class="nav-ico">📇</span><span>Suppliers</span></button>
         <button class="nav-item" data-tab="calculator"><span class="nav-ico">🧮</span><span>Calculator</span></button>
         <button class="nav-item" data-tab="settings"><span class="nav-ico">⚙️</span><span>Settings</span></button>
       </nav>
@@ -45,17 +46,18 @@
     <!-- Main content -->
     <main class="content">
 
-      <!-- ===== PANTRY ===== -->
+      <!-- ===== STOCK (PANTRY) ===== -->
       <section id="tab-pantry" class="tab">
         <header class="page-head">
           <div>
-            <h2 class="page-title">Pantry</h2>
-            <p class="page-sub">Your raw ingredients &amp; what they cost</p>
+            <h2 class="page-title">Stock</h2>
+            <p class="page-sub">Ingredients, packaging &amp; consumables — and what they cost</p>
           </div>
-          <button class="btn btn-primary" id="add-ingredient-btn">+ Add ingredient</button>
+          <button class="btn btn-primary" id="add-ingredient-btn">+ Add item</button>
         </header>
 
         <div id="pantry-summary" class="summary-row"></div>
+        <div id="pantry-cats" class="cat-chips"></div>
 
         <div class="toolbar">
           <label class="field-inline">
@@ -66,7 +68,7 @@
               <option value="cheapest">Lowest cost / kg&nbsp;·&nbsp;L</option>
             </select>
           </label>
-          <input type="search" id="pantry-search" class="search" placeholder="Filter by name…">
+          <input type="search" id="pantry-search" class="search" placeholder="Filter by name or store…">
         </div>
 
         <div id="pantry-list" class="card-grid"></div>
@@ -84,46 +86,27 @@
         <div id="recipe-list" class="card-grid recipe-grid"></div>
       </section>
 
+      <!-- ===== SUPPLIERS ===== -->
+      <section id="tab-suppliers" class="tab hidden">
+        <header class="page-head">
+          <div>
+            <h2 class="page-title">Suppliers</h2>
+            <p class="page-sub">Your supplier contact book</p>
+          </div>
+          <button class="btn btn-primary" id="add-supplier-btn">+ Add contact</button>
+        </header>
+        <div id="supplier-list" class="card-grid"></div>
+      </section>
+
       <!-- ===== CALCULATOR ===== -->
       <section id="tab-calculator" class="tab hidden">
         <header class="page-head">
           <div>
             <h2 class="page-title">Cost Calculator</h2>
-            <p class="page-sub">Quick price checks while you shop — nothing is saved</p>
+            <p class="page-sub">Compare the same item across stores while you shop — nothing is saved</p>
           </div>
         </header>
-
-        <div class="card notebook calc-card">
-          <div class="form-grid">
-            <label class="field">
-              <span>Ingredient name</span>
-              <input type="text" id="calc-name" placeholder="e.g. Cake flour">
-            </label>
-            <label class="field">
-              <span>Pack size</span>
-              <input type="number" step="any" min="0" id="calc-size" placeholder="e.g. 1000">
-            </label>
-            <label class="field">
-              <span>Unit</span>
-              <select id="calc-unit">
-                <option value="grams">grams (g)</option>
-                <option value="ml">millilitres (ml)</option>
-              </select>
-            </label>
-            <label class="field">
-              <span>Price paid</span>
-              <input type="number" step="any" min="0" id="calc-price" placeholder="e.g. 24.99">
-            </label>
-          </div>
-
-          <div id="calc-results" class="calc-results hidden">
-            <div class="calc-stat"><span class="calc-label">Per <span class="calc-unit-lbl">g</span></span><strong id="calc-per-unit">—</strong></div>
-            <div class="calc-stat"><span class="calc-label">Per 500<span class="calc-unit-lbl">g</span></span><strong id="calc-per-500">—</strong></div>
-            <div class="calc-stat"><span class="calc-label">Per <span class="calc-big-lbl">kg</span></span><strong id="calc-per-1000">—</strong></div>
-          </div>
-
-          <button class="btn btn-secondary" id="calc-add-btn" disabled>Add to Pantry</button>
-        </div>
+        <div id="calc-app"></div>
       </section>
 
       <!-- ===== SETTINGS ===== -->
@@ -155,10 +138,12 @@
           <div class="card notebook">
             <h3 class="card-h">Your data</h3>
             <div class="btn-row">
-              <button class="btn btn-secondary" id="export-btn">Export as JSON</button>
-              <button class="btn btn-secondary" id="import-btn">Import from JSON</button>
+              <button class="btn btn-secondary" id="export-excel-btn">Export to Excel</button>
+              <button class="btn btn-secondary" id="export-btn">Backup (JSON)</button>
+              <button class="btn btn-secondary" id="import-btn">Restore from JSON</button>
               <input type="file" id="import-file" accept="application/json,.json" class="hidden">
             </div>
+            <p class="settings-hint">Excel gives you Stock, Recipes, Costing and Suppliers as spreadsheet tabs. JSON is a full backup you can restore later.</p>
             <button class="btn btn-danger" id="clear-btn">Clear all data</button>
           </div>
 
@@ -173,8 +158,9 @@
 
     <!-- Bottom tab bar (mobile) -->
     <nav class="tabbar">
-      <button class="tabbar-item" data-tab="pantry"><span class="nav-ico">🧺</span><span>Pantry</span></button>
+      <button class="tabbar-item" data-tab="pantry"><span class="nav-ico">🧺</span><span>Stock</span></button>
       <button class="tabbar-item" data-tab="recipes"><span class="nav-ico">📖</span><span>Recipes</span></button>
+      <button class="tabbar-item" data-tab="suppliers"><span class="nav-ico">📇</span><span>Suppliers</span></button>
       <button class="tabbar-item" data-tab="calculator"><span class="nav-ico">🧮</span><span>Calc</span></button>
       <button class="tabbar-item" data-tab="settings"><span class="nav-ico">⚙️</span><span>Settings</span></button>
     </nav>

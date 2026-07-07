@@ -19,6 +19,7 @@ $data = [
     'ingredients'        => $db->query('SELECT * FROM ingredients ORDER BY id')->fetchAll(),
     'recipes'            => $db->query('SELECT * FROM recipes ORDER BY id')->fetchAll(),
     'recipe_ingredients' => $db->query('SELECT * FROM recipe_ingredients ORDER BY id')->fetchAll(),
+    'suppliers'          => $db->query('SELECT * FROM suppliers ORDER BY id')->fetchAll(),
 ];
 
 // Send as a file download rather than inline JSON.

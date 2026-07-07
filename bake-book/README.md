@@ -25,32 +25,50 @@ bake-book/
 ├── assets/
 │   ├── css/style.css     The notebook look & feel
 │   └── js/app.js         All the app logic
+├── assets/
+│   ├── css/style.css     The notebook look & feel
+│   ├── js/app.js         All the app logic
+│   └── img/logo.png      Nunu's Bakery logo (+ favicon.png)
 └── api/                  The PHP REST API (returns JSON)
     ├── common.php        Shared: sessions, database, auth, CSRF
     ├── auth.php          Login / logout / change password / currency
-    ├── ingredients.php   Pantry items
+    ├── ingredients.php   Stock items (ingredients, packaging, consumables)
     ├── recipes.php       Recipes + live cost calculations
     ├── recipe_ingredients.php
-    ├── export.php        Download all your data as JSON
+    ├── suppliers.php     Supplier contacts
+    ├── export.php        Download all your data as JSON (backup)
+    ├── export_excel.php  Download an Excel workbook (Stock/Recipes/Costing/Suppliers)
     └── import.php        Restore from JSON / clear all data
 ```
+
+*(The `assets/css`, `assets/js` and `assets/img` lines above sit under `assets/`.)*
 
 ---
 
 ## Features at a glance
 
-- **Pantry** — add ingredients with brand, pack size (g or ml), price and stock.
-  Each card auto-shows cost per g/ml, per 500, and per kg/L. Sort by name, most
-  recent, or cheapest per kg. Low-stock warning when only 1 unit is left.
-- **Recipes** — pick ingredients from your pantry, enter quantities, and see the
-  total food cost, the cost per unit of yield, and a full breakdown table.
-  Ingredients missing from the pantry are flagged in amber.
-- **Cost Calculator** — a shopping-aisle tool: type a name, pack size and price
-  and instantly see cost per g / 500 / kg. Nothing is saved unless you tap
-  **Add to Pantry**. Works entirely offline in the browser.
-- **Settings** — change the currency label, change your password, export/import
-  your data as JSON, clear everything, and log out.
+- **Stock** — track **ingredients, packaging and consumables** with brand, the
+  **store** you bought from, pack size (grams, ml, or units/each), price and
+  quantity. Each card auto-shows cost per g/ml (or per item) and per kg/L. Filter
+  by category, sort by name / recent / cheapest per kg. Low-stock warning.
+- **Recipes** — pick items from your stock (including packaging), enter
+  quantities, and see the full costed breakdown. Choose how the yield works:
+  **either** the recipe *yields several* (so you get the cost **each**), **or** it
+  *makes one and you scale it up* (so you get the **total for the batch** you want
+  to make). Missing items are flagged in amber.
+- **Suppliers** — a contact book of your suppliers (phone, email, website, notes),
+  with tap-to-call and tap-to-email like your phone's contacts.
+- **Cost Calculator** — compare the **same item across different stores** while you
+  shop; it shows the per-kg (or per-item) cost for each and flags the cheapest.
+  Add any store's price straight to your Stock. Runs offline in the browser.
+- **Settings** — change the currency label and password, **export to Excel**
+  (Stock, Recipes, Costing and Suppliers as spreadsheet tabs), back up / restore
+  as JSON, clear everything, and log out.
 - **One shared password** for the whole household (no usernames).
+
+> **Upgrading from an earlier version?** `setup.sql` has an "UPGRADING" section at
+> the bottom with the `ALTER TABLE` lines to add the new columns and the
+> `suppliers` table without losing your data.
 
 ---
 

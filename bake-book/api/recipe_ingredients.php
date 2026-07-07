@@ -39,7 +39,7 @@ if ($method === 'POST') {
         json_response(['error' => 'recipe_id is required'], 422);
     }
     $iid  = isset($b['ingredient_id']) && $b['ingredient_id'] !== '' ? (int) $b['ingredient_id'] : null;
-    $unit = ($b['unit'] ?? 'grams') === 'ml' ? 'ml' : 'grams';
+    $unit = in_array($b['unit'] ?? 'grams', ['grams', 'ml', 'units'], true) ? $b['unit'] : 'grams';
     $stmt = $db->prepare(
         'INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity_used, unit)
          VALUES (?, ?, ?, ?)'
@@ -55,7 +55,7 @@ if ($method === 'PUT') {
         json_response(['error' => 'Valid id is required'], 422);
     }
     $iid  = isset($b['ingredient_id']) && $b['ingredient_id'] !== '' ? (int) $b['ingredient_id'] : null;
-    $unit = ($b['unit'] ?? 'grams') === 'ml' ? 'ml' : 'grams';
+    $unit = in_array($b['unit'] ?? 'grams', ['grams', 'ml', 'units'], true) ? $b['unit'] : 'grams';
     $stmt = $db->prepare(
         'UPDATE recipe_ingredients SET ingredient_id = ?, quantity_used = ?, unit = ? WHERE id = ?'
     );
