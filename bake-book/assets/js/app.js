@@ -807,5 +807,11 @@
     bootstrap();
   }
 
-  document.addEventListener('DOMContentLoaded', init);
+  // Run now if the DOM is already parsed (e.g. when the script is injected
+  // after load), otherwise wait for DOMContentLoaded.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();
