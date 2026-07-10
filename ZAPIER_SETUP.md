@@ -164,15 +164,16 @@ completions done from Todoist's side too.
 ## Zaps 5–7 — Email ingestion (Heya Outlook, JIC Outlook, Gmail)
 
 One Zap per mailbox; all three post to the same DeanOS endpoint with a
-different hard-coded `mailbox` value. The recommended trigger is
-**folder/label based**: create a folder (Outlook) or label (Gmail) called
-`DeanOS` and move/label emails you want processed — deliberate and
-low-noise. Do not trigger on every incoming email.
+different hard-coded `mailbox` value. The triggers watch the **whole
+Inbox** — the Email Processor classifies every email and files
+newsletters/notifications ("ignore") and FYIs ("reference") automatically,
+so only genuine work surfaces. Cost note: every email consumes one Zapier
+task on your plan; size the plan to your combined inbound volume.
 
 ### Zap 5 — Heya Outlook (`deano@heya.team`)
 
 **Trigger:** Microsoft Outlook → **New Email** → connect the Heya account →
-Folder: `DeanOS`.
+Folder: `Inbox`.
 
 **Action:** Webhooks by Zapier → **POST**
 
@@ -204,7 +205,7 @@ Identical to Zap 5, but connect the JIC Outlook account and set
 
 ### Zap 7 — Gmail (`dean.ormsby88@gmail.com`)
 
-**Trigger:** Gmail → **New Labeled Email** → label `DeanOS`.
+**Trigger:** Gmail → **New Email** → Label/Mailbox: `INBOX`.
 Action identical to Zap 5 with `mailbox` = `personal`.
 
 ### What DeanOS does with each email

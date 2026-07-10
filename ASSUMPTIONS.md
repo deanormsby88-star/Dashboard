@@ -71,9 +71,13 @@ brief, recorded per §28. Flag anything here that should change.
     Personal. Used to infer mailbox context and direction when a Zap omits
     them; each Zap also sets `mailbox` explicitly.
 
-15. **Email ingestion is folder/label driven, not full-mailbox.** Only
-    emails moved to the `DeanOS` folder (Outlook) or label (Gmail) are
-    processed, per the brief's "do not ingest entire mailbox histories".
+15. **Email ingestion watches the whole Inbox** (Dean's explicit choice,
+    2026-07-10, superseding the folder-based default): every incoming email
+    is classified by the Email Processor, which auto-files
+    newsletters/notifications. Mailbox *histories* are still not imported —
+    only new mail from the moment the Zaps go live. The email classifier
+    runs on `gpt-4.1-mini` to keep per-email cost negligible
+    (OPENAI_MODEL_EMAIL_PROCESSOR).
 
 16. **Email bodies are stored truncated (20k chars, HTML stripped)** and
     only the first 6k go to OpenAI. The mail platform remains the archive.
