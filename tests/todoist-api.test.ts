@@ -55,6 +55,11 @@ describe("buildTodoistCreateBody", () => {
     expect(body).not.toHaveProperty("project_id");
   });
 
+  it("formats Date-object due dates as YYYY-MM-DD (pg returns Date columns as Dates)", () => {
+    const body = buildTodoistCreateBody(makeTask({ due_date: new Date("2026-07-15T00:00:00Z") }), heya);
+    expect(body.due_date).toBe("2026-07-15");
+  });
+
   it("includes due_date and labels only when present", () => {
     const withDue = buildTodoistCreateBody(
       makeTask({ due_date: "2026-07-15" as unknown as Date, labels: ["finance"] }),

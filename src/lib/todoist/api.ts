@@ -25,9 +25,15 @@ export function buildTodoistCreateBody(task: Task, business: Business | null): R
   };
   // Personal has no validated project ID — omitting project_id targets the Inbox.
   if (business?.todoist_project_id) body.project_id = business.todoist_project_id;
-  if (task.due_date) body.due_date = String(task.due_date).slice(0, 10);
+  if (task.due_date) body.due_date = toIsoDate(task.due_date);
   if (task.labels.length > 0) body.labels = task.labels;
   return body;
+}
+
+/** pg returns date columns as Date objects; Todoist wants YYYY-MM-DD. */
+function toIsoDate(value: Date | string): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
 }
 
 async function todoistFetch(path: string, init: RequestInit): Promise<Response> {
