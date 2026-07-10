@@ -2,12 +2,13 @@ import { getEnv } from "@/lib/env";
 import type { Business, Task } from "@/lib/types";
 
 /**
- * Direct Todoist REST v2 client. Used when TODOIST_API_TOKEN is configured —
- * no Zapier tasks consumed, and the created task's ID/URL come back
- * synchronously. Priority semantics match DeanOS/Todoist API: 4 = urgent.
+ * Direct Todoist API client (unified /api/v1, successor to REST v2 which
+ * now returns 410). Used when TODOIST_API_TOKEN is configured — no Zapier
+ * tasks consumed, and the created task's ID/URL come back synchronously.
+ * Priority semantics match DeanOS/Todoist API: 4 = urgent.
  */
 
-const BASE = "https://api.todoist.com/rest/v2";
+const BASE = "https://api.todoist.com/api/v1";
 
 export interface TodoistApiResult {
   ok: boolean;
