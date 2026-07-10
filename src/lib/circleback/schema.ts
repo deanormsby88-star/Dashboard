@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 
 /**
@@ -101,7 +102,7 @@ export function normalizeCirclebackPayload(raw: unknown): NormalizeResult {
   }
   const r = raw as Record<string, unknown>;
 
-  const meetingId = asString(
+  let meetingId = asString(
     firstValue(r, ["meetingId", "meeting_id", "meetingID", "id"])
   );
   const title = asString(firstValue(r, ["title", "meetingTitle", "meeting_title", "name"]));
@@ -114,8 +115,15 @@ export function normalizeCirclebackPayload(raw: unknown): NormalizeResult {
   const attendees = asAttendees(firstValue(r, ["attendees", "participants", "attendee_names"]));
   const actionItems = asStringList(firstValue(r, ["actionItems", "action_items", "actions"]));
 
-  if (!meetingId) return { ok: false, error: "Missing meeting ID (expected meetingId / meeting_id / id)." };
   if (!title) return { ok: false, error: "Missing meeting title." };
+
+  // Circleback's Zapier feed does not always include a meeting ID. Derive a
+  // stable one from title + date + a content prefix, so replays of the same
+  // payload map to the same meeting while different meetings stay distinct.
+  if (!meetingId) {
+    const basis = [title, meetingDate ?? "", (notes + transcript).slice(0, 500)].join("|");
+    meetingId = `derived-${createHash("sha256").update(basis).digest("hex").slice(0, 24)}`;
+  }
   if (!notes && !transcript && actionItems.length === 0) {
     return { ok: false, error: "Payload has no notes, transcript, or action items — nothing to process." };
   }

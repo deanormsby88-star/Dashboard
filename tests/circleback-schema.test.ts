@@ -27,10 +27,27 @@ describe("normalizeCirclebackPayload", () => {
     expect(p.actionItems).toEqual(["Approve supplier artwork", "Chase freight quote"]);
   });
 
-  it("rejects payloads without a meeting ID", () => {
+  it("derives a stable meeting ID when the payload has none (real Circleback feeds omit it)", () => {
+    const payload = {
+      title: "Heya Team - IT Monthly Call",
+      meetingDate: "2026-07-09T15:31:02.967Z",
+      notes: "Some notes",
+      transcript: "Some transcript",
+    };
+    const a = normalizeCirclebackPayload(payload);
+    const b = normalizeCirclebackPayload({ ...payload });
+    expect(a.ok).toBe(true);
+    expect(a.payload!.meetingId).toMatch(/^derived-[0-9a-f]{24}$/);
+    // Same payload → same ID (replay-safe); different meeting → different ID.
+    expect(a.payload!.meetingId).toBe(b.payload!.meetingId);
+    const other = normalizeCirclebackPayload({ ...payload, title: "JIC supplier call" });
+    expect(other.payload!.meetingId).not.toBe(a.payload!.meetingId);
+  });
+
+  it("still rejects contentless payloads", () => {
     const result = normalizeCirclebackPayload(invalid);
     expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/meeting ID/i);
+    expect(result.error).toMatch(/nothing to process/i);
   });
 
   it("rejects payloads with no content at all", () => {
