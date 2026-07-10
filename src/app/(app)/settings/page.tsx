@@ -30,19 +30,15 @@ export default async function SettingsPage() {
         "Outbound: meeting title, notes, transcript, attendee names and action items are sent to the OpenAI API for extraction. Nothing else leaves DeanOS.",
     },
     {
-      name: "Todoist create (via Zapier)",
+      name: "Todoist (direct API)",
+      configured: status.TODOIST_API_TOKEN,
+      detail:
+        "Outbound: approved tasks are created, updated and completed directly via the Todoist API — no Zapier tasks consumed. When not configured, the Zapier hooks below are used instead.",
+    },
+    {
+      name: "Todoist via Zapier (fallback)",
       configured: status.ZAPIER_TODOIST_CREATE_HOOK_URL,
-      detail: `Outbound: approved tasks post to the Zapier Catch Hook; Zapier calls back to POST ${appUrl}/api/webhooks/zapier/todoist with the Todoist task ID.`,
-    },
-    {
-      name: "Todoist update (via Zapier)",
-      configured: status.ZAPIER_TODOIST_UPDATE_HOOK_URL,
-      detail: "Outbound: task updates (priority, date, title, notes, project).",
-    },
-    {
-      name: "Todoist complete (via Zapier)",
-      configured: status.ZAPIER_TODOIST_COMPLETE_HOOK_URL,
-      detail: "Outbound: task completions.",
+      detail: `Outbound fallback: Catch Hooks for create/update/complete; Zapier calls back to POST ${appUrl}/api/webhooks/zapier/todoist with the Todoist task ID.`,
     },
     {
       name: "Email ingestion (Heya / JIC / Gmail via Zapier)",

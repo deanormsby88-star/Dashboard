@@ -2,10 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { requireSession } from "@/lib/auth/require-session";
-import { businessByKey, ensureOwner, insertTask } from "@/lib/db/repo";
+import { businessByKey, ensureOwner, insertTask, markTaskCreatedByDedupKey, setTaskStatus } from "@/lib/db/repo";
 import { normalizeTitle } from "@/lib/dedup";
-import { buildCreateRequest, sendTodoistCreate } from "@/lib/todoist/zapier";
-import { setTaskStatus } from "@/lib/db/repo";
+import { executeCreate } from "@/lib/todoist/execute";
 
 export const runtime = "nodejs";
 
@@ -77,10 +76,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await sendTodoistCreate(buildCreateRequest(task, business));
+  const result = await executeCreate(task, business);
   if (!result.ok) {
     const failed = await setTaskStatus(task.id, "failed", result.error);
     return NextResponse.json({ error: result.error, task: failed }, { status: 502 });
+  }
+  if (result.created) {
+    const created = await markTaskCreatedByDedupKey({
+      taskId: task.id,
+      todoistTaskId: result.created.todoistTaskId,
+      todoistTaskUrl: result.created.todoistTaskUrl,
+    });
+    return NextResponse.json({ ok: true, task: created });
   }
   const sent = await setTaskStatus(task.id, "sent");
   return NextResponse.json({ ok: true, task: sent });

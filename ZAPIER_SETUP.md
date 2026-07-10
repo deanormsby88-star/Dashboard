@@ -218,6 +218,36 @@ was waiting for — automatically marks the matching waiting-on item done and
 completes its follow-up task in Todoist (via Zap 4, if configured). Results
 land in **Inbox** in the app.
 
+## Running on a small Zapier plan (750 tasks/month)
+
+Every action step that runs consumes one Zapier task, so on a small plan:
+
+1. **Todoist: skip Zapier entirely.** Set `TODOIST_API_TOKEN` (Todoist →
+   Settings → Integrations → Developer → API token) and DeanOS talks to
+   Todoist directly — Zaps 2–4 can be switched off. Zero tasks.
+2. **Gmail: skip Zapier entirely.** Use the free Google Apps Script in
+   `scripts/gmail-forwarder.gs` (setup instructions at the top of the file).
+   Zero tasks.
+3. **Circleback: try its native webhook step.** In the Circleback
+   automation, if the step list offers "Webhook" (not just "Send to
+   Zapier"), point it at
+   `https://<your-app>/api/webhooks/zapier/circleback?secret=<ZAPIER_WEBHOOK_SECRET>`
+   — the `?secret=` form exists because native webhook steps often can't
+   set headers. Zero tasks. Otherwise keep Zap 1 (meetings are low volume).
+4. **Outlook: add a free Filter step** between trigger and POST in Zaps 5–6.
+   Filters cost nothing and emails they stop are never billed. Suggested
+   conditions (Continue only if ALL are true):
+   - Sender **does not contain** `no-reply`
+   - Sender **does not contain** `noreply`
+   - Sender **does not contain** `notifications@`
+   - Body **does not contain** `unsubscribe`
+
+   The AI still classifies everything that passes; the filter only removes
+   traffic that would obviously be classified "ignore" anyway.
+
+With 1–4 in place, the whole plan is spent on human Outlook email only
+(~25/day across both accounts on a 750 plan).
+
 ## Todoist project IDs
 
 ```text

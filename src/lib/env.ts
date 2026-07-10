@@ -18,6 +18,9 @@ const envSchema = z.object({
   ZAPIER_TODOIST_CREATE_HOOK_URL: z.string().url().optional(),
   ZAPIER_TODOIST_UPDATE_HOOK_URL: z.string().url().optional(),
   ZAPIER_TODOIST_COMPLETE_HOOK_URL: z.string().url().optional(),
+  // Direct Todoist REST API. When set, Todoist execution bypasses Zapier
+  // entirely (no per-task Zapier cost, synchronous task IDs).
+  TODOIST_API_TOKEN: z.string().min(1).optional(),
 
   APP_URL: z.string().url().default("http://localhost:3000"),
   SESSION_SECRET: z
@@ -58,6 +61,7 @@ export function envStatus(): Record<string, boolean> {
     "ZAPIER_TODOIST_CREATE_HOOK_URL",
     "ZAPIER_TODOIST_UPDATE_HOOK_URL",
     "ZAPIER_TODOIST_COMPLETE_HOOK_URL",
+    "TODOIST_API_TOKEN",
     "APP_URL",
     "SESSION_SECRET",
     "DEANOS_EMAIL",

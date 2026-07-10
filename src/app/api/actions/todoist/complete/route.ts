@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/require-session";
 import { completeTaskByTodoistId } from "@/lib/db/repo";
-import { sendTodoistComplete } from "@/lib/todoist/zapier";
+import { executeComplete } from "@/lib/todoist/execute";
 
 export const runtime = "nodejs";
 
@@ -19,10 +19,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "todoist_task_id is required." }, { status: 400 });
   }
 
-  const result = await sendTodoistComplete({
-    action: "complete",
-    todoist_task_id: parsed.data.todoist_task_id,
-  });
+  const result = await executeComplete(parsed.data.todoist_task_id);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
 
   // Reflect locally right away; the Zapier callback is the authoritative echo.

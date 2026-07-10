@@ -96,3 +96,17 @@ brief, recorded per §28. Flag anything here that should change.
 19. **Todoist reconciliation beyond completion callbacks** (two-way sync of
     edits made inside Todoist) is deferred to a later phase; the Zap 4
     callback already reflects completions done in Todoist.
+
+20. **Todoist execution prefers the direct REST API** (`TODOIST_API_TOKEN`)
+    over Zapier, superseding the brief's "initially through Zapier": Dean's
+    750-task/month Zapier plan made per-task Zapier execution untenable
+    (2026-07-10). The Zapier hook path remains as a fallback.
+
+21. **The webhook secret is accepted via `?secret=` query parameter** as
+    well as the header, for senders that can't set headers (Circleback's
+    native webhook step, simple scripts). See SECURITY.md for the
+    trade-off.
+
+22. **Gmail ingestion runs on a free Google Apps Script**
+    (`scripts/gmail-forwarder.gs`) instead of a Zapier Zap, polling every
+    5 minutes.

@@ -28,7 +28,7 @@ import {
   setEmailProcessing,
   setTaskStatus,
 } from "@/lib/db/repo";
-import { sendTodoistComplete } from "@/lib/todoist/zapier";
+import { executeComplete } from "@/lib/todoist/execute";
 
 const AI_BODY_LIMIT = 6_000;
 
@@ -256,7 +256,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
       if (task?.status === "suggested" || task?.status === "approved") {
         await setTaskStatus(task.id, "rejected", "Resolved by email reply — follow-up no longer needed.");
       } else if (task?.status === "created" && task.todoist_task_id) {
-        const sent = await sendTodoistComplete({ action: "complete", todoist_task_id: task.todoist_task_id });
+        const sent = await executeComplete(task.todoist_task_id);
         if (sent.ok) await completeTaskByTodoistId(task.todoist_task_id);
       }
     }

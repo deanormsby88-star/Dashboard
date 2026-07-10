@@ -33,6 +33,11 @@ data leaves which system.
   rotated if a Zap is ever shared or exported.
 - All authenticated-but-invalid requests are preserved in `webhook_events`
   with the raw body for inspection — nothing is silently dropped.
+- Fallback: the shared secret is also accepted as a `?secret=` query
+  parameter, because some senders (Circleback's native webhook step) cannot
+  set custom headers. Trade-off: URLs are more likely than headers to end
+  up in intermediary logs. Prefer the header wherever the sender supports
+  it, and rotate the secret if a URL containing it is ever shared.
 
 ## Data flows (what leaves which system)
 

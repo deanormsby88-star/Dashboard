@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { requireSession } from "@/lib/auth/require-session";
-import { sendTodoistUpdate } from "@/lib/todoist/zapier";
+import { executeUpdate } from "@/lib/todoist/execute";
 
 export const runtime = "nodejs";
 
@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await sendTodoistUpdate({ action: "update", ...parsed.data });
+  const { todoist_task_id, ...fields } = parsed.data;
+  const result = await executeUpdate({ todoistTaskId: todoist_task_id, ...fields });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
   return NextResponse.json({ ok: true });
 }
