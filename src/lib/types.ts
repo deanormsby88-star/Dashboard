@@ -141,6 +141,41 @@ export interface Interaction {
   created_at: Date;
 }
 
+export type EmailClassification =
+  | "ignore"
+  | "action"
+  | "waiting_on"
+  | "risk"
+  | "reference"
+  | "relationship_update";
+
+export interface Email {
+  id: string;
+  user_id: string;
+  business_id: string | null;
+  mailbox: BusinessKey;
+  direction: "inbound" | "outbound";
+  sender: string;
+  recipients: string[];
+  subject: string;
+  body_text: string;
+  email_date: Date | null;
+  thread_id: string | null;
+  message_id: string;
+  source_url: string | null;
+  flags: string[];
+  attachments: unknown;
+  classification: EmailClassification | null;
+  confidence: number | null;
+  summary: string | null;
+  suggested_task_id: string | null;
+  processing_status: ProcessingStatus;
+  processing_error: string | null;
+  resolved: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export type WebhookEventStatus = "received" | "processed" | "duplicate" | "failed";
 
 export interface WebhookEvent {

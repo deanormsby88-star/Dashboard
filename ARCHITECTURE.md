@@ -131,10 +131,29 @@ window, the next step is a queue table drained by a scheduled invocation —
 the pipeline is already split (`ingest` vs `processMeeting`) to make that a
 small change.
 
+## Data flow: email (Phase 2)
+
+```text
+Email moved to the DeanOS folder/label (Heya Outlook, JIC Outlook, Gmail)
+  → per-mailbox Zap POSTs to /api/webhooks/zapier/email with its mailbox context
+  → same webhook guarantees as Circleback (secret, idempotency, raw storage)
+  → Email Processor classifies: action / waiting_on / risk / reference /
+    relationship_update / ignore  (src/lib/ai/prompts/email-processor.ts)
+  → action → suggested task; waiting_on → to_dean commitment + "Follow up:" task;
+    risk/relationship updates recorded; ignore/reference auto-filed
+  → inbound replies that substantively deliver an awaited item mark the
+    matching waiting-on commitment done and complete its Todoist task
+  → everything surfaces in the Inbox page (mark handled / retry / reopen)
+```
+
+Email-specific modules: `lib/email/schema.ts` (normalizer, mailbox/direction
+inference, HTML stripping), `lib/ingest/email.ts`, `lib/processors/email.ts`,
+`app/api/webhooks/zapier/email`, `app/api/emails/[id]/{process,resolve}`.
+
 ## Phase boundaries
 
-Phase 1 (this build): Circleback → review → Todoist, end to end.
-Phase 2: email ingestion + processor, waiting-on tracking, reconciliation.
+Phase 1: Circleback → review → Todoist, end to end. ✅
+Phase 2: email ingestion + processor, waiting-on tracking + resolution. ✅
 Phase 3: calendar, meeting prep, people profiles, public research.
 Phase 4: Today dashboard (Top 3), prioritizer, assistant commands, daily brief.
 

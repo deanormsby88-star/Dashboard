@@ -45,9 +45,9 @@ export default async function SettingsPage() {
       detail: "Outbound: task completions.",
     },
     {
-      name: "Email ingestion (Heya / JIC / Gmail)",
-      configured: false,
-      detail: "Phase 2 — not yet built.",
+      name: "Email ingestion (Heya / JIC / Gmail via Zapier)",
+      configured: status.ZAPIER_WEBHOOK_SECRET,
+      detail: `Inbound: POST ${appUrl}/api/webhooks/zapier/email — flagged/foldered emails flow from each mailbox's Zap with its business context. Bodies are stored truncated; the mail platform stays the system of record.`,
     },
     {
       name: "Calendar sync",
@@ -115,9 +115,10 @@ export default async function SettingsPage() {
                     <span className="text-xs text-slate-500 dark:text-slate-400">
                       {formatDateTime(e.received_at)}
                     </span>
-                    {e.status === "failed" && e.endpoint === "zapier/circleback" && (
-                      <RetryWebhookButton eventId={e.id} />
-                    )}
+                    {e.status === "failed" &&
+                      ["zapier/circleback", "zapier/email"].includes(e.endpoint) && (
+                        <RetryWebhookButton eventId={e.id} />
+                      )}
                   </div>
                 </div>
                 {e.error && <p className="text-xs text-red-600 dark:text-red-400">{e.error}</p>}

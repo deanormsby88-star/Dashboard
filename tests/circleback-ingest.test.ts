@@ -167,7 +167,7 @@ describe("ingestCircleback", () => {
   it("records structurally invalid payloads as failed events with a readable error", async () => {
     const result = await ingestCircleback(headers(), JSON.stringify({ title: "No ID" }));
     expect(result.status).toBe(422);
-    expect(result.body.error).toMatch(/meeting ID/i);
+    expect(result.body.error).toMatch(/nothing to process/i);
     const evt = [...state.webhookEvents.values()][0];
     expect(evt.status).toBe("failed");
   });

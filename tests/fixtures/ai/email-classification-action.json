@@ -1,0 +1,15 @@
+{
+  "classification": "action",
+  "confidence": 0.92,
+  "summary": "Sam Simon (Anchor Offices) is asking Dean to send the AI tool options before their board meeting on Friday 17 July.",
+  "suggested_task": {
+    "title": "Send Sam AI tool options",
+    "description": "Sam Simon at Anchor Offices asked for the AI tool options discussed on the call, needed before their board meeting.",
+    "priority": 3,
+    "due_date": "2026-07-17"
+  },
+  "waiting_on": null,
+  "risk": null,
+  "relationship_update": null,
+  "resolves_waiting_on_ids": []
+}

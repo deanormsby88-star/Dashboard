@@ -62,3 +62,33 @@ brief, recorded per §28. Flag anything here that should change.
 13. **The Personal Todoist project maps to the Inbox** (empty project_id)
     until a validated Personal project ID exists, exactly as the brief
     specifies.
+
+## Phase 2 (email)
+
+14. **Dean's mailbox→business map is a code constant**
+    (`src/lib/email/schema.ts`): deano@heya.team → Heya,
+    dean@justimagineconsulting.co.za → JIC, dean.ormsby88@gmail.com →
+    Personal. Used to infer mailbox context and direction when a Zap omits
+    them; each Zap also sets `mailbox` explicitly.
+
+15. **Email ingestion is folder/label driven, not full-mailbox.** Only
+    emails moved to the `DeanOS` folder (Outlook) or label (Gmail) are
+    processed, per the brief's "do not ingest entire mailbox histories".
+
+16. **Email bodies are stored truncated (20k chars, HTML stripped)** and
+    only the first 6k go to OpenAI. The mail platform remains the archive.
+
+17. **Waiting-on resolution is automatic.** When an inbound email
+    substantively delivers what an open waiting-on item awaited, the
+    commitment is marked done and its follow-up task is completed in
+    Todoist (when the complete hook is configured) without a review step.
+    The prompt is instructed to be conservative (acknowledgments don't
+    resolve); revisit if it over-resolves in practice.
+
+18. **Derived message IDs**: when a mail integration doesn't expose a
+    message ID, a deterministic one is derived from sender + subject +
+    date + body prefix, keeping replays idempotent.
+
+19. **Todoist reconciliation beyond completion callbacks** (two-way sync of
+    edits made inside Todoist) is deferred to a later phase; the Zap 4
+    callback already reflects completions done in Todoist.

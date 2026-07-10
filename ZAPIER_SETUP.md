@@ -1,9 +1,9 @@
-# Zapier Setup for DeanOS (Phase 1)
+# Zapier Setup for DeanOS
 
-Three Zaps make the Phase 1 loop work: Circleback ingestion (Zap 1), Todoist
-task creation with callback (Zap 2), and optionally Todoist update/complete
-executors (Zaps 3–4). Email, calendar and the daily brief (Zaps 5–9 in the
-brief) are later phases.
+Phase 1 Zaps: Circleback ingestion (Zap 1), Todoist task creation with
+callback (Zap 2), optional Todoist update/complete executors (Zaps 3–4).
+Phase 2 Zaps: email ingestion for Heya Outlook, JIC Outlook and Gmail
+(Zaps 5–7, below). Calendar and the daily brief are later phases.
 
 ## Prerequisites
 
@@ -160,6 +160,62 @@ Optionally add the same callback step as Zap 2 with
 completions done from Todoist's side too.
 
 ---
+
+## Zaps 5–7 — Email ingestion (Heya Outlook, JIC Outlook, Gmail)
+
+One Zap per mailbox; all three post to the same DeanOS endpoint with a
+different hard-coded `mailbox` value. The recommended trigger is
+**folder/label based**: create a folder (Outlook) or label (Gmail) called
+`DeanOS` and move/label emails you want processed — deliberate and
+low-noise. Do not trigger on every incoming email.
+
+### Zap 5 — Heya Outlook (`deano@heya.team`)
+
+**Trigger:** Microsoft Outlook → **New Email** → connect the Heya account →
+Folder: `DeanOS`.
+
+**Action:** Webhooks by Zapier → **POST**
+
+- URL: `https://deanos-nu.vercel.app/api/webhooks/zapier/email`
+- Payload Type: `json`
+- Data:
+
+  | name | value |
+  |---|---|
+  | `mailbox` | type `heya` |
+  | `from` | sender/from field |
+  | `to` | recipient(s) field |
+  | `subject` | subject |
+  | `body` | body (plain text if offered, otherwise HTML body — DeanOS strips HTML) |
+  | `date` | received date/time |
+  | `messageId` | Message ID / Internet Message ID (skip if not offered) |
+  | `threadId` | Conversation ID (skip if not offered) |
+  | `sourceUrl` | web link to the email (skip if not offered) |
+
+- Headers:
+  - `X-DeanOS-Secret: <secret>`
+  - `X-Idempotency-Key`: the Message ID field (skip if not offered — DeanOS
+    derives one)
+
+### Zap 6 — JIC Outlook (`dean@justimagineconsulting.co.za`)
+
+Identical to Zap 5, but connect the JIC Outlook account and set
+`mailbox` = `jic`.
+
+### Zap 7 — Gmail (`dean.ormsby88@gmail.com`)
+
+**Trigger:** Gmail → **New Labeled Email** → label `DeanOS`.
+Action identical to Zap 5 with `mailbox` = `personal`.
+
+### What DeanOS does with each email
+
+The Email Processor classifies it (Action / Waiting On / Risk / Reference /
+Relationship Update / Ignore), suggests a task where warranted (never for
+newsletters or notifications, never inventing deadlines), records waiting-on
+items, and — for inbound replies that substantively deliver something Dean
+was waiting for — automatically marks the matching waiting-on item done and
+completes its follow-up task in Todoist (via Zap 4, if configured). Results
+land in **Inbox** in the app.
 
 ## Todoist project IDs
 

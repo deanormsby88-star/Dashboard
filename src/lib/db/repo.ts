@@ -6,6 +6,8 @@ import type {
   BusinessKey,
   Commitment,
   Decision,
+  Email,
+  EmailClassification,
   Interaction,
   Meeting,
   Person,
@@ -646,6 +648,142 @@ export async function listInteractionsForMeeting(meetingId: string): Promise<Int
     [meetingId]
   );
   return res.rows;
+}
+
+// ── Emails ───────────────────────────────────────────────────────────────────
+
+export async function upsertEmail(params: {
+  userId: string;
+  businessId: string | null;
+  mailbox: BusinessKey;
+  direction: "inbound" | "outbound";
+  sender: string;
+  recipients: string[];
+  subject: string;
+  bodyText: string;
+  emailDate: Date | null;
+  threadId: string | null;
+  messageId: string;
+  sourceUrl: string | null;
+  flags: string[];
+  attachments: unknown | null;
+}): Promise<{ email: Email; created: boolean }> {
+  const res = await getPool().query<Email & { inserted: boolean }>(
+    `insert into emails
+       (user_id, business_id, mailbox, direction, sender, recipients, subject, body_text,
+        email_date, thread_id, message_id, source_url, flags, attachments)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     on conflict (user_id, message_id) do update set
+       flags = excluded.flags,
+       updated_at = now()
+     returning *, (xmax = 0) as inserted`,
+    [
+      params.userId,
+      params.businessId,
+      params.mailbox,
+      params.direction,
+      params.sender,
+      params.recipients,
+      params.subject,
+      params.bodyText,
+      params.emailDate,
+      params.threadId,
+      params.messageId,
+      params.sourceUrl,
+      params.flags,
+      params.attachments === null ? null : JSON.stringify(params.attachments),
+    ]
+  );
+  const row = res.rows[0];
+  return { email: row, created: row.inserted };
+}
+
+export async function getEmail(id: string): Promise<Email | null> {
+  const res = await getPool().query<Email>(`select * from emails where id = $1`, [id]);
+  return res.rows[0] ?? null;
+}
+
+export async function listEmails(filter?: {
+  unresolvedOnly?: boolean;
+  limit?: number;
+}): Promise<Email[]> {
+  const where = filter?.unresolvedOnly
+    ? `where resolved = false and (classification is null or classification not in ('ignore','reference'))`
+    : "";
+  const res = await getPool().query<Email>(
+    `select * from emails ${where} order by coalesce(email_date, created_at) desc limit $1`,
+    [filter?.limit ?? 100]
+  );
+  return res.rows;
+}
+
+export async function setEmailProcessing(
+  id: string,
+  status: Email["processing_status"],
+  fields?: {
+    error?: string | null;
+    classification?: EmailClassification | null;
+    confidence?: number | null;
+    summary?: string | null;
+    suggestedTaskId?: string | null;
+    resolved?: boolean;
+  }
+): Promise<void> {
+  await getPool().query(
+    `update emails set
+       processing_status = $2,
+       processing_error = $3,
+       classification = coalesce($4, classification),
+       confidence = coalesce($5, confidence),
+       summary = coalesce($6, summary),
+       suggested_task_id = coalesce($7, suggested_task_id),
+       resolved = coalesce($8, resolved),
+       updated_at = now()
+     where id = $1`,
+    [
+      id,
+      status,
+      fields?.error ?? null,
+      fields?.classification ?? null,
+      fields?.confidence ?? null,
+      fields?.summary ?? null,
+      fields?.suggestedTaskId ?? null,
+      fields?.resolved ?? null,
+    ]
+  );
+}
+
+export async function markEmailResolved(id: string, resolved: boolean): Promise<void> {
+  await getPool().query(`update emails set resolved = $2, updated_at = now() where id = $1`, [
+    id,
+    resolved,
+  ]);
+}
+
+/** Open waiting-on commitments, given to the Email Processor for resolution matching. */
+export async function listOpenWaitingOn(
+  userId: string
+): Promise<Array<{ id: string; text: string; person_name: string | null; linked_task_id: string | null }>> {
+  const res = await getPool().query<{
+    id: string;
+    text: string;
+    person_name: string | null;
+    linked_task_id: string | null;
+  }>(
+    `select id, text, person_name, linked_task_id from commitments
+     where user_id = $1 and direction = 'to_dean' and status = 'open'
+     order by created_at desc limit 100`,
+    [userId]
+  );
+  return res.rows;
+}
+
+export async function markCommitmentDone(id: string): Promise<Commitment | null> {
+  const res = await getPool().query<Commitment>(
+    `update commitments set status = 'done', updated_at = now() where id = $1 returning *`,
+    [id]
+  );
+  return res.rows[0] ?? null;
 }
 
 // ── AI runs ──────────────────────────────────────────────────────────────────

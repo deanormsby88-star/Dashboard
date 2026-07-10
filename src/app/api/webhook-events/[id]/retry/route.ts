@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth/require-session";
 import { getWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
 import { ingestCircleback, CIRCLEBACK_ENDPOINT } from "@/lib/ingest/circleback";
+import { ingestEmail, EMAIL_ENDPOINT } from "@/lib/ingest/email";
 import { getEnv } from "@/lib/env";
 import { IDEMPOTENCY_HEADER, SECRET_HEADER } from "@/lib/webhooks/security";
 
@@ -19,8 +20,18 @@ export async function POST(_request: Request, { params }: { params: { id: string
 
   const event = await getWebhookEvent(params.id);
   if (!event) return NextResponse.json({ error: "Webhook event not found." }, { status: 404 });
-  if (event.endpoint !== CIRCLEBACK_ENDPOINT) {
-    return NextResponse.json({ error: `Retry is not supported for endpoint ${event.endpoint}.` }, { status: 400 });
+
+  const ingest =
+    event.endpoint === CIRCLEBACK_ENDPOINT
+      ? ingestCircleback
+      : event.endpoint === EMAIL_ENDPOINT
+        ? ingestEmail
+        : null;
+  if (!ingest) {
+    return NextResponse.json(
+      { error: `Retry is not supported for endpoint ${event.endpoint}.` },
+      { status: 400 }
+    );
   }
 
   const rawBody = event.raw_body ?? (event.payload != null ? JSON.stringify(event.payload) : null);
@@ -32,7 +43,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
     [SECRET_HEADER]: getEnv().ZAPIER_WEBHOOK_SECRET,
     [IDEMPOTENCY_HEADER]: `retry:${event.id}:${Date.now()}`,
   });
-  const result = await ingestCircleback(headers, rawBody);
+  const result = await ingest(headers, rawBody);
 
   if (result.status === 200) {
     await updateWebhookEvent(event.id, "processed", "Resolved by manual retry.");
