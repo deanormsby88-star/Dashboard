@@ -1,0 +1,17 @@
+{
+  "meetingId": "cb-meeting-1001",
+  "title": "Heya Ops Weekly — June discrepancy review",
+  "meetingDate": "2026-07-08T10:00:00+10:00",
+  "attendees": [
+    { "name": "Dean Ormsby", "email": "deano@heya.team" },
+    { "name": "Lawrence Cole", "email": "lawrence@heya.team" },
+    { "name": "Sam Wright", "email": "sam@heya.team" }
+  ],
+  "notes": "Reviewed the June payroll discrepancy report. Dean to review the report in detail before Friday. Lawrence presenting a revised team proposal next week. Sam asked about AI automation options for candidate screening.",
+  "transcript": "Dean: Leave the June discrepancy report with me, I'll review it and get back to you by Friday.\nLawrence: I'll send over the revised team proposal by Monday.\nSam: Could you send me those AI automation options we discussed?\nDean: Sure, I'll send you the options this week.\nLawrence: One risk to flag — if the payroll discrepancy repeats in July we may have an underpayment liability issue.\nDean: Agreed, let's treat that as a decision: we're engaging the external auditor for the July run.",
+  "actionItems": [
+    "Dean to review June discrepancy report",
+    "Dean to send Sam AI automation options"
+  ],
+  "sourceUrl": "https://app.circleback.ai/meeting/cb-meeting-1001"
+}

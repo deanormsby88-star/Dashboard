@@ -1,0 +1,60 @@
+{
+  "business": "heya",
+  "summary": "Weekly Heya operations meeting covering the June payroll discrepancy, a revised team proposal from Lawrence, and AI automation options for Sam.",
+  "tasks": [
+    {
+      "title": "Review June discrepancy report",
+      "description": "Dean committed to reviewing the June payroll discrepancy report and getting back to Lawrence by Friday.",
+      "priority": 3,
+      "due_date": "2026-07-10",
+      "labels": [],
+      "origin": "both",
+      "confidence": 0.95
+    },
+    {
+      "title": "Send Sam AI automation options",
+      "description": "Sam asked for the AI automation options for candidate screening; Dean said he would send them this week.",
+      "priority": 2,
+      "due_date": null,
+      "labels": [],
+      "origin": "both",
+      "confidence": 0.9
+    }
+  ],
+  "commitments_by_dean": [
+    {
+      "text": "Review the June discrepancy report and get back to Lawrence by Friday",
+      "person": "Lawrence Cole",
+      "due_date": "2026-07-10",
+      "confidence": 0.95
+    },
+    {
+      "text": "Send Sam the AI automation options this week",
+      "person": "Sam Wright",
+      "due_date": null,
+      "confidence": 0.9
+    }
+  ],
+  "waiting_on": [
+    {
+      "text": "Lawrence to send revised team proposal",
+      "person": "Lawrence Cole",
+      "confidence": 0.85
+    }
+  ],
+  "decisions": [
+    {
+      "text": "Engage the external auditor for the July payroll run",
+      "confidence": 0.9
+    }
+  ],
+  "risks": [
+    {
+      "description": "If the payroll discrepancy repeats in July there may be an underpayment liability issue",
+      "severity": "high",
+      "confidence": 0.85
+    }
+  ],
+  "relationship_updates": [],
+  "recommended_follow_up": "Confirm the external auditor engagement before the July payroll run starts."
+}
