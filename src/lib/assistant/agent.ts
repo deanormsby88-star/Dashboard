@@ -44,8 +44,21 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.1.0";
+export const AGENT_PROMPT_VERSION = "1.2.0";
 const MAX_STEPS = 8;
+
+/** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
+function formatLocal(d: Date): string {
+  return new Date(d).toLocaleString("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
 
 const BUSINESS_ENUM = ["heya", "jic", "personal"] as const;
 
@@ -317,7 +330,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
-  • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (get their event_id from get_calendar first). ALL event times are UTC ISO 8601 — Dean speaks in local SAST (UTC+2), so convert: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
+  • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (get their event_id from get_calendar first). When telling Dean when something is, read the start_local/end_local fields from get_calendar verbatim — they are already in his local time; never re-adjust them. When BOOKING or MOVING an event, the times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
@@ -478,10 +491,14 @@ async function executeTool(
         });
       }
       return JSON.stringify({
+        timezone: "Africa/Johannesburg (SAST, UTC+2)",
+        note: "start_local/end_local are already in Dean's local time — read these out to him verbatim, do not adjust. start_utc/end_utc are for reschedule/cancel calls only.",
         events: events.map((e) => ({
           calendar: e.calendar,
           event_id: e.source_uid,
           title: e.title,
+          start_local: formatLocal(e.starts_at),
+          end_local: e.ends_at ? formatLocal(e.ends_at) : null,
           start_utc: e.starts_at,
           end_utc: e.ends_at,
           all_day: e.all_day,
