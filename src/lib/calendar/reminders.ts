@@ -6,6 +6,7 @@ import {
   type CalendarEventRow,
 } from "@/lib/db/repo";
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
+import { buildMeetingPrep } from "@/lib/calendar/prep";
 import { sendToDean } from "@/lib/telegram/notify";
 import { wazeLink } from "@/lib/maps";
 
@@ -30,7 +31,7 @@ function reminderKey(e: CalendarEventRow): string {
   return `reminder:${e.calendar}:${e.source_uid}:${new Date(e.starts_at).toISOString()}`;
 }
 
-function compose(e: CalendarEventRow, now: Date): string {
+async function compose(e: CalendarEventRow, now: Date): Promise<string> {
   const minsAway = Math.max(0, Math.round((new Date(e.starts_at).getTime() - now.getTime()) / 60_000));
   const lines = [`⏰ In ${minsAway} min · ${fmtTime(e.starts_at)} — ${e.title}`];
   if (e.location) {
@@ -38,6 +39,10 @@ function compose(e: CalendarEventRow, now: Date): string {
     lines.push(`🚗 ${wazeLink(e.location)}`);
   }
   if (e.attendees.length > 0) lines.push(`👥 ${e.attendees.slice(0, 5).join(", ")}`);
+
+  // Attach a prep pack when we hold useful context on the attendees.
+  const prep = await buildMeetingPrep(e).catch(() => null);
+  if (prep) lines.push(`\n📝 Prep:\n${prep}`);
   return lines.join("\n");
 }
 
@@ -61,7 +66,7 @@ export async function sendDueMeetingReminders(
     if (!isMeeting(e)) continue;
     const key = reminderKey(e);
     if (await getLastSyncRun(key)) continue; // already reminded
-    const ok = await sendToDean(compose(e, now));
+    const ok = await sendToDean(await compose(e, now));
     if (ok) {
       await recordSyncRun({ userId: owner.user.id, sourceSystem: key, stats: { title: e.title } });
       sent++;

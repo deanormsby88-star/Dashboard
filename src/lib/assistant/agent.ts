@@ -6,6 +6,7 @@ import { generateDailyBrief } from "@/lib/assistant/brief";
 import { normalizeTitle } from "@/lib/dedup";
 import { research } from "@/lib/research";
 import { wazeLink } from "@/lib/maps";
+import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
 import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
 import {
   createEvent,
@@ -22,10 +23,12 @@ import {
   getCommitment,
   findPersonByName,
   getOrCreatePersonByName,
+  getEmail,
   getPersonBundle,
   getRecentConversation,
   getRisk,
   getTask,
+  listEmails,
   insertAiRun,
   insertCommitment,
   insertInteraction,
@@ -45,7 +48,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.2.0";
+export const AGENT_PROMPT_VERSION = "1.3.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -213,6 +216,29 @@ const TOOLS: AgentTool[] = [
     },
   },
   {
+    name: "find_emails",
+    description:
+      "List Dean's recent unhandled emails (needing a reply or action) with ids, sender, subject and a one-line summary. Call this before drafting a reply, or when Dean asks what's in his inbox / what needs a response.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: "draft_email_reply",
+    description:
+      "Draft a reply to a specific email in Dean's voice. Returns the draft plus a one-tap send link (opens his mail app pre-filled). Get the email_id from find_emails first. Offer this whenever Dean mentions an email that needs a response.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["email_id", "guidance"],
+      properties: {
+        email_id: { type: "string" },
+        guidance: {
+          type: ["string", "null"],
+          description: "Dean's steer for the reply (e.g. 'accept but move to next week'), or null to reply on the merits.",
+        },
+      },
+    },
+  },
+  {
     name: "web_research",
     description:
       "Search the public web for current information about a person, company, topic, or news. Use for 'what's the latest on…', 'who is…', 'look up…', or to prep with public context. Pass ONLY public identifiers — never Dean's internal/confidential details.",
@@ -332,6 +358,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
+  • Email: find_emails to see what's unhandled/needs a reply; draft_email_reply to write a response in Dean's voice. Proactively offer to draft when Dean mentions an email needing a reply. Show him the draft to review and give him the one-tap send link; you can't send email directly yet, so never claim you sent it.
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
@@ -553,6 +580,35 @@ async function executeTool(
       } catch (err) {
         return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "cancel failed" });
       }
+    }
+    case "find_emails": {
+      const emails = await listEmails({ unresolvedOnly: true, limit: 20 });
+      return JSON.stringify(
+        emails.map((e) => ({
+          email_id: e.id,
+          from: e.sender,
+          mailbox: e.mailbox,
+          subject: e.subject,
+          summary: e.summary,
+          classification: e.classification,
+          date: e.email_date,
+        }))
+      );
+    }
+    case "draft_email_reply": {
+      const email = await getEmail(str(args.email_id));
+      if (!email) return JSON.stringify({ ok: false, error: "email not found — call find_emails for ids" });
+      const guidance = typeof args.guidance === "string" && args.guidance.trim() ? args.guidance.trim() : undefined;
+      const draft = await draftReply(email, guidance);
+      if (!draft) return JSON.stringify({ ok: false, error: "couldn't draft a reply just now" });
+      return JSON.stringify({
+        ok: true,
+        to: email.sender,
+        subject: /^re:/i.test(email.subject) ? email.subject : `Re: ${email.subject}`,
+        draft,
+        send_link: mailtoLink(senderAddress(email.sender), email.subject, draft),
+        note: "Show Dean the draft to review. send_link opens his mail app pre-filled for one-tap send; direct sending isn't wired yet.",
+      });
     }
     case "web_research": {
       const r = await research(str(args.query), "agent");
