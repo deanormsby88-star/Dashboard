@@ -11,6 +11,7 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
   OPENAI_MODEL_MEETING_PROCESSOR: z.string().min(1).default("gpt-4.1"),
   OPENAI_MODEL_EMAIL_PROCESSOR: z.string().min(1).default("gpt-4.1"),
+  OPENAI_MODEL_PRIORITIZER: z.string().min(1).default("gpt-4.1"),
 
   ZAPIER_WEBHOOK_SECRET: z
     .string()

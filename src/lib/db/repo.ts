@@ -834,6 +834,137 @@ export async function markCommitmentDone(id: string): Promise<Commitment | null>
   return res.rows[0] ?? null;
 }
 
+// ── Assistant support ────────────────────────────────────────────────────────
+
+export async function countUnresolvedEmails(): Promise<number> {
+  const res = await getPool().query<{ n: number }>(
+    `select count(*)::int as n from emails
+     where resolved = false and (classification is null or classification not in ('ignore','reference'))`
+  );
+  return res.rows[0].n;
+}
+
+export async function getLastSyncRun(sourceSystem: string): Promise<Date | null> {
+  const res = await getPool().query<{ started_at: Date }>(
+    `select started_at from sync_runs
+     where source_system = $1 and status = 'succeeded'
+     order by started_at desc limit 1`,
+    [sourceSystem]
+  );
+  return res.rows[0]?.started_at ?? null;
+}
+
+export async function recordSyncRun(params: {
+  userId: string;
+  sourceSystem: string;
+  stats: unknown;
+}): Promise<void> {
+  await getPool().query(
+    `insert into sync_runs (user_id, source_system, status, stats, finished_at)
+     values ($1, $2, 'succeeded', $3, now())`,
+    [params.userId, params.sourceSystem, JSON.stringify(params.stats)]
+  );
+}
+
+export interface RecentChanges {
+  tasksCreated: Array<{ title: string; status: string }>;
+  commitmentsOpened: Array<{ text: string; direction: string; person_name: string | null }>;
+  commitmentsClosed: Array<{ text: string; person_name: string | null }>;
+  risksOpened: Array<{ description: string; severity: string }>;
+  meetingsProcessed: Array<{ title: string }>;
+}
+
+export async function getChangesSince(since: Date | null): Promise<RecentChanges> {
+  const db = getPool();
+  const cutoff = since ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [tasks, opened, closed, risks, meetings] = await Promise.all([
+    db.query<{ title: string; status: string }>(
+      `select title, status from tasks where created_at > $1 order by created_at desc limit 30`,
+      [cutoff]
+    ),
+    db.query<{ text: string; direction: string; person_name: string | null }>(
+      `select text, direction, person_name from commitments where created_at > $1 order by created_at desc limit 30`,
+      [cutoff]
+    ),
+    db.query<{ text: string; person_name: string | null }>(
+      `select text, person_name from commitments where status = 'done' and updated_at > $1 order by updated_at desc limit 30`,
+      [cutoff]
+    ),
+    db.query<{ description: string; severity: string }>(
+      `select description, severity from risks where created_at > $1 order by created_at desc limit 20`,
+      [cutoff]
+    ),
+    db.query<{ title: string }>(
+      `select title from meetings where processing_status = 'processed' and updated_at > $1 order by updated_at desc limit 20`,
+      [cutoff]
+    ),
+  ]);
+  return {
+    tasksCreated: tasks.rows,
+    commitmentsOpened: opened.rows,
+    commitmentsClosed: closed.rows,
+    risksOpened: risks.rows,
+    meetingsProcessed: meetings.rows,
+  };
+}
+
+export async function findPersonByName(name: string): Promise<Person | null> {
+  const res = await getPool().query<Person>(
+    `select * from people where full_name ilike $1 order by created_at limit 1`,
+    [`%${name}%`]
+  );
+  return res.rows[0] ?? null;
+}
+
+export interface PersonBundle {
+  person: Person | null;
+  interactions: Interaction[];
+  commitments: Commitment[];
+  meetings: Array<{ title: string; meeting_date: Date | null; summary: string | null }>;
+  emails: Array<{ subject: string; summary: string | null; email_date: Date | null }>;
+}
+
+/** Everything DeanOS knows about a person, for `people` and `prep`. */
+export async function getPersonBundle(name: string): Promise<PersonBundle> {
+  const db = getPool();
+  const person = await findPersonByName(name);
+  const like = `%${name}%`;
+  const [interactions, commitments, meetings, emails] = await Promise.all([
+    db.query<Interaction>(
+      person
+        ? `select * from interactions where person_id = $1 or person_name ilike $2 order by occurred_at desc limit 20`
+        : `select * from interactions where person_name ilike $2 order by occurred_at desc limit 20`,
+      person ? [person.id, like] : [like]
+    ),
+    db.query<Commitment>(
+      person
+        ? `select * from commitments where person_id = $1 or person_name ilike $2 order by created_at desc limit 30`
+        : `select * from commitments where person_name ilike $2 order by created_at desc limit 30`,
+      person ? [person.id, like] : [like]
+    ),
+    db.query<{ title: string; meeting_date: Date | null; summary: string | null }>(
+      `select distinct m.title, m.meeting_date, m.summary
+       from meetings m join meeting_attendees a on a.meeting_id = m.id
+       where a.name ilike $1 or a.email ilike $1 or m.title ilike $1
+       order by m.meeting_date desc nulls last limit 10`,
+      [like]
+    ),
+    db.query<{ subject: string; summary: string | null; email_date: Date | null }>(
+      `select subject, summary, email_date from emails
+       where sender ilike $1 or subject ilike $1
+       order by coalesce(email_date, created_at) desc limit 10`,
+      [like]
+    ),
+  ]);
+  return {
+    person,
+    interactions: interactions.rows,
+    commitments: commitments.rows,
+    meetings: meetings.rows,
+    emails: emails.rows,
+  };
+}
+
 // ── AI runs ──────────────────────────────────────────────────────────────────
 
 export async function insertAiRun(params: {

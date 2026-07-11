@@ -150,12 +150,33 @@ Email-specific modules: `lib/email/schema.ts` (normalizer, mailbox/direction
 inference, HTML stripping), `lib/ingest/email.ts`, `lib/processors/email.ts`,
 `app/api/webhooks/zapier/email`, `app/api/emails/[id]/{process,resolve}`.
 
+## Assistant
+
+One chat surface (`/assistant`, POST `/api/assistant`) with a deterministic
+command router (`lib/assistant/commands.ts`):
+
+- Deterministic commands read straight from Postgres: `waiting`,
+  `commitments`, `risks`, `people [name]`, `slipping`, `forgetting`, `help`.
+- AI commands build a compact state snapshot (`lib/assistant/state.ts`) and
+  call versioned prompts: `focus`/`next`/`brief`/`sync` use
+  `executive-prioritizer` (strict output, brief §13 priority order);
+  `prep [x]` uses `meeting-prep` over a person bundle;
+  `capture`/`remember` use `quick-capture` and then execute (tasks go
+  straight to Todoist via the direct API); `review` and free-form questions
+  use plain-text composition grounded in the snapshot.
+- `sync` diffs against the last `sync_runs` row and reports
+  Created/Updated/Closed/Escalated + Top 3, per brief §16; quiet syncs
+  return "Sync complete. No material changes."
+- Every model call is logged to `ai_runs`. Escalation rule: waiting-on
+  items older than 3 business days are flagged everywhere they appear.
+
 ## Phase boundaries
 
 Phase 1: Circleback → review → Todoist, end to end. ✅
 Phase 2: email ingestion + processor, waiting-on tracking + resolution. ✅
-Phase 3: calendar, meeting prep, people profiles, public research.
-Phase 4: Today dashboard (Top 3), prioritizer, assistant commands, daily brief.
+Assistant (pulled forward from Phase 4): chat commands + prioritizer. ✅
+Phase 3: calendar, meeting prep enrichment (public research), people profiles.
+Phase 4 (remainder): Today dashboard Top 3 tiles, scheduled daily brief.
 
 Later-phase pages exist as clearly-labelled placeholders so the shell doesn't
 change underneath Dean as phases land.

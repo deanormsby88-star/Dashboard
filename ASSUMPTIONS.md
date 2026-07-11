@@ -110,3 +110,18 @@ brief, recorded per §28. Flag anything here that should change.
 22. **Gmail ingestion runs on a free Google Apps Script**
     (`scripts/gmail-forwarder.gs`) instead of a Zapier Zap, polling every
     5 minutes.
+
+## Assistant (pulled forward from Phase 4 at Dean's request)
+
+23. **The Assistant was built before Phase 3 (calendar)**, so calendar
+    review, meeting-prep scheduling context, workload conflicts, and public
+    research are absent; commands say so rather than guessing. `sync`
+    reconciles what exists (meetings, email, commitments, risks, Top 3).
+
+24. **`capture` executes immediately**: a captured task goes straight to
+    Todoist (Dean typed it deliberately — no review step), while
+    AI-extracted tasks from meetings/emails still require approval.
+
+25. **Conversation memory is per-page-load and client-side.** Each command
+    is stateless on the server; free-form questions are answered from the
+    live state snapshot, not chat history.
