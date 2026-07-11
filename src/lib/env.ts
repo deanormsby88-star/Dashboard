@@ -43,6 +43,9 @@ const envSchema = z.object({
   TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
   // Only this chat id may talk to the bot (Dean's private chat).
   TELEGRAM_ALLOWED_CHAT_ID: z.string().min(1).optional(),
+
+  // Shared secret for the iOS Action Button / Shortcuts voice endpoint.
+  ASSISTANT_SHORTCUT_SECRET: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -84,6 +87,7 @@ export function envStatus(): Record<string, boolean> {
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_WEBHOOK_SECRET",
     "TELEGRAM_ALLOWED_CHAT_ID",
+    "ASSISTANT_SHORTCUT_SECRET",
   ];
   return Object.fromEntries(
     keys.map((k) => [k, Boolean(process.env[k] && process.env[k]!.length > 0)])

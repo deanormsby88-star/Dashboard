@@ -8,7 +8,13 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  */
 // /api/webhooks/* (incl. Telegram) authenticate per-request with their own
 // secret; /api/telegram/setup stays session-gated (it's an admin action).
-const PUBLIC_PREFIXES = ["/login", "/api/auth/", "/api/webhooks/", "/api/cron/"];
+const PUBLIC_PREFIXES = [
+  "/login",
+  "/api/auth/",
+  "/api/webhooks/",
+  "/api/cron/",
+  "/api/assistant/shortcut", // secret-authenticated; the web /api/assistant stays gated
+];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
