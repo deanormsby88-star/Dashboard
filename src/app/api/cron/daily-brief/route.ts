@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getEnv } from "@/lib/env";
 import { generateAndStoreBrief } from "@/lib/assistant/brief";
+import { sendToDean } from "@/lib/telegram/notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +26,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const brief = await generateAndStoreBrief("cron");
-    return NextResponse.json({ ok: true, generatedFor: brief.generated_for, top3: brief.top3.length });
+    // Deliver to Telegram if the bot is connected (no-op otherwise).
+    const delivered = await sendToDean(brief.content);
+    return NextResponse.json({
+      ok: true,
+      generatedFor: brief.generated_for,
+      top3: brief.top3.length,
+      telegram: delivered,
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

@@ -34,6 +34,14 @@ const envSchema = z.object({
   // Secret for the scheduled daily-brief job. Vercel Cron sends it as a
   // Bearer token; optional so the app boots without it configured.
   CRON_SECRET: z.string().min(16).optional(),
+
+  // Telegram bot channel (all optional — the bot is off until configured).
+  TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  // Secret token registered with the webhook; Telegram echoes it in the
+  // X-Telegram-Bot-Api-Secret-Token header on every update.
+  TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
+  // Only this chat id may talk to the bot (Dean's private chat).
+  TELEGRAM_ALLOWED_CHAT_ID: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -72,6 +80,9 @@ export function envStatus(): Record<string, boolean> {
     "DEANOS_EMAIL",
     "DEANOS_PASSWORD_HASH",
     "CRON_SECRET",
+    "TELEGRAM_BOT_TOKEN",
+    "TELEGRAM_WEBHOOK_SECRET",
+    "TELEGRAM_ALLOWED_CHAT_ID",
   ];
   return Object.fromEntries(
     keys.map((k) => [k, Boolean(process.env[k] && process.env[k]!.length > 0)])

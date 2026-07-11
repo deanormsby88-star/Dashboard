@@ -6,6 +6,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  *  - /login and the auth API
  *  - /api/webhooks/* (authenticated per-request with the Zapier shared secret)
  */
+// /api/webhooks/* (incl. Telegram) authenticate per-request with their own
+// secret; /api/telegram/setup stays session-gated (it's an admin action).
 const PUBLIC_PREFIXES = ["/login", "/api/auth/", "/api/webhooks/", "/api/cron/"];
 
 export async function middleware(request: NextRequest) {

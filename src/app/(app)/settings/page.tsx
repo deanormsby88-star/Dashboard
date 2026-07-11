@@ -3,6 +3,7 @@ import { listWebhookEvents } from "@/lib/db/repo";
 import { StatusBadge } from "@/components/badges";
 import JsonViewer from "@/components/JsonViewer";
 import RetryWebhookButton from "@/components/RetryWebhookButton";
+import TelegramSetup from "@/components/TelegramSetup";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,9 @@ export default async function SettingsPage() {
     },
   ];
 
+  const telegramConfigured =
+    status.TELEGRAM_BOT_TOKEN && status.TELEGRAM_WEBHOOK_SECRET && status.TELEGRAM_ALLOWED_CHAT_ID;
+
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
@@ -88,6 +92,33 @@ export default async function SettingsPage() {
           Configuration lives in environment variables — values are never displayed here. See
           .env.example and SECURITY.md.
         </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Telegram
+        </h2>
+        <div className="card p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Chat with DeanOS on Telegram</p>
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                Two-way: message the bot to run any Assistant command, and receive the daily brief.
+                Locked to your chat only. Bot token, secret and chat ID live in environment variables.
+              </p>
+            </div>
+            <span
+              className={
+                telegramConfigured
+                  ? "badge bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                  : "badge bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+              }
+            >
+              {telegramConfigured ? "configured" : "not configured"}
+            </span>
+          </div>
+          <TelegramSetup />
+        </div>
       </section>
 
       <section className="space-y-3">

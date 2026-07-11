@@ -125,3 +125,24 @@ brief, recorded per §28. Flag anything here that should change.
 25. **Conversation memory is per-page-load and client-side.** Each command
     is stateless on the server; free-form questions are answered from the
     live state snapshot, not chat history.
+
+## Telegram channel
+
+26. **Telegram is a parallel front-end to the same Assistant engine**
+    (`runCommand`), not a separate brain. Inbound updates hit
+    `/api/webhooks/telegram`, authenticated by Telegram's
+    `X-Telegram-Bot-Api-Secret-Token` header (= `TELEGRAM_WEBHOOK_SECRET`)
+    and locked to `TELEGRAM_ALLOWED_CHAT_ID`; every other chat is declined.
+    Chosen over WhatsApp/SMS because the Bot API is free, webhook-based, and
+    needs no per-message cost or approval.
+
+27. **Replies are synchronous** within the webhook request (typing action →
+    runCommand → sendMessage → 200). Fine for a single user; `update_id` is
+    deduped via `webhook_events` so any Telegram retry can't double-process.
+
+28. **The daily-brief cron also pushes to Telegram** when configured
+    (no-op otherwise). Proactive alerts beyond the brief (e.g. instant
+    escalation pings) are a future toggle, not built yet.
+
+29. **Bot creation is Dean's step** (BotFather) — only the account owner can
+    mint the token. The webhook is registered from Settings → Telegram.
