@@ -1054,7 +1054,7 @@ export async function insertBrief(params: {
   const res = await getPool().query<BriefRow>(
     `insert into briefs (user_id, generated_for, content, top3, ignore_today, chase, recommendation, source)
      values ($1,$2,$3,$4,$5,$6,$7,$8)
-     returning id, generated_for, content, top3, ignore_today, chase, recommendation, source, created_at`,
+     returning id, to_char(generated_for, 'YYYY-MM-DD') as generated_for, content, top3, ignore_today, chase, recommendation, source, created_at`,
     [
       params.userId,
       params.generatedFor,
@@ -1071,7 +1071,7 @@ export async function insertBrief(params: {
 
 export async function getLatestBrief(): Promise<BriefRow | null> {
   const res = await getPool().query<BriefRow>(
-    `select id, generated_for, content, top3, ignore_today, chase, recommendation, source, created_at
+    `select id, to_char(generated_for, 'YYYY-MM-DD') as generated_for, content, top3, ignore_today, chase, recommendation, source, created_at
      from briefs order by created_at desc limit 1`
   );
   return res.rows[0] ?? null;
