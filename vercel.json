@@ -2,7 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/daily-brief",
-      "schedule": "0 5 * * 1-5"
+      "schedule": "0 7 * * 1-5"
+    },
+    {
+      "path": "/api/cron/meeting-reminders",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

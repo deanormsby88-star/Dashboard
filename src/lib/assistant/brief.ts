@@ -1,6 +1,28 @@
 import { buildSnapshot, type StateSnapshot } from "@/lib/assistant/state";
 import { runPrioritizer, formatTop3 } from "@/lib/assistant/prioritize";
-import { ensureOwner, insertBrief, type BriefRow } from "@/lib/db/repo";
+import { ensureOwner, insertBrief, type BriefRow, type CalendarEventRow } from "@/lib/db/repo";
+import { getToday } from "@/lib/calendar/sync";
+import { wazeLink } from "@/lib/maps";
+
+function fmtTime(d: Date): string {
+  return new Date(d).toLocaleTimeString("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function meetingLines(events: CalendarEventRow[]): string {
+  return events
+    .map((e) => {
+      const when = e.all_day ? "All day" : `${fmtTime(e.starts_at)}${e.ends_at ? `–${fmtTime(e.ends_at)}` : ""}`;
+      const loc = e.location ? ` @ ${e.location}` : "";
+      const nav = e.location ? `\n   🚗 ${wazeLink(e.location)}` : "";
+      return `- ${when} · ${e.title}${loc}${nav}`;
+    })
+    .join("\n");
+}
 
 export interface DailyBrief {
   ok: boolean;
@@ -24,6 +46,15 @@ export async function generateDailyBrief(now: Date = new Date()): Promise<DailyB
   const snapshot = await buildSnapshot(now);
   const result = await runPrioritizer(snapshot);
 
+  // Today's meetings from the calendar (best-effort — brief still works if it fails).
+  let meetings: CalendarEventRow[] = [];
+  try {
+    const owner = await ensureOwner();
+    meetings = await getToday(owner.user.id);
+  } catch {
+    /* no calendar / sync failed — omit the section */
+  }
+
   const escalations = snapshot.waiting_on.filter((w) => w.needs_escalation);
   const top3 = result.ok ? result.output.top_three : [];
   const ignoreToday = result.ok ? result.output.ignore_today : [];
@@ -33,6 +64,7 @@ export async function generateDailyBrief(now: Date = new Date()): Promise<DailyB
   const recommendation = result.ok ? result.output.recommendation : null;
 
   const parts: string[] = [`EXECUTIVE BRIEF — ${snapshot.today}`];
+  if (meetings.length > 0) parts.push(`\nToday's meetings (${meetings.length}):\n${meetingLines(meetings)}`);
   if (result.ok && top3.length > 0) parts.push(`\nTop 3:\n${formatTop3(result.output)}`);
   if (chase.length > 0) parts.push(`\nChase today:\n${chase.map((s) => `- ${s}`).join("\n")}`);
   if (escalations.length > 0)
