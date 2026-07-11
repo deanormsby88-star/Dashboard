@@ -36,32 +36,42 @@ export async function POST(request: NextRequest) {
 
   let text = "";
   let transcript: string | null = null;
-  const contentType = request.headers.get("content-type") ?? "";
+  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+
+  async function transcribe(bytes: ArrayBuffer, filename: string, mime: string): Promise<string | null> {
+    if (bytes.byteLength === 0) return null;
+    const tr = await transcribeAudio({ bytes, filename, mimeType: mime });
+    return tr.ok ? (tr.text ?? "") : null;
+  }
+
+  function extFor(mime: string): string {
+    if (mime.includes("mp4") || mime.includes("m4a") || mime.includes("aac")) return "m4a";
+    if (mime.includes("mpeg") || mime.includes("mp3")) return "mp3";
+    if (mime.includes("wav")) return "wav";
+    if (mime.includes("ogg") || mime.includes("opus")) return "ogg";
+    if (mime.includes("webm")) return "webm";
+    return "m4a";
+  }
 
   try {
     if (contentType.includes("multipart/form-data")) {
+      // Form body with a file field (audio/file) and/or a text field (message).
       const form = await request.formData();
       const file = form.get("audio") ?? form.get("file");
       const typed = form.get("message");
       if (file && typeof file !== "string") {
-        const bytes = await file.arrayBuffer();
-        const name = "name" in file && file.name ? file.name : "audio.m4a";
-        const tr = await transcribeAudio({
-          bytes,
-          filename: name,
-          mimeType: file.type || "audio/m4a",
-        });
-        if (!tr.ok || !tr.text) {
-          return NextResponse.json({ error: tr.error ?? "Could not transcribe audio." }, { status: 502 });
-        }
-        text = tr.text;
-        transcript = tr.text;
+        const mime = file.type || "audio/m4a";
+        transcript = await transcribe(await file.arrayBuffer(), "audio." + extFor(mime), mime);
       } else if (typeof typed === "string") {
         text = typed.trim();
       }
-    } else {
+    } else if (contentType.includes("application/json") || contentType.includes("text/")) {
       const body = (await request.json().catch(() => null)) as { message?: string } | null;
       text = (body?.message ?? "").trim();
+    } else {
+      // Raw file body (Shortcuts "Request Body: File") — treat as audio.
+      const mime = contentType || "audio/m4a";
+      transcript = await transcribe(await request.arrayBuffer(), "audio." + extFor(mime), mime);
     }
   } catch (err) {
     return NextResponse.json(
@@ -70,8 +80,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (transcript !== null) text = transcript;
   if (!text) {
-    return NextResponse.json({ error: "No audio or message provided." }, { status: 400 });
+    return NextResponse.json(
+      { error: "No usable audio or message. Send a recorded audio file, or JSON {\"message\":\"…\"}." },
+      { status: 400 }
+    );
   }
 
   const { reply } = await runCommand(text, "telegram");
