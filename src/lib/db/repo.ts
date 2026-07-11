@@ -335,16 +335,48 @@ export async function listTasks(filter?: { status?: TaskStatus; meetingId?: stri
   return res.rows;
 }
 
-/** Titles of tasks that still represent live work, for cross-meeting dedup. */
-export async function listActiveTaskTitles(
+/**
+ * Task titles for deduplication. Deliberately includes rejected and
+ * completed tasks: once Dean has dealt with (or dismissed) a piece of work,
+ * a near-identical suggestion must never resurface from a later email or
+ * meeting about the same matter.
+ */
+export async function listAllTaskTitles(
   userId: string
 ): Promise<Array<{ id: string; title: string }>> {
   const res = await getPool().query<{ id: string; title: string }>(
     `select id, title from tasks
-     where user_id = $1 and status in ('suggested', 'approved', 'sent', 'created')`,
+     where user_id = $1
+     order by created_at desc
+     limit 1000`,
     [userId]
   );
   return res.rows;
+}
+
+/** Reject any still-suggested tasks extracted from a given source record. */
+export async function rejectSuggestedTasksForSource(
+  userId: string,
+  sourceRecordId: string,
+  reason: string
+): Promise<number> {
+  const res = await getPool().query(
+    `update tasks set status = 'rejected', status_error = $3, updated_at = now()
+     where user_id = $1 and source_record_id = $2 and status = 'suggested'`,
+    [userId, sourceRecordId, reason]
+  );
+  return res.rowCount ?? 0;
+}
+
+/** Retry-safety: drop suggested tasks from a source before re-extracting. */
+export async function clearSuggestedTasksForSource(
+  userId: string,
+  sourceRecordId: string
+): Promise<void> {
+  await getPool().query(
+    `delete from tasks where user_id = $1 and source_record_id = $2 and status = 'suggested'`,
+    [userId, sourceRecordId]
+  );
 }
 
 export async function updateTaskFields(

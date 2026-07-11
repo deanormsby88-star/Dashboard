@@ -17,6 +17,7 @@ import {
 import clsx from "clsx";
 
 const NAV_ITEMS = [
+  { href: "/assistant", label: "Assistant", icon: MessageSquare },
   { href: "/", label: "Today", icon: Sun },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
@@ -25,7 +26,6 @@ const NAV_ITEMS = [
   { href: "/commitments", label: "Commitments", icon: Handshake },
   { href: "/risks", label: "Risks", icon: AlertTriangle },
   { href: "/businesses", label: "Businesses", icon: Briefcase },
-  { href: "/assistant", label: "Assistant", icon: MessageSquare },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

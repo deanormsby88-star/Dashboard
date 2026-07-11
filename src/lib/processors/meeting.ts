@@ -29,7 +29,7 @@ import {
   insertInteraction,
   insertRisk,
   insertTask,
-  listActiveTaskTitles,
+  listAllTaskTitles,
   setMeetingProcessing,
 } from "@/lib/db/repo";
 
@@ -158,7 +158,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
   };
 
   // Tasks: merge intra-extraction duplicates, then dedup against live tasks.
-  const existingTitles = await listActiveTaskTitles(owner.user.id);
+  const existingTitles = await listAllTaskTitles(owner.user.id);
   const mergedTasks = mergeExtractedTasks(
     output.tasks.map((t) => ({ ...t, confidence: t.confidence as number | null }))
   );

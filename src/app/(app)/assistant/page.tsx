@@ -12,8 +12,8 @@ export default function AssistantPage() {
         </p>
       </div>
       <EmptyState
-        title="Coming in Phase 4"
-        description="The Assistant will support commands like sync, brief, focus, prep, waiting, commitments, risks and quick capture. It arrives after email, calendar and the prioritizer are in place."
+        title="Next up"
+        description="The Assistant is the next phase of the build: a chat command centre supporting sync, brief, focus, prep, waiting, commitments, risks, capture and more — one place to ask anything DeanOS knows."
       />
     </div>
   );

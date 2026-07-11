@@ -12,6 +12,7 @@ import {
 import { commitmentDedupKey, findExistingDuplicate, taskDedupKey } from "@/lib/dedup";
 import {
   businessByKey,
+  clearSuggestedTasksForSource,
   completeTaskByTodoistId,
   ensureOwner,
   getEmail,
@@ -22,7 +23,7 @@ import {
   insertInteraction,
   insertRisk,
   insertTask,
-  listActiveTaskTitles,
+  listAllTaskTitles,
   listOpenWaitingOn,
   markCommitmentDone,
   setEmailProcessing,
@@ -140,7 +141,10 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   const counts = { tasks: 0, waitingOn: 0, risks: 0, relationshipUpdates: 0, resolvedWaitingOn: 0 };
   let suggestedTaskId: string | null = null;
 
-  const existingTitles = await listActiveTaskTitles(owner.user.id);
+  // Retry-safe: drop this email's still-suggested tasks before re-extracting.
+  // Rejected/created ones are kept — the dedup list below stops re-suggesting them.
+  await clearSuggestedTasksForSource(owner.user.id, email.message_id);
+  const existingTitles = await listAllTaskTitles(owner.user.id);
 
   // Action → one suggested task for Dean's review.
   if (output.classification === "action" && output.suggested_task) {
