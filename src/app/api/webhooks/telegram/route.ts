@@ -66,7 +66,6 @@ export async function POST(request: NextRequest) {
 
     // Voice note → transcribe, then treat the transcript as the message.
     let messageText = text ?? "";
-    let heardPrefix = "";
     if (!messageText && voice?.file_id) {
       const path = await getFilePath(voice.file_id);
       const bytes = path ? await downloadFile(path) : null;
@@ -87,11 +86,10 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true });
       }
       messageText = tr.text;
-      heardPrefix = `🎤 “${tr.text}”\n\n`;
     }
 
     const { reply } = await runCommand(messageText, "telegram");
-    await sendMessage(String(chatId), heardPrefix + reply);
+    await sendMessage(String(chatId), reply);
     await updateWebhookEvent(event.id, "processed");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

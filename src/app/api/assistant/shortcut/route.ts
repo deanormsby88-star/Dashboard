@@ -90,9 +90,8 @@ export async function POST(request: NextRequest) {
 
   const { reply } = await runCommand(text, "telegram");
 
-  // Mirror into Telegram so the conversation lives there too (best-effort).
-  const prefix = transcript ? `🎤 “${transcript}”\n\n` : "";
-  await sendToDean(prefix + reply).catch(() => {});
+  // Mirror the confirmation into Telegram so the conversation lives there too.
+  await sendToDean(reply).catch(() => {});
 
   return NextResponse.json({ ok: true, transcript, reply });
 }
