@@ -300,8 +300,10 @@ const TOOLS: AgentTool[] = [
   },
 ];
 
-function systemPrompt(snapshotJson: string, today: string, nowLocal: string): string {
+function systemPrompt(snapshotJson: string, today: string, nowLocal: string, connectedCalendars: string): string {
   return `You are DeanOS — Dean Ormsby's AI chief of staff, speaking with him directly over chat. Dean runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}. Current local time: ${nowLocal}. Dean's timezone is Africa/Johannesburg (UTC+2, no daylight saving).
+
+Connected calendars: ${connectedCalendars}. For ANY question about his diary, schedule, meetings, or availability, you MUST call get_calendar and answer from what it returns — never answer from memory and never say the calendar isn't connected when calendars are listed here.
 
 You are conversational, warm, and extremely concise — this is a chat, not a report. Talk like a sharp human EA: plain sentences, no markdown headers, minimal bullet points unless listing. Never dump raw data; summarise and lead with what matters.
 
@@ -320,7 +322,6 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
 - After acting, confirm briefly and specifically what you did (e.g. "Done — marked the artwork task complete in Todoist.").
-- Calendar isn't connected yet — if asked about schedule/availability, say so briefly.
 - Never fabricate facts, people, or commitments. If you don't know, say so.
 
 CURRENT SNAPSHOT (JSON):
@@ -701,8 +702,10 @@ export async function runAgent(
     hour: "2-digit",
     minute: "2-digit",
   });
+  const conns = await listCalendarConnections(owner.user.id);
+  const connectedCalendars = conns.length ? conns.map((c) => c.calendar).join(", ") : "none";
   const input: AgentInputItem[] = [
-    { role: "system", content: systemPrompt(JSON.stringify(snapshot), snapshot.today, nowLocal) },
+    { role: "system", content: systemPrompt(JSON.stringify(snapshot), snapshot.today, nowLocal, connectedCalendars) },
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: "user", content: userText },
   ];
