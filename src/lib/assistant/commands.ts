@@ -5,6 +5,7 @@ import * as meetingPrep from "@/lib/ai/prompts/meeting-prep";
 import { buildSnapshot } from "@/lib/assistant/state";
 import { runPrioritizer, formatTop3 } from "@/lib/assistant/prioritize";
 import { generateDailyBrief } from "@/lib/assistant/brief";
+import { runAgent } from "@/lib/assistant/agent";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 import { normalizeTitle } from "@/lib/dedup";
 import { createHash } from "node:crypto";
@@ -51,16 +52,30 @@ export interface AssistantReply {
   reply: string;
 }
 
+/**
+ * Recognise a message as a terse shortcut command vs. natural conversation.
+ * Commands fire only when the message is a slash-command ("/prep Lawrence")
+ * or a bare single command word ("brief", "waiting"). Everything else —
+ * including "prep Lawrence" without a slash or any real sentence — is treated
+ * as conversation and handled by the agent, so the bot reads as a chatbot.
+ */
 export function parseCommand(input: string): { cmd: string; args: string } {
-  const trimmed = input.trim();
-  const firstWord = trimmed.split(/\s+/)[0]?.toLowerCase() ?? "";
-  if ((COMMANDS as readonly string[]).includes(firstWord)) {
-    return { cmd: firstWord, args: trimmed.slice(firstWord.length).trim() };
+  let t = input.trim();
+  const isSlash = t.startsWith("/");
+  if (isSlash) t = t.slice(1).trim();
+  const firstWord = t.split(/\s+/)[0]?.toLowerCase() ?? "";
+  const rest = t.slice(firstWord.length).trim();
+  const isCommand = (COMMANDS as readonly string[]).includes(firstWord);
+  if (isCommand && (isSlash || rest === "")) {
+    return { cmd: firstWord, args: rest };
   }
-  return { cmd: "chat", args: trimmed };
+  return { cmd: "chat", args: input.trim() };
 }
 
-export async function runCommand(input: string): Promise<AssistantReply> {
+export async function runCommand(
+  input: string,
+  channel: "telegram" | "web" = "web"
+): Promise<AssistantReply> {
   const { cmd, args } = parseCommand(input);
   switch (cmd) {
     case "help":
@@ -94,7 +109,7 @@ export async function runCommand(input: string): Promise<AssistantReply> {
     case "remember":
       return capture(args, "remember");
     default:
-      return chat(args);
+      return runAgent(channel, args);
   }
 }
 
@@ -555,31 +570,4 @@ async function capture(args: string, mode: "capture" | "remember"): Promise<Assi
     sourceUrl: null,
   });
   return { reply: `Noted: ${o.note ?? args}` };
-}
-
-async function chat(question: string): Promise<AssistantReply> {
-  if (!question) return { reply: helpText() };
-  const owner = await ensureOwner();
-  const snapshot = await buildSnapshot();
-  const model = getEnv().OPENAI_MODEL_PRIORITIZER;
-  const result = await callText({
-    model,
-    system:
-      "You are DeanOS, Dean Ormsby's AI chief of staff (Heya — recruitment/HR; JIC — Just Imagine Consulting; Personal). Answer his question directly and briefly using ONLY the state snapshot provided. If the snapshot doesn't contain the answer, say what you don't have rather than guessing. Calendar data isn't connected yet (Phase 3) — say so if asked about schedule. Plain text, short lines, no markdown headers.",
-    user: `STATE SNAPSHOT (JSON):\n${JSON.stringify(snapshot)}\n\nDEAN ASKS: ${question}`,
-  });
-  await insertAiRun({
-    userId: owner.user.id,
-    promptName: "assistant-chat",
-    promptVersion: "1.0.0",
-    model,
-    input: { question },
-    rawOutput: result.rawText,
-    parsedOutput: null,
-    status: result.ok ? "ok" : "api_failed",
-    error: result.error,
-    usage: result.usage,
-  });
-  if (!result.ok || !result.rawText) return { reply: `I hit a snag answering that: ${result.error}` };
-  return { reply: result.rawText.trim() };
 }

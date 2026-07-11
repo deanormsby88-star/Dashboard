@@ -11,16 +11,20 @@ describe("parseCommand", () => {
     expect(parseCommand("  BRIEF  ")).toEqual({ cmd: "brief", args: "" });
   });
 
-  it("splits command arguments", () => {
-    expect(parseCommand("prep Lawrence Cole")).toEqual({ cmd: "prep", args: "Lawrence Cole" });
-    expect(parseCommand("capture Chase printer quote by Friday")).toEqual({
+  it("splits args for slash commands", () => {
+    expect(parseCommand("/prep Lawrence Cole")).toEqual({ cmd: "prep", args: "Lawrence Cole" });
+    expect(parseCommand("/capture Chase printer quote by Friday")).toEqual({
       cmd: "capture",
       args: "Chase printer quote by Friday",
     });
   });
 
-  it("routes everything else to chat", () => {
+  it("routes prose (including command-word-plus-text without a slash) to chat", () => {
     expect(parseCommand("who owes me money?")).toEqual({ cmd: "chat", args: "who owes me money?" });
+    expect(parseCommand("capture Chase printer quote by Friday")).toEqual({
+      cmd: "chat",
+      args: "capture Chase printer quote by Friday",
+    });
     expect(parseCommand("What should I do about the payroll issue")).toEqual({
       cmd: "chat",
       args: "What should I do about the payroll issue",

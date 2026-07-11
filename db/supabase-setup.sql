@@ -1,10 +1,7 @@
 -- DeanOS one-shot database setup for the Supabase SQL Editor (fresh installs).
 -- Paste this entire file into Supabase → SQL Editor → Run.
 
-create table if not exists schema_migrations (
-  filename   text primary key,
-  applied_at timestamptz not null default now()
-);
+create table if not exists schema_migrations (filename text primary key, applied_at timestamptz not null default now());
 
 -- DeanOS initial schema (Phase 1)
 -- Every domain table is scoped to a user_id even though the MVP is
@@ -305,5 +302,17 @@ create table briefs (
 );
 create index briefs_user_created_idx on briefs (user_id, created_at desc);
 
-insert into schema_migrations (filename) values ('0001_init.sql'), ('0002_emails.sql'), ('0003_briefs.sql')
-on conflict (filename) do nothing;
+-- Conversational memory for the Assistant (Telegram + web).
+-- Short rolling history per channel so multi-turn natural-language chat works.
+
+create table conversation_messages (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references users(id) on delete cascade,
+  channel     text not null check (channel in ('telegram', 'web')),
+  role        text not null check (role in ('user', 'assistant')),
+  content     text not null,
+  created_at  timestamptz not null default now()
+);
+create index conversation_channel_idx on conversation_messages (user_id, channel, created_at desc);
+
+insert into schema_migrations (filename) values ('0001_init.sql'),('0002_emails.sql'),('0003_briefs.sql'),('0004_conversations.sql') on conflict (filename) do nothing;

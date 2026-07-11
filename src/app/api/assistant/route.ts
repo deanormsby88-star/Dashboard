@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runCommand(parsed.data.message);
+    const result = await runCommand(parsed.data.message, "web");
     return NextResponse.json({ reply: result.reply });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

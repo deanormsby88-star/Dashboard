@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
   try {
     await sendChatAction(String(chatId), "typing");
-    const { reply } = await runCommand(text);
+    const { reply } = await runCommand(text, "telegram");
     await sendMessage(String(chatId), reply);
     await updateWebhookEvent(event.id, "processed");
   } catch (err) {

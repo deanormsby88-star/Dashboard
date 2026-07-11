@@ -1077,6 +1077,59 @@ export async function getLatestBrief(): Promise<BriefRow | null> {
   return res.rows[0] ?? null;
 }
 
+// ── Conversation memory ──────────────────────────────────────────────────────
+
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function appendConversationMessage(params: {
+  userId: string;
+  channel: "telegram" | "web";
+  role: "user" | "assistant";
+  content: string;
+}): Promise<void> {
+  await getPool().query(
+    `insert into conversation_messages (user_id, channel, role, content) values ($1,$2,$3,$4)`,
+    [params.userId, params.channel, params.role, params.content.slice(0, 8000)]
+  );
+}
+
+/** Most recent messages for a channel, oldest-first for prompting. */
+export async function getRecentConversation(
+  userId: string,
+  channel: "telegram" | "web",
+  limit = 12
+): Promise<ConversationMessage[]> {
+  const res = await getPool().query<ConversationMessage>(
+    `select role, content from (
+       select role, content, created_at from conversation_messages
+       where user_id = $1 and channel = $2
+       order by created_at desc limit $3
+     ) recent order by created_at asc`,
+    [userId, channel, limit]
+  );
+  return res.rows;
+}
+
+/** Keep the history bounded: delete all but the most recent `keep` per channel. */
+export async function pruneConversation(
+  userId: string,
+  channel: "telegram" | "web",
+  keep = 40
+): Promise<void> {
+  await getPool().query(
+    `delete from conversation_messages
+     where user_id = $1 and channel = $2 and id not in (
+       select id from conversation_messages
+       where user_id = $1 and channel = $2
+       order by created_at desc limit $3
+     )`,
+    [userId, channel, keep]
+  );
+}
+
 // ── AI runs ──────────────────────────────────────────────────────────────────
 
 export async function insertAiRun(params: {
