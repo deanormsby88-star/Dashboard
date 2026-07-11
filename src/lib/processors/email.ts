@@ -16,7 +16,7 @@ import {
   completeTaskByTodoistId,
   ensureOwner,
   getEmail,
-  getOrCreatePersonByName,
+  getOrCreatePerson,
   getTask,
   insertAiRun,
   insertCommitment,
@@ -31,6 +31,8 @@ import {
   threadHasResolvedEmail,
 } from "@/lib/db/repo";
 import { executeComplete } from "@/lib/todoist/execute";
+import { notifyNewPerson } from "@/lib/people/notify-new";
+import type { Person } from "@/lib/types";
 
 const AI_BODY_LIMIT = 6_000;
 
@@ -152,6 +154,13 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   const counts = { tasks: 0, waitingOn: 0, risks: 0, relationshipUpdates: 0, resolvedWaitingOn: 0 };
   let suggestedTaskId: string | null = null;
 
+  const newPeople = new Map<string, Person>();
+  async function personIdFor(name: string): Promise<string> {
+    const { person, created } = await getOrCreatePerson(owner.user.id, name);
+    if (created) newPeople.set(person.id, person);
+    return person.id;
+  }
+
   const existingTitles = [...allTasks];
 
   // Action → one suggested task for Dean's review.
@@ -206,7 +215,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
         suggestedTaskId = task.id;
       }
     }
-    const person = await getOrCreatePersonByName(owner.user.id, w.person);
+    const personId = await personIdFor(w.person);
     const { duplicate } = await insertCommitment({
       userId: owner.user.id,
       businessId: business?.id ?? null,
@@ -214,7 +223,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
       direction: "to_dean",
       text: w.text,
       personName: w.person,
-      personId: person.id,
+      personId,
       dateMade: emailDate,
       dueDate: null,
       confidence: output.confidence,
@@ -239,10 +248,10 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   }
 
   if (output.classification === "relationship_update" && output.relationship_update) {
-    const person = await getOrCreatePersonByName(owner.user.id, output.relationship_update.person);
+    const personId = await personIdFor(output.relationship_update.person);
     await insertInteraction({
       userId: owner.user.id,
-      personId: person.id,
+      personId,
       personName: output.relationship_update.person,
       meetingId: null,
       kind: "relationship_update",
@@ -282,6 +291,10 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
     // Ignore/reference emails need no further attention.
     resolved: output.classification === "ignore" || output.classification === "reference",
   });
+
+  for (const person of newPeople.values()) {
+    await notifyNewPerson(owner.user.id, person, business?.name ?? null).catch(() => {});
+  }
 
   return { ok: true, classification: output.classification, counts };
 }

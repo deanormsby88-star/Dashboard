@@ -635,18 +635,49 @@ export async function listRisks(): Promise<Risk[]> {
   return res.rows;
 }
 
-export async function getOrCreatePersonByName(userId: string, fullName: string): Promise<Person> {
+/** Get-or-create a person, reporting whether this call created them. */
+export async function getOrCreatePerson(
+  userId: string,
+  fullName: string
+): Promise<{ person: Person; created: boolean }> {
   const db = getPool();
   const existing = await db.query<Person>(
     `select * from people where user_id = $1 and lower(full_name) = lower($2) limit 1`,
     [userId, fullName]
   );
-  if (existing.rows.length > 0) return existing.rows[0];
+  if (existing.rows.length > 0) return { person: existing.rows[0], created: false };
   const res = await db.query<Person>(
     `insert into people (user_id, full_name) values ($1, $2) returning *`,
     [userId, fullName]
   );
-  return res.rows[0];
+  return { person: res.rows[0], created: true };
+}
+
+export async function getOrCreatePersonByName(userId: string, fullName: string): Promise<Person> {
+  return (await getOrCreatePerson(userId, fullName)).person;
+}
+
+export async function updatePerson(
+  id: string,
+  fields: { role?: string; organization?: string; email?: string; phone?: string; notes?: string }
+): Promise<Person | null> {
+  const sets: string[] = [];
+  const values: unknown[] = [id];
+  const push = (col: string, v: unknown) => {
+    values.push(v);
+    sets.push(`${col} = $${values.length}`);
+  };
+  if (fields.role !== undefined) push("role", fields.role);
+  if (fields.organization !== undefined) push("organization", fields.organization);
+  if (fields.email !== undefined) push("email", fields.email);
+  if (fields.phone !== undefined) push("phone", fields.phone);
+  if (fields.notes !== undefined) push("notes", fields.notes);
+  if (sets.length === 0) return getPerson(id);
+  const res = await getPool().query<Person>(
+    `update people set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    values
+  );
+  return res.rows[0] ?? null;
 }
 
 export async function listPeople(): Promise<Person[]> {

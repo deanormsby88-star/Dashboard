@@ -11,6 +11,7 @@ import {
   completeTaskByTodoistId,
   ensureOwner,
   getCommitment,
+  findPersonByName,
   getOrCreatePersonByName,
   getPersonBundle,
   getRecentConversation,
@@ -28,6 +29,7 @@ import {
   pruneConversation,
   setTaskStatus,
   updateCommitment,
+  updatePerson,
   updateRisk,
   updateTaskFields,
   type Owner,
@@ -106,6 +108,24 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["name"],
       properties: { name: { type: "string" } },
+    },
+  },
+  {
+    name: "update_person",
+    description:
+      "Save profile details / a bio for a person (role, company, email, phone, notes worth remembering). Use when Dean gives you facts about someone — e.g. after you asked about a newly-discovered contact.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name", "role", "organization", "email", "phone", "notes"],
+      properties: {
+        name: { type: "string", description: "The person's name as DeanOS knows them." },
+        role: { type: ["string", "null"] },
+        organization: { type: ["string", "null"] },
+        email: { type: ["string", "null"] },
+        phone: { type: ["string", "null"] },
+        notes: { type: ["string", "null"], description: "Free-text bio / anything worth remembering." },
+      },
     },
   },
   {
@@ -229,6 +249,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Tasks: create_task, and to change/finish existing ones first call find_tasks to get the id, then update_task / complete_task / approve_task / reject_task. Changes to tasks already in Todoist are pushed there automatically.
   • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
+  • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
@@ -365,6 +386,19 @@ async function executeTool(
         recent_emails: bundle.emails.map((e) => ({ subject: e.subject, summary: e.summary })),
         notes: bundle.interactions.map((i) => i.summary),
       });
+    }
+    case "update_person": {
+      const existing = await findPersonByName(str(args.name));
+      const person = existing ?? (await getOrCreatePersonByName(owner.user.id, str(args.name)));
+      const opt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+      const updated = await updatePerson(person.id, {
+        role: opt(args.role),
+        organization: opt(args.organization),
+        email: opt(args.email),
+        phone: opt(args.phone),
+        notes: opt(args.notes),
+      });
+      return JSON.stringify({ ok: true, updated: updated?.full_name ?? str(args.name) });
     }
     case "web_research": {
       const r = await research(str(args.query), "agent");

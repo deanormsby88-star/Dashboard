@@ -22,7 +22,7 @@ import {
   ensureOwner,
   getMeeting,
   getMeetingAttendees,
-  getOrCreatePersonByName,
+  getOrCreatePerson,
   insertAiRun,
   insertCommitment,
   insertDecision,
@@ -32,6 +32,8 @@ import {
   listAllTaskTitles,
   setMeetingProcessing,
 } from "@/lib/db/repo";
+import { notifyNewPerson } from "@/lib/people/notify-new";
+import type { Person } from "@/lib/types";
 
 export interface ProcessResult {
   ok: boolean;
@@ -196,6 +198,14 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
 
   const meetingDate = meeting.meeting_date ?? new Date(meeting.created_at);
 
+  // Track newly-discovered people so Dean gets one bio prompt each afterwards.
+  const newPeople = new Map<string, Person>();
+  async function personIdFor(name: string): Promise<string> {
+    const { person, created } = await getOrCreatePerson(owner.user.id, name);
+    if (created) newPeople.set(person.id, person);
+    return person.id;
+  }
+
   // Commitments Dean made — linked to the matching task when one was created.
   for (const c of output.commitments_by_dean) {
     const linkedTask =
@@ -207,7 +217,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
       direction: "by_dean",
       text: c.text,
       personName: c.person,
-      personId: c.person ? (await getOrCreatePersonByName(owner.user.id, c.person)).id : null,
+      personId: c.person ? await personIdFor(c.person) : null,
       dateMade: meetingDate,
       dueDate: c.due_date,
       confidence: c.confidence,
@@ -243,7 +253,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
         existingTitles.push({ id: inserted.id, title: inserted.title, status: inserted.status });
       }
     }
-    const person = await getOrCreatePersonByName(owner.user.id, w.person);
+    const personId = await personIdFor(w.person);
     const { duplicate } = await insertCommitment({
       userId: owner.user.id,
       businessId: business?.id ?? null,
@@ -251,7 +261,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
       direction: "to_dean",
       text: w.text,
       personName: w.person,
-      personId: person.id,
+      personId,
       dateMade: meetingDate,
       dueDate: null,
       confidence: w.confidence,
@@ -289,10 +299,10 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
   }
 
   for (const u of output.relationship_updates) {
-    const person = await getOrCreatePersonByName(owner.user.id, u.person);
+    const personId = await personIdFor(u.person);
     await insertInteraction({
       userId: owner.user.id,
-      personId: person.id,
+      personId,
       personName: u.person,
       meetingId: meeting.id,
       kind: "relationship_update",
@@ -309,6 +319,11 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
     summary: output.summary,
     recommendedFollowUp: output.recommended_follow_up,
   });
+
+  // Ask Dean for a bio on each newly-discovered contact (best-effort).
+  for (const person of newPeople.values()) {
+    await notifyNewPerson(owner.user.id, person, business?.name ?? null).catch(() => {});
+  }
 
   return { ok: true, counts };
 }
