@@ -834,6 +834,68 @@ export async function markCommitmentDone(id: string): Promise<Commitment | null>
   return res.rows[0] ?? null;
 }
 
+export async function getCommitment(id: string): Promise<Commitment | null> {
+  const res = await getPool().query<Commitment>(`select * from commitments where id = $1`, [id]);
+  return res.rows[0] ?? null;
+}
+
+export async function updateCommitment(
+  id: string,
+  fields: {
+    text?: string;
+    personName?: string | null;
+    dueDate?: string | null;
+    status?: "open" | "done" | "cancelled";
+  }
+): Promise<Commitment | null> {
+  const sets: string[] = [];
+  const values: unknown[] = [id];
+  const push = (sql: string, v: unknown) => {
+    values.push(v);
+    sets.push(`${sql} = $${values.length}`);
+  };
+  if (fields.text !== undefined) push("text", fields.text);
+  if (fields.personName !== undefined) push("person_name", fields.personName);
+  if (fields.dueDate !== undefined) push("due_date", fields.dueDate);
+  if (fields.status !== undefined) push("status", fields.status);
+  if (sets.length === 0) return getCommitment(id);
+  const res = await getPool().query<Commitment>(
+    `update commitments set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    values
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function getRisk(id: string): Promise<Risk | null> {
+  const res = await getPool().query<Risk>(`select * from risks where id = $1`, [id]);
+  return res.rows[0] ?? null;
+}
+
+export async function updateRisk(
+  id: string,
+  fields: {
+    description?: string;
+    severity?: "low" | "medium" | "high";
+    status?: "open" | "mitigated" | "closed";
+  }
+): Promise<Risk | null> {
+  const sets: string[] = [];
+  const values: unknown[] = [id];
+  const push = (sql: string, v: unknown) => {
+    values.push(v);
+    sets.push(`${sql} = $${values.length}`);
+  };
+  if (fields.description !== undefined) push("description", fields.description);
+  if (fields.severity !== undefined) push("severity", fields.severity);
+  if (fields.status !== undefined) push("status", fields.status);
+  if (sets.length === 0) return getRisk(id);
+  const res = await getPool().query<Risk>(
+    `update risks set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    values
+  );
+  return res.rows[0] ?? null;
+}
+
 // ── Assistant support ────────────────────────────────────────────────────────
 
 export async function countUnresolvedEmails(): Promise<number> {
