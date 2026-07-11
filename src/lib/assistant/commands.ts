@@ -1,9 +1,10 @@
 import { getEnv } from "@/lib/env";
 import { callStructured, callText } from "@/lib/ai/openai";
-import * as prioritizer from "@/lib/ai/prompts/executive-prioritizer";
 import * as quickCapture from "@/lib/ai/prompts/quick-capture";
 import * as meetingPrep from "@/lib/ai/prompts/meeting-prep";
-import { buildSnapshot, type StateSnapshot } from "@/lib/assistant/state";
+import { buildSnapshot } from "@/lib/assistant/state";
+import { runPrioritizer, formatTop3 } from "@/lib/assistant/prioritize";
+import { generateDailyBrief } from "@/lib/assistant/brief";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 import { normalizeTitle } from "@/lib/dedup";
 import { createHash } from "node:crypto";
@@ -237,41 +238,6 @@ async function forgetting(): Promise<AssistantReply> {
 
 // ── AI-powered commands ──────────────────────────────────────────────────────
 
-async function runPrioritizer(snapshot: StateSnapshot): Promise<
-  { ok: true; output: prioritizer.PrioritizerOutput } | { ok: false; error: string }
-> {
-  const owner = await ensureOwner();
-  const model = getEnv().OPENAI_MODEL_PRIORITIZER;
-  const result = await callStructured({
-    model,
-    system: prioritizer.SYSTEM_PROMPT,
-    user: prioritizer.buildUserMessage(JSON.stringify(snapshot)),
-    schemaName: "prioritization",
-    jsonSchema: prioritizer.prioritizerJsonSchema,
-    maxOutputTokens: 2048,
-  });
-  const parsed = result.ok && result.rawText !== null ? prioritizer.parsePrioritizerOutput(result.rawText) : null;
-  await insertAiRun({
-    userId: owner.user.id,
-    promptName: prioritizer.PROMPT_NAME,
-    promptVersion: prioritizer.PROMPT_VERSION,
-    model,
-    input: snapshot,
-    rawOutput: result.rawText,
-    parsedOutput: parsed?.ok ? parsed.output : null,
-    status: !result.ok ? "api_failed" : parsed?.ok ? "ok" : "parse_failed",
-    error: !result.ok ? result.error : parsed?.ok ? null : (parsed?.error ?? "unknown"),
-    usage: result.usage,
-  });
-  if (!result.ok || !parsed) return { ok: false, error: result.error ?? "Prioritizer call failed." };
-  if (!parsed.ok) return { ok: false, error: parsed.error };
-  return { ok: true, output: parsed.output };
-}
-
-function formatTop3(output: prioritizer.PrioritizerOutput): string {
-  return output.top_three.map((t, i) => `${i + 1}. ${t.title}\n   ${t.why}`).join("\n");
-}
-
 async function focus(single: boolean): Promise<AssistantReply> {
   const snapshot = await buildSnapshot();
   const result = await runPrioritizer(snapshot);
@@ -289,29 +255,8 @@ async function focus(single: boolean): Promise<AssistantReply> {
 }
 
 async function brief(): Promise<AssistantReply> {
-  const snapshot = await buildSnapshot();
-  const result = await runPrioritizer(snapshot);
-  const parts: string[] = [`EXECUTIVE BRIEF — ${snapshot.today}`];
-  if (result.ok) {
-    parts.push(`\nTop 3:\n${formatTop3(result.output)}`);
-    if (result.output.chase.length > 0)
-      parts.push(`\nChase today:\n${result.output.chase.map((s) => `- ${s}`).join("\n")}`);
-  }
-  const escalations = snapshot.waiting_on.filter((w) => w.needs_escalation);
-  if (escalations.length > 0)
-    parts.push(
-      `\nWaiting on others (${snapshot.waiting_on.length} open, ${escalations.length} overdue):\n${escalations
-        .map((w) => `- ${w.text}${w.person ? ` — ${w.person}` : ""} (${w.business_days_waiting} business days)`)
-        .join("\n")}`
-    );
-  if (snapshot.open_risks.length > 0)
-    parts.push(`\nRisks:\n${snapshot.open_risks.map((r) => `- [${r.severity}] ${r.description}`).join("\n")}`);
-  if (snapshot.tasks_awaiting_review.length > 0)
-    parts.push(`\n${snapshot.tasks_awaiting_review.length} task suggestion(s) awaiting your review.`);
-  if (snapshot.unresolved_inbox_items > 0)
-    parts.push(`${snapshot.unresolved_inbox_items} inbox item(s) need attention.`);
-  if (result.ok && result.output.recommendation) parts.push(`\n${result.output.recommendation}`);
-  return { reply: parts.join("\n") };
+  const b = await generateDailyBrief();
+  return { reply: b.text };
 }
 
 async function sync(): Promise<AssistantReply> {

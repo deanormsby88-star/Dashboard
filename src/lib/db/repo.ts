@@ -1027,6 +1027,56 @@ export async function getPersonBundle(name: string): Promise<PersonBundle> {
   };
 }
 
+// ── Briefs ───────────────────────────────────────────────────────────────────
+
+export interface BriefRow {
+  id: string;
+  generated_for: string;
+  content: string;
+  top3: Array<{ title: string; why: string }>;
+  ignore_today: string[];
+  chase: string[];
+  recommendation: string | null;
+  source: "manual" | "cron";
+  created_at: Date;
+}
+
+export async function insertBrief(params: {
+  userId: string;
+  generatedFor: string; // YYYY-MM-DD
+  content: string;
+  top3: Array<{ title: string; why: string }>;
+  ignoreToday: string[];
+  chase: string[];
+  recommendation: string | null;
+  source: "manual" | "cron";
+}): Promise<BriefRow> {
+  const res = await getPool().query<BriefRow>(
+    `insert into briefs (user_id, generated_for, content, top3, ignore_today, chase, recommendation, source)
+     values ($1,$2,$3,$4,$5,$6,$7,$8)
+     returning id, generated_for, content, top3, ignore_today, chase, recommendation, source, created_at`,
+    [
+      params.userId,
+      params.generatedFor,
+      params.content,
+      JSON.stringify(params.top3),
+      JSON.stringify(params.ignoreToday),
+      JSON.stringify(params.chase),
+      params.recommendation,
+      params.source,
+    ]
+  );
+  return res.rows[0];
+}
+
+export async function getLatestBrief(): Promise<BriefRow | null> {
+  const res = await getPool().query<BriefRow>(
+    `select id, generated_for, content, top3, ignore_today, chase, recommendation, source, created_at
+     from briefs order by created_at desc limit 1`
+  );
+  return res.rows[0] ?? null;
+}
+
 // ── AI runs ──────────────────────────────────────────────────────────────────
 
 export async function insertAiRun(params: {

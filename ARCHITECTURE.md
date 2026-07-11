@@ -175,8 +175,22 @@ command router (`lib/assistant/commands.ts`):
 Phase 1: Circleback → review → Todoist, end to end. ✅
 Phase 2: email ingestion + processor, waiting-on tracking + resolution. ✅
 Assistant (pulled forward from Phase 4): chat commands + prioritizer. ✅
-Phase 3: calendar, meeting prep enrichment (public research), people profiles.
-Phase 4 (remainder): Today dashboard Top 3 tiles, scheduled daily brief.
+Today dashboard + daily brief: command-centre Today page (Top 3, waiting-on
+  both directions, risks, ignore-today, quick capture, sync status) backed by
+  a stored brief; weekday-morning generation via Vercel Cron. ✅
+Phase 3 (remaining): calendar, meeting prep enrichment (public research),
+  people profiles.
+
+## Daily brief
+
+`lib/assistant/brief.ts` `generateDailyBrief()` is the single source of truth
+(snapshot → prioritizer → structured fields + text), shared by the Assistant
+`brief` command, the Today dashboard, and the scheduled job. Briefs are
+persisted in `briefs` so the Today page shows the latest without an OpenAI
+call per view. `GET /api/cron/daily-brief` (Bearer `CRON_SECRET`) is invoked
+by Vercel Cron (`vercel.json`, weekday 05:00 UTC); `POST /api/brief/generate`
+is the in-app manual refresh. `lib/assistant/prioritize.ts` holds the shared
+`runPrioritizer`.
 
 Later-phase pages exist as clearly-labelled placeholders so the shell doesn't
 change underneath Dean as phases land.

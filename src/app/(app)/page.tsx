@@ -1,39 +1,58 @@
 import Link from "next/link";
-import { getCounts, getSyncStatus, listMeetings } from "@/lib/db/repo";
-import { StatusBadge } from "@/components/badges";
+import {
+  getCounts,
+  getLatestBrief,
+  getSyncStatus,
+  listCommitments,
+  listMeetings,
+  listRisks,
+} from "@/lib/db/repo";
+import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
+import { SeverityBadge, StatusBadge } from "@/components/badges";
+import QuickCapture from "@/components/QuickCapture";
+import RefreshBriefButton from "@/components/RefreshBriefButton";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Today — DeanOS" };
 
-/**
- * Phase 1 Today page: review queue, recent meetings and sync status.
- * The full executive dashboard (Top 3, waiting-on, risks, quick capture)
- * arrives in Phase 4 once the prioritizer exists.
- */
 export default async function TodayPage() {
-  const [counts, meetings, syncStatus] = await Promise.all([
+  const now = new Date();
+  const [counts, meetings, syncStatus, brief, commitments, risks] = await Promise.all([
     getCounts(),
-    listMeetings(5),
+    listMeetings(4),
     getSyncStatus(),
+    getLatestBrief(),
+    listCommitments(),
+    listRisks(),
   ]);
 
-  const stats = [
-    { label: "Awaiting review", value: counts.suggestedTasks, href: "/tasks?status=suggested" },
-    { label: "You promised", value: counts.openCommitmentsByDean, href: "/commitments" },
-    { label: "Waiting on others", value: counts.openWaitingOn, href: "/commitments" },
-    { label: "Open risks", value: counts.openRisks, href: "/risks" },
-  ];
-  const hour = new Date().getHours();
+  const waitingOnDean = commitments.filter((c) => c.direction === "by_dean" && c.status === "open");
+  const deanWaiting = commitments
+    .filter((c) => c.direction === "to_dean" && c.status === "open")
+    .map((c) => ({
+      ...c,
+      days: businessDaysBetween(new Date(c.date_made ?? c.created_at), now),
+    }))
+    .sort((a, b) => b.days - a.days);
+  const openRisks = risks
+    .filter((r) => r.status === "open")
+    .sort((a, b) => ({ high: 0, medium: 1, low: 2 }[a.severity] - { high: 0, medium: 1, low: 2 }[b.severity]));
+
+  const hour = now.getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const briefIsToday = brief?.generated_for === now.toISOString().slice(0, 10);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-8">
-      <div>
-        <p className="eyebrow">
-          {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-        </p>
-        <h1 className="mt-1 text-3xl font-bold tracking-tight">{greeting}, Dean</h1>
+    <div className="mx-auto max-w-5xl space-y-8">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="eyebrow">
+            {now.toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+          </p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight">{greeting}, Dean</h1>
+        </div>
+        <RefreshBriefButton label={brief ? "Refresh brief" : "Generate brief"} />
       </div>
 
       {(counts.failedMeetings > 0 || counts.pendingMeetings > 0) && (
@@ -51,71 +70,182 @@ export default async function TodayPage() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {stats.map((s) => (
-          <Link
-            key={s.label}
-            href={s.href}
-            className="card group p-5 transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
-          >
-            <div className="text-4xl font-bold tracking-tight tabular-nums">{s.value}</div>
-            <div className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{s.label}</div>
-          </Link>
-        ))}
-      </section>
+      <QuickCapture />
 
+      {/* ── Top 3 ─────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Recent meetings
-          </h2>
-          <Link href="/meetings" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">
+          <h2 className="eyebrow">Top 3 today</h2>
+          {brief && (
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {briefIsToday ? "from this morning's brief" : `brief from ${brief.generated_for}`}
+            </span>
+          )}
+        </div>
+        {brief && brief.top3.length > 0 ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {brief.top3.map((t, i) => (
+              <div key={i} className="card p-5">
+                <div className="text-xs font-bold text-slate-300 dark:text-slate-600">0{i + 1}</div>
+                <p className="mt-1 font-semibold leading-snug">{t.title}</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t.why}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="card px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+            No brief yet. Click “{brief ? "Refresh" : "Generate"} brief”, or ask the Assistant for{" "}
+            <span className="font-medium">focus</span>.
+          </div>
+        )}
+        {brief?.recommendation && (
+          <p className="rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white dark:bg-white dark:text-slate-900">
+            {brief.recommendation}
+          </p>
+        )}
+      </section>
+
+      {/* ── Two columns: waiting-on both directions ───────────── */}
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="eyebrow">Waiting on you ({waitingOnDean.length})</h2>
+            <Link href="/commitments" className="text-xs text-slate-400 hover:underline dark:text-slate-500">
+              All
+            </Link>
+          </div>
+          {waitingOnDean.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">Nothing outstanding on you.</p>
+          ) : (
+            <div className="card divide-y divide-slate-100 dark:divide-white/5">
+              {waitingOnDean.slice(0, 6).map((c) => (
+                <div key={c.id} className="px-4 py-3 text-sm">
+                  {c.text}
+                  {c.person_name && <span className="text-slate-400 dark:text-slate-500"> · {c.person_name}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="eyebrow">You’re waiting on ({deanWaiting.length})</h2>
+            <Link href="/commitments" className="text-xs text-slate-400 hover:underline dark:text-slate-500">
+              All
+            </Link>
+          </div>
+          {deanWaiting.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">Nobody owes you anything.</p>
+          ) : (
+            <div className="card divide-y divide-slate-100 dark:divide-white/5">
+              {deanWaiting.slice(0, 6).map((c) => (
+                <div key={c.id} className="flex items-start justify-between gap-2 px-4 py-3 text-sm">
+                  <span>
+                    {c.text}
+                    {c.person_name && <span className="text-slate-400 dark:text-slate-500"> · {c.person_name}</span>}
+                  </span>
+                  {c.days >= ESCALATION_BUSINESS_DAYS && (
+                    <span className="badge shrink-0 bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                      {c.days}d — chase
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── Risks + Ignore today ──────────────────────────────── */}
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="eyebrow">Risks ({openRisks.length})</h2>
+            <Link href="/risks" className="text-xs text-slate-400 hover:underline dark:text-slate-500">
+              All
+            </Link>
+          </div>
+          {openRisks.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">No open risks.</p>
+          ) : (
+            <div className="card divide-y divide-slate-100 dark:divide-white/5">
+              {openRisks.slice(0, 5).map((r) => (
+                <div key={r.id} className="flex items-start justify-between gap-2 px-4 py-3 text-sm">
+                  <span>{r.description}</span>
+                  <span className="shrink-0">
+                    <SeverityBadge severity={r.severity} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="eyebrow">Ignore today</h2>
+          {brief && brief.ignore_today.length > 0 ? (
+            <div className="card divide-y divide-slate-100 dark:divide-white/5">
+              {brief.ignore_today.slice(0, 6).map((s, i) => (
+                <div key={i} className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">
+                  {s}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              Nothing flagged to defer — generate a brief for suggestions.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* ── Meetings ──────────────────────────────────────────── */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="eyebrow">Recent meetings</h2>
+          <Link href="/meetings" className="text-xs text-slate-400 hover:underline dark:text-slate-500">
             All meetings
           </Link>
         </div>
         {meetings.length === 0 ? (
-          <div className="card px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-            No meetings ingested yet. Once Zapier is connected (see ZAPIER_SETUP.md), finished
-            Circleback meetings will land here automatically.
-          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No meetings ingested yet.</p>
         ) : (
-          <div className="card divide-y divide-slate-200 dark:divide-slate-800">
+          <div className="card divide-y divide-slate-100 dark:divide-white/5">
             {meetings.map((m) => (
               <Link
                 key={m.id}
                 href={`/meetings/${m.id}`}
-                className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-white/5"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{m.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateTime(m.meeting_date)}</p>
+                  <p className="truncate text-sm font-medium">{m.title}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">{formatDateTime(m.meeting_date)}</p>
                 </div>
                 <StatusBadge status={m.processing_status} />
               </Link>
             ))}
           </div>
         )}
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          Live calendar (today’s schedule, prep status, conflicts) arrives with the Calendar phase.
+        </p>
       </section>
 
+      {/* ── Sync status ───────────────────────────────────────── */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Sync status
-        </h2>
+        <h2 className="eyebrow">Sync status</h2>
         {syncStatus.length === 0 ? (
-          <div className="card px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-            No webhook events received yet.
-          </div>
+          <p className="text-sm text-slate-500 dark:text-slate-400">No webhook events received yet.</p>
         ) : (
-          <div className="card divide-y divide-slate-200 text-sm dark:divide-slate-800">
+          <div className="card divide-y divide-slate-100 text-sm dark:divide-white/5">
             {syncStatus.map((s) => (
               <div key={s.endpoint} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
                 <span className="font-mono text-xs">{s.endpoint}</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400">
+                <span className="text-xs text-slate-400 dark:text-slate-500">
                   last success: {formatDateTime(s.last_success)}
                   {s.failed_count > 0 && (
-                    <span className="ml-2 text-red-600 dark:text-red-400">
-                      {s.failed_count} failed (last {formatDateTime(s.last_failure)})
-                    </span>
+                    <span className="ml-2 text-rose-600 dark:text-rose-400">{s.failed_count} failed</span>
                   )}
                 </span>
               </div>

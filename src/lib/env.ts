@@ -30,6 +30,10 @@ const envSchema = z.object({
 
   DEANOS_EMAIL: z.string().email(),
   DEANOS_PASSWORD_HASH: z.string().min(1, "DEANOS_PASSWORD_HASH is required"),
+
+  // Secret for the scheduled daily-brief job. Vercel Cron sends it as a
+  // Bearer token; optional so the app boots without it configured.
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -67,6 +71,7 @@ export function envStatus(): Record<string, boolean> {
     "SESSION_SECRET",
     "DEANOS_EMAIL",
     "DEANOS_PASSWORD_HASH",
+    "CRON_SECRET",
   ];
   return Object.fromEntries(
     keys.map((k) => [k, Boolean(process.env[k] && process.env[k]!.length > 0)])

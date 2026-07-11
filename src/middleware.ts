@@ -6,7 +6,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
  *  - /login and the auth API
  *  - /api/webhooks/* (authenticated per-request with the Zapier shared secret)
  */
-const PUBLIC_PREFIXES = ["/login", "/api/auth/", "/api/webhooks/"];
+const PUBLIC_PREFIXES = ["/login", "/api/auth/", "/api/webhooks/", "/api/cron/"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
