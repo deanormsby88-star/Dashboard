@@ -450,11 +450,13 @@ async function prep(args: string): Promise<AssistantReply> {
     return { reply: `Couldn't build the prep brief: ${!result.ok ? result.error : parsed && !parsed.ok ? parsed.error : "unknown error"}` };
   }
   const o = parsed.output;
+  // The model sometimes echoes the framing sentence; don't print it twice.
+  const objective = o.objective.replace(/^the single most important outcome for this meeting is:?\s*/i, "");
   return {
     reply: [
       `PREP — ${args}`,
       "",
-      `The single most important outcome for this meeting is:\n${o.objective}`,
+      `The single most important outcome for this meeting is:\n${objective}`,
       "",
       o.context_summary,
       o.talking_points.length > 0 ? `\nTalking points:\n${o.talking_points.map((t) => `- ${t}`).join("\n")}` : "",
