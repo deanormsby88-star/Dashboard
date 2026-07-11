@@ -7,24 +7,34 @@ import { normalizeTitle } from "@/lib/dedup";
 import {
   appendConversationMessage,
   businessByKey,
+  completeTaskByTodoistId,
   ensureOwner,
+  getCommitment,
   getOrCreatePersonByName,
   getPersonBundle,
   getRecentConversation,
+  getRisk,
+  getTask,
   insertAiRun,
   insertCommitment,
   insertInteraction,
   insertRisk,
   insertTask,
+  listActionableTasks,
+  listOpenCommitmentsWithMeta,
+  listRisks,
   markTaskCreatedByDedupKey,
   pruneConversation,
   setTaskStatus,
+  updateCommitment,
+  updateRisk,
+  updateTaskFields,
   type Owner,
 } from "@/lib/db/repo";
-import { executeCreate } from "@/lib/todoist/execute";
+import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.0.0";
-const MAX_STEPS = 5;
+export const AGENT_PROMPT_VERSION = "1.1.0";
+const MAX_STEPS = 8;
 
 const BUSINESS_ENUM = ["heya", "jic", "personal"] as const;
 
@@ -102,6 +112,95 @@ const TOOLS: AgentTool[] = [
     description: "Generate today's executive brief: Top 3 priorities, who to chase, overdue items, risks, and a recommendation. Use for 'brief', 'what should I focus on', 'how's my day'.",
     parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
   },
+  {
+    name: "find_tasks",
+    description:
+      "List Dean's current tasks (suggested/approved/sent/created) with their ids, so you can then edit, complete, approve or reject a specific one. Call this before any task action to get the right id.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: "update_task",
+    description: "Change a task's title, priority, due date, or business. If it's already in Todoist, the change is pushed there too. Get the id from find_tasks first.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "title", "priority", "due_date", "business"],
+      properties: {
+        id: { type: "string" },
+        title: { type: ["string", "null"], description: "New title, or null to leave unchanged." },
+        priority: { type: ["integer", "null"], minimum: 1, maximum: 4, description: "New priority, or null." },
+        due_date: { type: ["string", "null"], description: "YYYY-MM-DD, or null to leave unchanged. To clear a date, pass the string 'none'." },
+        business: { type: ["string", "null"], enum: [...BUSINESS_ENUM, null], description: "New business, or null." },
+      },
+    },
+  },
+  {
+    name: "complete_task",
+    description: "Mark a task done (and complete it in Todoist if it's there). Get the id from find_tasks.",
+    parameters: { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } },
+  },
+  {
+    name: "approve_task",
+    description: "Approve a still-suggested task, sending it to Todoist. Get the id from find_tasks.",
+    parameters: { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } },
+  },
+  {
+    name: "reject_task",
+    description: "Dismiss/reject a suggested task Dean doesn't want. Get the id from find_tasks.",
+    parameters: { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } },
+  },
+  {
+    name: "find_commitments",
+    description: "List open commitments (both 'you promised' = by_dean and 'waiting on others' = to_dean) with ids, so you can resolve or edit one.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: "resolve_commitment",
+    description: "Set a commitment's status: 'done' (fulfilled), 'cancelled' (no longer needed), or 'open' (reopen). Resolving also tidies its linked follow-up task. Get the id from find_commitments.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "status"],
+      properties: {
+        id: { type: "string" },
+        status: { type: "string", enum: ["done", "cancelled", "open"] },
+      },
+    },
+  },
+  {
+    name: "update_commitment",
+    description: "Edit a commitment's text or person. Get the id from find_commitments.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "text", "person"],
+      properties: {
+        id: { type: "string" },
+        text: { type: ["string", "null"] },
+        person: { type: ["string", "null"] },
+      },
+    },
+  },
+  {
+    name: "find_risks",
+    description: "List open risks with ids, so you can mitigate, close, or edit one.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: "update_risk",
+    description: "Change a risk's status ('mitigated'/'closed'/'open'), severity, or description. Get the id from find_risks.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "status", "severity", "description"],
+      properties: {
+        id: { type: "string" },
+        status: { type: ["string", "null"], enum: ["open", "mitigated", "closed", null] },
+        severity: { type: ["string", "null"], enum: ["low", "medium", "high", null] },
+        description: { type: ["string", "null"] },
+      },
+    },
+  },
 ];
 
 function systemPrompt(snapshotJson: string, today: string): string {
@@ -113,8 +212,14 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
 - Answer directly from the snapshot when it already contains the answer (waiting-on, commitments, risks, counts, recent meetings).
 - Use get_person for questions about a specific person or to prep a meeting; compose the prep yourself from what it returns (state the single most important outcome, a few talking points, a few questions).
 - Use get_brief for daily-focus questions.
-- Take actions when Dean clearly asks: create_task (goes straight to Todoist), track_waiting_on, log_risk, remember. Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
-- After acting, confirm briefly what you did (e.g. "Added to your JIC list in Todoist.").
+- Take actions when Dean clearly asks. You can create AND manage things:
+  • Tasks: create_task, and to change/finish existing ones first call find_tasks to get the id, then update_task / complete_task / approve_task / reject_task. Changes to tasks already in Todoist are pushed there automatically.
+  • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
+  • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
+  • remember for durable notes/person facts.
+- When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
+- Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
+- After acting, confirm briefly and specifically what you did (e.g. "Done — marked the artwork task complete in Todoist.").
 - Calendar isn't connected yet — if asked about schedule/availability, say so briefly.
 - Never fabricate facts, people, or commitments. If you don't know, say so.
 
@@ -257,6 +362,130 @@ async function executeTool(
         recommendation: b.recommendation,
         open_risks: b.snapshot.open_risks,
       });
+    }
+    case "find_tasks": {
+      const tasks = await listActionableTasks();
+      return JSON.stringify(
+        tasks.map((t) => ({
+          id: t.id,
+          title: t.title,
+          status: t.status,
+          priority: t.priority,
+          due_date: t.due_date,
+          business: owner.businesses.find((b) => b.id === t.business_id)?.key ?? null,
+        }))
+      );
+    }
+    case "update_task": {
+      const task = await getTask(str(args.id));
+      if (!task) return JSON.stringify({ ok: false, error: "task not found" });
+      const business = typeof args.business === "string" ? biz(args.business) : undefined;
+      const dueRaw = args.due_date;
+      const dueDate =
+        dueRaw === "none" ? null : typeof dueRaw === "string" && dueRaw ? dueRaw : undefined;
+      const updated = await updateTaskFields(task.id, {
+        title: typeof args.title === "string" && args.title ? args.title : undefined,
+        priority: typeof args.priority === "number" ? args.priority : undefined,
+        dueDate,
+        businessId: business ? business.id : undefined,
+      });
+      // Push to Todoist if it already lives there.
+      if (updated?.status === "created" && updated.todoist_task_id) {
+        await executeUpdate({
+          todoistTaskId: updated.todoist_task_id,
+          title: typeof args.title === "string" && args.title ? args.title : undefined,
+          priority: typeof args.priority === "number" ? args.priority : undefined,
+          due_date: dueDate,
+        });
+      }
+      return JSON.stringify({ ok: true, updated: updated?.title, priority: updated?.priority });
+    }
+    case "complete_task": {
+      const task = await getTask(str(args.id));
+      if (!task) return JSON.stringify({ ok: false, error: "task not found" });
+      if (task.status === "created" && task.todoist_task_id) {
+        const done = await executeComplete(task.todoist_task_id);
+        if (done.ok) await completeTaskByTodoistId(task.todoist_task_id);
+        else return JSON.stringify({ ok: false, error: `Todoist: ${done.error}` });
+      } else {
+        await setTaskStatus(task.id, "completed");
+      }
+      return JSON.stringify({ ok: true, completed: task.title });
+    }
+    case "approve_task": {
+      const task = await getTask(str(args.id));
+      if (!task) return JSON.stringify({ ok: false, error: "task not found" });
+      const business = owner.businesses.find((b) => b.id === task.business_id) ?? null;
+      await setTaskStatus(task.id, "approved");
+      const sent = await executeCreate(task, business);
+      if (!sent.ok) {
+        await setTaskStatus(task.id, "failed", sent.error);
+        return JSON.stringify({ ok: false, error: sent.error });
+      }
+      if (sent.created) {
+        await markTaskCreatedByDedupKey({
+          taskId: task.id,
+          todoistTaskId: sent.created.todoistTaskId,
+          todoistTaskUrl: sent.created.todoistTaskUrl,
+        });
+      } else {
+        await setTaskStatus(task.id, "sent");
+      }
+      return JSON.stringify({ ok: true, approved: task.title });
+    }
+    case "reject_task": {
+      const task = await getTask(str(args.id));
+      if (!task) return JSON.stringify({ ok: false, error: "task not found" });
+      await setTaskStatus(task.id, "rejected", "Rejected via chat.");
+      return JSON.stringify({ ok: true, rejected: task.title });
+    }
+    case "find_commitments": {
+      const rows = await listOpenCommitmentsWithMeta();
+      return JSON.stringify(rows);
+    }
+    case "resolve_commitment": {
+      const c = await getCommitment(str(args.id));
+      if (!c) return JSON.stringify({ ok: false, error: "commitment not found" });
+      const status = (["done", "cancelled", "open"].includes(str(args.status)) ? args.status : "done") as
+        | "done"
+        | "cancelled"
+        | "open";
+      await updateCommitment(c.id, { status });
+      if ((status === "done" || status === "cancelled") && c.linked_task_id) {
+        const task = await getTask(c.linked_task_id);
+        if (task?.status === "suggested" || task?.status === "approved") {
+          await setTaskStatus(task.id, "rejected", "Commitment resolved via chat.");
+        } else if (task?.status === "created" && task.todoist_task_id) {
+          const done = await executeComplete(task.todoist_task_id);
+          if (done.ok) await completeTaskByTodoistId(task.todoist_task_id);
+        }
+      }
+      return JSON.stringify({ ok: true, commitment: c.text, status });
+    }
+    case "update_commitment": {
+      const c = await getCommitment(str(args.id));
+      if (!c) return JSON.stringify({ ok: false, error: "commitment not found" });
+      await updateCommitment(c.id, {
+        text: typeof args.text === "string" && args.text ? args.text : undefined,
+        personName: typeof args.person === "string" ? args.person : undefined,
+      });
+      return JSON.stringify({ ok: true });
+    }
+    case "find_risks": {
+      const rows = (await listRisks())
+        .filter((r) => r.status === "open")
+        .map((r) => ({ id: r.id, description: r.description, severity: r.severity, status: r.status }));
+      return JSON.stringify(rows);
+    }
+    case "update_risk": {
+      const r = await getRisk(str(args.id));
+      if (!r) return JSON.stringify({ ok: false, error: "risk not found" });
+      await updateRisk(r.id, {
+        status: ["open", "mitigated", "closed"].includes(str(args.status)) ? (args.status as "open" | "mitigated" | "closed") : undefined,
+        severity: ["low", "medium", "high"].includes(str(args.severity)) ? (args.severity as "low" | "medium" | "high") : undefined,
+        description: typeof args.description === "string" && args.description ? args.description : undefined,
+      });
+      return JSON.stringify({ ok: true });
     }
     default:
       return JSON.stringify({ ok: false, error: `unknown tool ${name}` });

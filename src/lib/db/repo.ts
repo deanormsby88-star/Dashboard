@@ -656,6 +656,64 @@ export async function listPeople(): Promise<Person[]> {
   return res.rows;
 }
 
+export async function getPerson(id: string): Promise<Person | null> {
+  const res = await getPool().query<Person>(`select * from people where id = $1`, [id]);
+  return res.rows[0] ?? null;
+}
+
+/** People with lightweight counts for the directory. */
+export async function listPeopleWithCounts(): Promise<
+  Array<Person & { open_to_dean: number; open_by_dean: number; last_activity: Date | null }>
+> {
+  const res = await getPool().query(
+    `select p.*,
+       (select count(*) from commitments c where c.person_id = p.id and c.direction='to_dean' and c.status='open')::int as open_to_dean,
+       (select count(*) from commitments c where c.person_id = p.id and c.direction='by_dean' and c.status='open')::int as open_by_dean,
+       greatest(
+         coalesce((select max(occurred_at) from interactions i where i.person_id = p.id), 'epoch'),
+         coalesce((select max(created_at) from commitments c where c.person_id = p.id), 'epoch')
+       ) as last_activity
+     from people p order by last_activity desc nulls last, p.full_name asc limit 500`
+  );
+  return res.rows as never;
+}
+
+/** Full relationship bundle for one person by id (profile page). */
+export async function getPersonBundleById(id: string): Promise<PersonBundle & { person: Person | null }> {
+  const person = await getPerson(id);
+  if (!person) return { person: null, interactions: [], commitments: [], meetings: [], emails: [] };
+  const db = getPool();
+  const like = `%${person.full_name}%`;
+  const [interactions, commitments, meetings, emails] = await Promise.all([
+    db.query<Interaction>(
+      `select * from interactions where person_id = $1 or person_name ilike $2 order by occurred_at desc limit 40`,
+      [person.id, like]
+    ),
+    db.query<Commitment>(
+      `select * from commitments where person_id = $1 or person_name ilike $2 order by created_at desc limit 60`,
+      [person.id, like]
+    ),
+    db.query<{ title: string; meeting_date: Date | null; summary: string | null }>(
+      `select distinct m.title, m.meeting_date, m.summary
+       from meetings m join meeting_attendees a on a.meeting_id = m.id
+       where a.name ilike $1 or a.email ilike $1
+       order by m.meeting_date desc nulls last limit 20`,
+      [like]
+    ),
+    db.query<{ subject: string; summary: string | null; email_date: Date | null }>(
+      `select subject, summary, email_date from emails where sender ilike $1 order by coalesce(email_date, created_at) desc limit 20`,
+      [like]
+    ),
+  ]);
+  return {
+    person,
+    interactions: interactions.rows,
+    commitments: commitments.rows,
+    meetings: meetings.rows,
+    emails: emails.rows,
+  };
+}
+
 export async function insertInteraction(params: {
   userId: string;
   personId: string | null;
@@ -1075,6 +1133,31 @@ export async function getLatestBrief(): Promise<BriefRow | null> {
      from briefs order by created_at desc limit 1`
   );
   return res.rows[0] ?? null;
+}
+
+// ── Agent find helpers (id-bearing, for edit/resolve tools) ─────────────────
+
+export async function listActionableTasks(): Promise<
+  Array<{ id: string; title: string; status: string; priority: number; due_date: string | null; business_id: string | null; todoist_task_id: string | null }>
+> {
+  const res = await getPool().query(
+    `select id, title, status, priority,
+            to_char(due_date, 'YYYY-MM-DD') as due_date, business_id, todoist_task_id
+     from tasks
+     where status in ('suggested','approved','sent','created')
+     order by created_at desc limit 100`
+  );
+  return res.rows as never;
+}
+
+export async function listOpenCommitmentsWithMeta(): Promise<
+  Array<{ id: string; text: string; direction: string; person_name: string | null; status: string; linked_task_id: string | null }>
+> {
+  const res = await getPool().query(
+    `select id, text, direction, person_name, status, linked_task_id
+     from commitments where status = 'open' order by created_at desc limit 100`
+  );
+  return res.rows as never;
 }
 
 // ── Conversation memory ──────────────────────────────────────────────────────
