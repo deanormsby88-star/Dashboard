@@ -1,5 +1,5 @@
 import { envStatus } from "@/lib/env";
-import { listWebhookEvents } from "@/lib/db/repo";
+import { ensureOwner, listCalendarConnections, listWebhookEvents } from "@/lib/db/repo";
 import { StatusBadge } from "@/components/badges";
 import JsonViewer from "@/components/JsonViewer";
 import RetryWebhookButton from "@/components/RetryWebhookButton";
@@ -13,10 +13,25 @@ export const metadata = { title: "Settings — DeanOS" };
  * Settings shows active connections and data flows (brief §21) plus the
  * webhook event log with raw payload inspection and retry (brief §23).
  */
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: { calendar?: string } }) {
   const status = envStatus();
   const events = await listWebhookEvents(50);
   const appUrl = process.env.APP_URL ?? "https://<your-app>";
+
+  const owner = await ensureOwner();
+  const calendarConns = await listCalendarConnections(owner.user.id);
+  const graphConfigured = status.MS_CLIENT_ID && status.MS_CLIENT_SECRET;
+  const calendars: Array<{ key: "heya" | "jic"; name: string }> = [
+    { key: "heya", name: "Heya Outlook" },
+    { key: "jic", name: "JIC Outlook" },
+  ];
+  const calMsg: Record<string, string> = {
+    connected: "Calendar connected.",
+    error: "Microsoft returned an error — try again.",
+    exchange_failed: "Couldn't complete sign-in — try again.",
+    bad_state: "Sign-in expired — start again.",
+    not_configured: "Microsoft app not configured yet (MS_CLIENT_ID/SECRET).",
+  };
 
   const connections = [
     {
@@ -47,9 +62,9 @@ export default async function SettingsPage() {
       detail: `Inbound: POST ${appUrl}/api/webhooks/zapier/email — flagged/foldered emails flow from each mailbox's Zap with its business context. Bodies are stored truncated; the mail platform stays the system of record.`,
     },
     {
-      name: "Calendar sync",
-      configured: false,
-      detail: "Phase 3 — not yet built.",
+      name: "Calendar (Outlook, Microsoft Graph)",
+      configured: status.MS_CLIENT_ID && status.MS_CLIENT_SECRET,
+      detail: "Two-way: DeanOS reads and schedules meetings in the Heya and JIC Outlook calendars. Connect each below.",
     },
   ];
 
@@ -91,6 +106,47 @@ export default async function SettingsPage() {
         <p className="text-xs text-slate-400 dark:text-slate-500">
           Configuration lives in environment variables — values are never displayed here. See
           .env.example and SECURITY.md.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Calendars (Outlook)
+        </h2>
+        {searchParams.calendar && (
+          <p className="rounded-2xl bg-slate-100 px-4 py-2 text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">
+            {calMsg[searchParams.calendar] ?? "Calendar update received."}
+          </p>
+        )}
+        <div className="card divide-y divide-slate-100 dark:divide-white/5">
+          {calendars.map((c) => {
+            const conn = calendarConns.find((x) => x.calendar === c.key);
+            return (
+              <div key={c.key} className="flex items-center justify-between gap-4 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium">{c.name}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {conn ? `Connected${conn.account_email ? ` — ${conn.account_email}` : ""}` : "Read + write meetings via Microsoft Graph."}
+                  </p>
+                </div>
+                {graphConfigured ? (
+                  <a
+                    href={`/api/auth/microsoft/start?calendar=${c.key}`}
+                    className="btn-secondary !py-1.5 text-xs"
+                  >
+                    {conn ? "Reconnect" : "Connect"}
+                  </a>
+                ) : (
+                  <span className="badge bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                    not configured
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          Sign in with each Outlook account to let DeanOS view and schedule meetings. Tokens are stored encrypted.
         </p>
       </section>
 

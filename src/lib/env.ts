@@ -46,6 +46,11 @@ const envSchema = z.object({
 
   // Shared secret for the iOS Action Button / Shortcuts voice endpoint.
   ASSISTANT_SHORTCUT_SECRET: z.string().min(16).optional(),
+
+  // Microsoft Graph (Outlook calendar read/write). Register a multi-tenant
+  // Azure AD app; see docs. Optional until configured.
+  MS_CLIENT_ID: z.string().min(1).optional(),
+  MS_CLIENT_SECRET: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -88,6 +93,8 @@ export function envStatus(): Record<string, boolean> {
     "TELEGRAM_WEBHOOK_SECRET",
     "TELEGRAM_ALLOWED_CHAT_ID",
     "ASSISTANT_SHORTCUT_SECRET",
+    "MS_CLIENT_ID",
+    "MS_CLIENT_SECRET",
   ];
   return Object.fromEntries(
     keys.map((k) => [k, Boolean(process.env[k] && process.env[k]!.length > 0)])

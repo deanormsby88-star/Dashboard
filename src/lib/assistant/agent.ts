@@ -5,6 +5,14 @@ import { buildSnapshot } from "@/lib/assistant/state";
 import { generateDailyBrief } from "@/lib/assistant/brief";
 import { normalizeTitle } from "@/lib/dedup";
 import { research } from "@/lib/research";
+import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
+import {
+  createEvent,
+  deleteEvent,
+  getValidAccessToken,
+  updateEvent,
+} from "@/lib/calendar/microsoft";
+import { listCalendarConnections } from "@/lib/db/repo";
 import {
   appendConversationMessage,
   businessByKey,
@@ -134,6 +142,63 @@ const TOOLS: AgentTool[] = [
     parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
   },
   {
+    name: "get_calendar",
+    description:
+      "List Dean's calendar events (Outlook Heya + JIC) for the next N days. Use for 'what's on today', 'what's my week', 'am I free Thursday', 'when's my next meeting'. Returns events with ids for rescheduling/cancelling.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["days"],
+      properties: { days: { type: "integer", minimum: 1, maximum: 21, description: "How many days ahead to include (1 = today only)." } },
+    },
+  },
+  {
+    name: "create_event",
+    description:
+      "Book a new calendar event. Times MUST be UTC ISO 8601. Convert the local time Dean says using his timezone (given in context) before calling.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["calendar", "title", "start_utc", "end_utc", "attendees", "location"],
+      properties: {
+        calendar: { type: "string", enum: ["heya", "jic"], description: "Which Outlook calendar." },
+        title: { type: "string" },
+        start_utc: { type: "string", description: "Start, UTC ISO e.g. 2026-07-15T13:00:00Z." },
+        end_utc: { type: "string", description: "End, UTC ISO. Default 30 min after start if unsure." },
+        attendees: { type: "array", items: { type: "string" }, description: "Attendee email addresses; empty array if none." },
+        location: { type: ["string", "null"] },
+      },
+    },
+  },
+  {
+    name: "reschedule_event",
+    description: "Move an existing event to a new time. Get calendar + event_id from get_calendar first. Times UTC ISO.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["calendar", "event_id", "start_utc", "end_utc"],
+      properties: {
+        calendar: { type: "string", enum: ["heya", "jic"] },
+        event_id: { type: "string" },
+        start_utc: { type: "string" },
+        end_utc: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "cancel_event",
+    description: "Cancel/delete an event. Get calendar + event_id from get_calendar first.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["calendar", "event_id"],
+      properties: {
+        calendar: { type: "string", enum: ["heya", "jic"] },
+        event_id: { type: "string" },
+      },
+    },
+  },
+  {
     name: "web_research",
     description:
       "Search the public web for current information about a person, company, topic, or news. Use for 'what's the latest on…', 'who is…', 'look up…', or to prep with public context. Pass ONLY public identifiers — never Dean's internal/confidential details.",
@@ -235,8 +300,8 @@ const TOOLS: AgentTool[] = [
   },
 ];
 
-function systemPrompt(snapshotJson: string, today: string): string {
-  return `You are DeanOS — Dean Ormsby's AI chief of staff, speaking with him directly over chat. Dean runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}.
+function systemPrompt(snapshotJson: string, today: string, nowLocal: string): string {
+  return `You are DeanOS — Dean Ormsby's AI chief of staff, speaking with him directly over chat. Dean runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}. Current local time: ${nowLocal}. Dean's timezone is Africa/Johannesburg (UTC+2, no daylight saving).
 
 You are conversational, warm, and extremely concise — this is a chat, not a report. Talk like a sharp human EA: plain sentences, no markdown headers, minimal bullet points unless listing. Never dump raw data; summarise and lead with what matters.
 
@@ -250,6 +315,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
+  • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (get their event_id from get_calendar first). ALL event times are UTC ISO 8601 — Dean speaks in local SAST (UTC+2), so convert: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
@@ -399,6 +465,77 @@ async function executeTool(
         notes: opt(args.notes),
       });
       return JSON.stringify({ ok: true, updated: updated?.full_name ?? str(args.name) });
+    }
+    case "get_calendar": {
+      const days = typeof args.days === "number" ? args.days : 7;
+      const events = await getUpcoming(owner.user.id, days);
+      if (events.length === 0) {
+        const conns = await listCalendarConnections(owner.user.id);
+        return JSON.stringify({
+          events: [],
+          note: conns.length === 0 ? "No calendars connected yet (Settings → Calendars)." : "Nothing scheduled in that window.",
+        });
+      }
+      return JSON.stringify({
+        events: events.map((e) => ({
+          calendar: e.calendar,
+          event_id: e.source_uid,
+          title: e.title,
+          start_utc: e.starts_at,
+          end_utc: e.ends_at,
+          all_day: e.all_day,
+          location: e.location,
+          attendees: e.attendees,
+        })),
+      });
+    }
+    case "create_event": {
+      const calendar = str(args.calendar) as "heya" | "jic";
+      const token = await getValidAccessToken(owner.user.id, calendar);
+      if (!token) return JSON.stringify({ ok: false, error: `${calendar} calendar isn't connected.` });
+      try {
+        const created = await createEvent(token, {
+          subject: str(args.title),
+          startIso: str(args.start_utc),
+          endIso: str(args.end_utc),
+          attendees: Array.isArray(args.attendees) ? (args.attendees as string[]) : [],
+          location: typeof args.location === "string" ? args.location : null,
+        });
+        const business = biz(calendar);
+        await syncCalendar(owner.user.id, calendar, business?.id ?? null).catch(() => {});
+        return JSON.stringify({ ok: true, created: str(args.title), calendar, link: created.webLink });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "create failed" });
+      }
+    }
+    case "reschedule_event": {
+      const calendar = str(args.calendar) as "heya" | "jic";
+      const token = await getValidAccessToken(owner.user.id, calendar);
+      if (!token) return JSON.stringify({ ok: false, error: `${calendar} calendar isn't connected.` });
+      try {
+        await updateEvent(token, str(args.event_id), {
+          startIso: str(args.start_utc),
+          endIso: str(args.end_utc),
+        });
+        const business = biz(calendar);
+        await syncCalendar(owner.user.id, calendar, business?.id ?? null).catch(() => {});
+        return JSON.stringify({ ok: true, rescheduled: true });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "reschedule failed" });
+      }
+    }
+    case "cancel_event": {
+      const calendar = str(args.calendar) as "heya" | "jic";
+      const token = await getValidAccessToken(owner.user.id, calendar);
+      if (!token) return JSON.stringify({ ok: false, error: `${calendar} calendar isn't connected.` });
+      try {
+        await deleteEvent(token, str(args.event_id));
+        const business = biz(calendar);
+        await syncCalendar(owner.user.id, calendar, business?.id ?? null).catch(() => {});
+        return JSON.stringify({ ok: true, cancelled: true });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "cancel failed" });
+      }
     }
     case "web_research": {
       const r = await research(str(args.query), "agent");
@@ -556,8 +693,16 @@ export async function runAgent(
   const snapshot = await buildSnapshot();
   const history = await getRecentConversation(owner.user.id, channel, 12);
 
+  const nowLocal = new Date().toLocaleString("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const input: AgentInputItem[] = [
-    { role: "system", content: systemPrompt(JSON.stringify(snapshot), snapshot.today) },
+    { role: "system", content: systemPrompt(JSON.stringify(snapshot), snapshot.today, nowLocal) },
     ...history.map((m) => ({ role: m.role, content: m.content })),
     { role: "user", content: userText },
   ];

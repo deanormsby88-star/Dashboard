@@ -1166,6 +1166,170 @@ export async function getLatestBrief(): Promise<BriefRow | null> {
   return res.rows[0] ?? null;
 }
 
+// ── Calendar connections (OAuth) ─────────────────────────────────────────────
+
+export interface CalendarConnection {
+  id: string;
+  calendar: BusinessKey;
+  provider: string;
+  account_email: string | null;
+  access_token_enc: string;
+  refresh_token_enc: string;
+  expires_at: Date;
+  scope: string | null;
+}
+
+export async function upsertCalendarConnection(params: {
+  userId: string;
+  calendar: BusinessKey;
+  accountEmail: string | null;
+  accessTokenEnc: string;
+  refreshTokenEnc: string;
+  expiresAt: Date;
+  scope: string | null;
+}): Promise<void> {
+  await getPool().query(
+    `insert into calendar_connections
+       (user_id, calendar, provider, account_email, access_token_enc, refresh_token_enc, expires_at, scope)
+     values ($1,$2,'microsoft',$3,$4,$5,$6,$7)
+     on conflict (user_id, calendar) do update set
+       account_email = excluded.account_email,
+       access_token_enc = excluded.access_token_enc,
+       refresh_token_enc = excluded.refresh_token_enc,
+       expires_at = excluded.expires_at,
+       scope = excluded.scope,
+       updated_at = now()`,
+    [
+      params.userId,
+      params.calendar,
+      params.accountEmail,
+      params.accessTokenEnc,
+      params.refreshTokenEnc,
+      params.expiresAt,
+      params.scope,
+    ]
+  );
+}
+
+export async function getCalendarConnection(
+  userId: string,
+  calendar: BusinessKey
+): Promise<CalendarConnection | null> {
+  const res = await getPool().query<CalendarConnection>(
+    `select id, calendar, provider, account_email, access_token_enc, refresh_token_enc, expires_at, scope
+     from calendar_connections where user_id = $1 and calendar = $2`,
+    [userId, calendar]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function listCalendarConnections(userId: string): Promise<CalendarConnection[]> {
+  const res = await getPool().query<CalendarConnection>(
+    `select id, calendar, provider, account_email, access_token_enc, refresh_token_enc, expires_at, scope
+     from calendar_connections where user_id = $1 order by calendar`,
+    [userId]
+  );
+  return res.rows;
+}
+
+export async function updateCalendarTokens(params: {
+  userId: string;
+  calendar: BusinessKey;
+  accessTokenEnc: string;
+  refreshTokenEnc: string;
+  expiresAt: Date;
+}): Promise<void> {
+  await getPool().query(
+    `update calendar_connections set access_token_enc=$3, refresh_token_enc=$4, expires_at=$5, updated_at=now()
+     where user_id=$1 and calendar=$2`,
+    [params.userId, params.calendar, params.accessTokenEnc, params.refreshTokenEnc, params.expiresAt]
+  );
+}
+
+export async function deleteCalendarConnection(userId: string, calendar: BusinessKey): Promise<void> {
+  await getPool().query(`delete from calendar_connections where user_id=$1 and calendar=$2`, [userId, calendar]);
+}
+
+// ── Calendar events (cache of Graph reads) ──────────────────────────────────
+
+export interface CalendarEventRow {
+  id: string;
+  calendar: BusinessKey;
+  source_uid: string;
+  title: string;
+  location: string | null;
+  organizer: string | null;
+  attendees: string[];
+  starts_at: Date;
+  ends_at: Date | null;
+  all_day: boolean;
+  url: string | null;
+}
+
+export async function replaceCalendarEvents(
+  userId: string,
+  calendar: BusinessKey,
+  windowStart: Date,
+  windowEnd: Date,
+  events: Array<{
+    sourceUid: string;
+    title: string;
+    location: string | null;
+    organizer: string | null;
+    attendees: string[];
+    startsAt: Date;
+    endsAt: Date | null;
+    allDay: boolean;
+    url: string | null;
+    businessId: string | null;
+  }>
+): Promise<void> {
+  const db = getPool();
+  await db.query(
+    `delete from calendar_events where user_id=$1 and calendar=$2 and starts_at >= $3 and starts_at < $4`,
+    [userId, calendar, windowStart, windowEnd]
+  );
+  for (const e of events) {
+    await db.query(
+      `insert into calendar_events
+         (user_id, business_id, calendar, source_uid, title, location, organizer, attendees, starts_at, ends_at, all_day, url)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+       on conflict (user_id, calendar, source_uid, starts_at) do update set
+         title=excluded.title, location=excluded.location, organizer=excluded.organizer,
+         attendees=excluded.attendees, ends_at=excluded.ends_at, all_day=excluded.all_day,
+         url=excluded.url, updated_at=now()`,
+      [
+        userId,
+        e.businessId,
+        calendar,
+        e.sourceUid,
+        e.title,
+        e.location,
+        e.organizer,
+        e.attendees,
+        e.startsAt,
+        e.endsAt,
+        e.allDay,
+        e.url,
+      ]
+    );
+  }
+}
+
+export async function listCalendarEvents(
+  userId: string,
+  fromTs: Date,
+  toTs: Date
+): Promise<CalendarEventRow[]> {
+  const res = await getPool().query<CalendarEventRow>(
+    `select id, calendar, source_uid, title, location, organizer, attendees, starts_at, ends_at, all_day, url
+     from calendar_events where user_id=$1 and starts_at >= $2 and starts_at < $3
+     order by starts_at asc limit 200`,
+    [userId, fromTs, toTs]
+  );
+  return res.rows;
+}
+
 // ── Agent find helpers (id-bearing, for edit/resolve tools) ─────────────────
 
 export async function listActionableTasks(): Promise<

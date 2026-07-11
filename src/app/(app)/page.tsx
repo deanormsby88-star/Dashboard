@@ -8,6 +8,8 @@ import {
   listRisks,
 } from "@/lib/db/repo";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
+import { ensureOwner, listCalendarConnections } from "@/lib/db/repo";
+import { getToday } from "@/lib/calendar/sync";
 import { SeverityBadge, StatusBadge } from "@/components/badges";
 import QuickCapture from "@/components/QuickCapture";
 import RefreshBriefButton from "@/components/RefreshBriefButton";
@@ -18,14 +20,19 @@ export const metadata = { title: "Today — DeanOS" };
 
 export default async function TodayPage() {
   const now = new Date();
-  const [counts, meetings, syncStatus, brief, commitments, risks] = await Promise.all([
+  const owner = await ensureOwner();
+  const [counts, meetings, syncStatus, brief, commitments, risks, todaysEvents] = await Promise.all([
     getCounts(),
     listMeetings(4),
     getSyncStatus(),
     getLatestBrief(),
     listCommitments(),
     listRisks(),
+    getToday(owner.user.id).catch(() => []),
   ]);
+  const calendarConnected = (await listCalendarConnections(owner.user.id)).length > 0;
+  const fmtTime = (d: Date | null) =>
+    d ? new Date(d).toLocaleTimeString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit" }) : "";
 
   const waitingOnDean = commitments.filter((c) => c.direction === "by_dean" && c.status === "open");
   const deanWaiting = commitments
@@ -104,6 +111,34 @@ export default async function TodayPage() {
           </p>
         )}
       </section>
+
+      {/* ── Today's meetings (calendar) ───────────────────────── */}
+      {calendarConnected && (
+        <section className="space-y-3">
+          <h2 className="eyebrow">Today’s meetings ({todaysEvents.length})</h2>
+          {todaysEvents.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">Nothing on your calendar today.</p>
+          ) : (
+            <div className="card divide-y divide-slate-100 dark:divide-white/5">
+              {todaysEvents.map((e) => (
+                <div key={e.id} className="flex items-start justify-between gap-4 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{e.title}</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      {e.all_day ? "All day" : `${fmtTime(e.starts_at)}${e.ends_at ? `–${fmtTime(e.ends_at)}` : ""}`}
+                      {e.location ? ` · ${e.location}` : ""}
+                      {e.attendees.length > 0 ? ` · ${e.attendees.slice(0, 3).join(", ")}` : ""}
+                    </p>
+                  </div>
+                  <span className="badge bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300">
+                    {e.calendar}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ── Two columns: waiting-on both directions ───────────── */}
       <section className="grid gap-6 md:grid-cols-2">
@@ -227,9 +262,6 @@ export default async function TodayPage() {
             ))}
           </div>
         )}
-        <p className="text-xs text-slate-400 dark:text-slate-500">
-          Live calendar (today’s schedule, prep status, conflicts) arrives with the Calendar phase.
-        </p>
       </section>
 
       {/* ── Sync status ───────────────────────────────────────── */}
