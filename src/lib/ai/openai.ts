@@ -308,6 +308,31 @@ export async function callWebSearch(params: TextCallParams): Promise<StructuredC
   return { ok: text.length > 0, rawText: text || null, usage: b.usage ?? null, error: text ? null : "No text in web-search response." };
 }
 
+/** Transcribe an audio clip via the OpenAI transcription API. */
+export async function transcribeAudio(params: {
+  bytes: ArrayBuffer;
+  filename: string;
+  mimeType: string;
+}): Promise<{ ok: boolean; text: string | null; error: string | null }> {
+  const env = getEnv();
+  try {
+    const form = new FormData();
+    form.append("file", new Blob([params.bytes], { type: params.mimeType }), params.filename);
+    form.append("model", env.OPENAI_MODEL_TRANSCRIBE);
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { authorization: `Bearer ${env.OPENAI_API_KEY}` },
+      body: form,
+    });
+    const text = await res.text();
+    if (!res.ok) return { ok: false, text: null, error: `Transcription error ${res.status}: ${text.slice(0, 200)}` };
+    const data = JSON.parse(text) as { text?: string };
+    return { ok: true, text: (data.text ?? "").trim(), error: null };
+  } catch (err) {
+    return { ok: false, text: null, error: `Transcription failed: ${errMessage(err)}` };
+  }
+}
+
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }

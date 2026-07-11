@@ -101,3 +101,23 @@ export async function getWebhookInfo(): Promise<{ ok: boolean; result?: unknown;
 export async function getMe(): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   return call("getMe", {});
 }
+
+/** Resolve a file_id to a downloadable file_path. */
+export async function getFilePath(fileId: string): Promise<string | null> {
+  const res = await call("getFile", { file_id: fileId });
+  const r = res.result as { file_path?: string } | undefined;
+  return res.ok && r?.file_path ? r.file_path : null;
+}
+
+/** Download a Telegram file's bytes by its file_path. */
+export async function downloadFile(filePath: string): Promise<ArrayBuffer | null> {
+  const token = getEnv().TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch {
+    return null;
+  }
+}

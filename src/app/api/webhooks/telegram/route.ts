@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getEnv } from "@/lib/env";
 import { recordWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
 import { runCommand } from "@/lib/assistant/commands";
-import { sendChatAction, sendMessage } from "@/lib/telegram/api";
+import { downloadFile, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
+import { transcribeAudio } from "@/lib/ai/openai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,13 +31,19 @@ export async function POST(request: NextRequest) {
 
   const update = (await request.json().catch(() => null)) as {
     update_id?: number;
-    message?: { text?: string; chat?: { id?: number | string } };
+    message?: {
+      text?: string;
+      chat?: { id?: number | string };
+      voice?: { file_id?: string; mime_type?: string };
+      audio?: { file_id?: string; mime_type?: string };
+    };
   } | null;
 
   const chatId = update?.message?.chat?.id;
+  const voice = update?.message?.voice ?? update?.message?.audio;
   const text = update?.message?.text?.trim();
-  // Always 200 for updates we can't act on, so Telegram doesn't retry forever.
-  if (!update?.update_id || chatId === undefined || !text) {
+  // Need a chat and either text or a voice note; otherwise 200-and-ignore.
+  if (!update?.update_id || chatId === undefined || (!text && !voice?.file_id)) {
     return NextResponse.json({ ok: true });
   }
   if (String(chatId) !== String(env.TELEGRAM_ALLOWED_CHAT_ID)) {
@@ -56,8 +63,35 @@ export async function POST(request: NextRequest) {
 
   try {
     await sendChatAction(String(chatId), "typing");
-    const { reply } = await runCommand(text, "telegram");
-    await sendMessage(String(chatId), reply);
+
+    // Voice note → transcribe, then treat the transcript as the message.
+    let messageText = text ?? "";
+    let heardPrefix = "";
+    if (!messageText && voice?.file_id) {
+      const path = await getFilePath(voice.file_id);
+      const bytes = path ? await downloadFile(path) : null;
+      if (!bytes) {
+        await sendMessage(String(chatId), "I couldn't fetch that voice note — mind trying again?");
+        await updateWebhookEvent(event.id, "failed", "voice download failed");
+        return NextResponse.json({ ok: true });
+      }
+      const ext = (path!.split(".").pop() || "ogg").toLowerCase();
+      const tr = await transcribeAudio({
+        bytes,
+        filename: `voice.${ext}`,
+        mimeType: voice.mime_type ?? "audio/ogg",
+      });
+      if (!tr.ok || !tr.text) {
+        await sendMessage(String(chatId), "I couldn't make out that voice note — try again or type it?");
+        await updateWebhookEvent(event.id, "failed", tr.error ?? "empty transcription");
+        return NextResponse.json({ ok: true });
+      }
+      messageText = tr.text;
+      heardPrefix = `🎤 “${tr.text}”\n\n`;
+    }
+
+    const { reply } = await runCommand(messageText, "telegram");
+    await sendMessage(String(chatId), heardPrefix + reply);
     await updateWebhookEvent(event.id, "processed");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

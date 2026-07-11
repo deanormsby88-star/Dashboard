@@ -12,6 +12,7 @@ const envSchema = z.object({
   OPENAI_MODEL_MEETING_PROCESSOR: z.string().min(1).default("gpt-4.1"),
   OPENAI_MODEL_EMAIL_PROCESSOR: z.string().min(1).default("gpt-4.1"),
   OPENAI_MODEL_PRIORITIZER: z.string().min(1).default("gpt-4.1"),
+  OPENAI_MODEL_TRANSCRIBE: z.string().min(1).default("gpt-4o-transcribe"),
 
   ZAPIER_WEBHOOK_SECRET: z
     .string()
