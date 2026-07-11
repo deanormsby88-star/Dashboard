@@ -32,7 +32,7 @@ const NAV_ITEMS = [
 export default function NavLinks() {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-1 overflow-x-auto md:flex-col md:overflow-visible">
+    <nav className="flex gap-1.5 overflow-x-auto md:flex-col md:gap-1 md:overflow-visible">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
         return (
@@ -40,14 +40,14 @@ export default function NavLinks() {
             key={href}
             href={href}
             className={clsx(
-              "flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+              "group flex shrink-0 items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-all",
               active
-                ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                ? "bg-slate-900 text-white shadow-soft dark:bg-white dark:text-slate-900"
+                : "text-slate-500 hover:bg-white hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-100"
             )}
           >
-            <Icon size={16} strokeWidth={2} />
-            {label}
+            <Icon size={18} strokeWidth={active ? 2.2 : 1.9} />
+            <span>{label}</span>
           </Link>
         );
       })}

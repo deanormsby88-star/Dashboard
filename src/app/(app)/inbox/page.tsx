@@ -41,8 +41,8 @@ export default async function InboxPage({
             className={clsx(
               "rounded-full px-3 py-1 text-sm transition-colors",
               view === f.value
-                ? "bg-indigo-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                : "bg-white text-slate-600 hover:bg-slate-50 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             )}
           >
             {f.label}

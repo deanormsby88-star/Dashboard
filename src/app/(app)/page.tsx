@@ -19,23 +19,25 @@ export default async function TodayPage() {
   ]);
 
   const stats = [
-    { label: "Tasks awaiting review", value: counts.suggestedTasks, href: "/tasks?status=suggested" },
-    { label: "Commitments by Dean", value: counts.openCommitmentsByDean, href: "/commitments" },
+    { label: "Awaiting review", value: counts.suggestedTasks, href: "/tasks?status=suggested" },
+    { label: "You promised", value: counts.openCommitmentsByDean, href: "/commitments" },
     { label: "Waiting on others", value: counts.openWaitingOn, href: "/commitments" },
     { label: "Open risks", value: counts.openRisks, href: "/risks" },
   ];
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       <div>
-        <h1 className="text-xl font-bold">Today</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="eyebrow">
           {new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         </p>
+        <h1 className="mt-1 text-3xl font-bold tracking-tight">{greeting}, Dean</h1>
       </div>
 
       {(counts.failedMeetings > 0 || counts.pendingMeetings > 0) && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+        <div className="rounded-2xl border border-amber-200/70 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/50 dark:text-amber-200">
           {counts.failedMeetings > 0 && (
             <span>
               {counts.failedMeetings} meeting{counts.failedMeetings === 1 ? "" : "s"} failed processing —{" "}
@@ -49,11 +51,15 @@ export default async function TodayPage() {
         </div>
       )}
 
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         {stats.map((s) => (
-          <Link key={s.label} href={s.href} className="card p-4 transition-colors hover:border-indigo-300 dark:hover:border-indigo-700">
-            <div className="text-2xl font-bold">{s.value}</div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">{s.label}</div>
+          <Link
+            key={s.label}
+            href={s.href}
+            className="card group p-5 transition-all hover:-translate-y-0.5 hover:shadow-soft-lg"
+          >
+            <div className="text-4xl font-bold tracking-tight tabular-nums">{s.value}</div>
+            <div className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">{s.label}</div>
           </Link>
         ))}
       </section>

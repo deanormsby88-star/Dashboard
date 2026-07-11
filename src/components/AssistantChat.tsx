@@ -64,8 +64,8 @@ export default function AssistantChat() {
               className={clsx(
                 "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
                 m.role === "user"
-                  ? "bg-indigo-600 text-white"
-                  : "border border-slate-200 bg-white text-slate-800 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
+                  : "border border-slate-200 bg-white text-slate-800 shadow-soft dark:border-white/5 dark:bg-[#212327] dark:text-slate-200"
               )}
             >
               {m.text}
