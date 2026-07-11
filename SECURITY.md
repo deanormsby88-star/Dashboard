@@ -44,7 +44,8 @@ data leaves which system.
 | Flow | Data | Destination |
 |---|---|---|
 | Circleback → Zapier → DeanOS | meeting title, date, attendees, notes, transcript, action items | DeanOS database |
-| DeanOS → OpenAI | meeting title, date, attendee names, notes, transcript, action items | OpenAI API (extraction only) |
+| DeanOS → OpenAI | meeting/email content, assistant chat context | OpenAI API (extraction + reasoning) |
+| DeanOS → OpenAI web search | public identifiers only (name, role, company, topic) — never internal notes | OpenAI built-in web search |
 | DeanOS → Zapier → Todoist | task title, description (source context), priority, due date, labels | Todoist |
 | Zapier → DeanOS | Todoist task ID + URL | DeanOS database |
 

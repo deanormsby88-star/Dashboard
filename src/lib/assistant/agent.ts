@@ -4,6 +4,7 @@ import { callResponses, type AgentInputItem, type AgentTool } from "@/lib/ai/ope
 import { buildSnapshot } from "@/lib/assistant/state";
 import { generateDailyBrief } from "@/lib/assistant/brief";
 import { normalizeTitle } from "@/lib/dedup";
+import { research } from "@/lib/research";
 import {
   appendConversationMessage,
   businessByKey,
@@ -113,6 +114,17 @@ const TOOLS: AgentTool[] = [
     parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
   },
   {
+    name: "web_research",
+    description:
+      "Search the public web for current information about a person, company, topic, or news. Use for 'what's the latest on…', 'who is…', 'look up…', or to prep with public context. Pass ONLY public identifiers — never Dean's internal/confidential details.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["query"],
+      properties: { query: { type: "string", description: "A public search query, e.g. 'Anchor Offices Cape Town recent news'." } },
+    },
+  },
+  {
     name: "find_tasks",
     description:
       "List Dean's current tasks (suggested/approved/sent/created) with their ids, so you can then edit, complete, approve or reject a specific one. Call this before any task action to get the right id.",
@@ -210,7 +222,8 @@ You are conversational, warm, and extremely concise — this is a chat, not a re
 
 You have a live snapshot of Dean's world below, and tools to look deeper and to act. Guidance:
 - Answer directly from the snapshot when it already contains the answer (waiting-on, commitments, risks, counts, recent meetings).
-- Use get_person for questions about a specific person or to prep a meeting; compose the prep yourself from what it returns (state the single most important outcome, a few talking points, a few questions).
+- Use get_person for questions about a specific person or to prep a meeting; compose the prep yourself from what it returns (state the single most important outcome, a few talking points, a few questions). For meeting prep, if internal context is thin or Dean wants background, also call web_research for public context — keep public findings clearly labelled as such, separate from internal facts.
+- Use web_research to look up public information (people, companies, news). Only ever pass public identifiers to it, never Dean's internal or confidential details.
 - Use get_brief for daily-focus questions.
 - Take actions when Dean clearly asks. You can create AND manage things:
   • Tasks: create_task, and to change/finish existing ones first call find_tasks to get the id, then update_task / complete_task / approve_task / reject_task. Changes to tasks already in Todoist are pushed there automatically.
@@ -352,6 +365,10 @@ async function executeTool(
         recent_emails: bundle.emails.map((e) => ({ subject: e.subject, summary: e.summary })),
         notes: bundle.interactions.map((i) => i.summary),
       });
+    }
+    case "web_research": {
+      const r = await research(str(args.query), "agent");
+      return JSON.stringify({ ok: r.ok, findings: r.text });
     }
     case "get_brief": {
       const b = await generateDailyBrief();

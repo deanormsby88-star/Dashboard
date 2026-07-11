@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getPersonBundleById } from "@/lib/db/repo";
 import { StatusBadge } from "@/components/badges";
 import NextActionButton from "@/components/NextActionButton";
+import PublicResearchButton from "@/components/PublicResearchButton";
 import { formatDate, formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function PersonPage({ params }: { params: { id: string } })
       </div>
 
       <NextActionButton personId={p.id} />
+      <PublicResearchButton personId={p.id} />
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="space-y-3">

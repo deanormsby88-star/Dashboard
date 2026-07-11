@@ -146,3 +146,16 @@ brief, recorded per §28. Flag anything here that should change.
 
 29. **Bot creation is Dean's step** (BotFather) — only the account owner can
     mint the token. The webhook is registered from Settings → Telegram.
+
+## Public research
+
+30. **Public research runs through OpenAI's built-in web_search tool**
+    (`lib/research.ts`, `callWebSearch`), not a separate search API — no
+    extra key or provider. Available as the agent's `web_research` tool and
+    a "Public research" button on each person profile.
+
+31. **Only public identifiers are sent to web search** (name, role,
+    organisation, topic) — never internal notes, commitments, or
+    transcripts. Public findings are shown/labelled separately from internal
+    facts (brief §11/§12) and are not persisted, to keep the separation
+    crisp.

@@ -28,7 +28,7 @@ export default async function SettingsPage() {
       name: "OpenAI",
       configured: status.OPENAI_API_KEY,
       detail:
-        "Outbound: meeting title, notes, transcript, attendee names and action items are sent to the OpenAI API for extraction. Nothing else leaves DeanOS.",
+        "Outbound: meeting/email content for extraction, the assistant chat, and — via OpenAI's built-in web search — public research queries (public identifiers only, never internal notes).",
     },
     {
       name: "Todoist (direct API)",

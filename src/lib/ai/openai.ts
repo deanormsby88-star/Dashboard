@@ -252,6 +252,62 @@ export async function callText(params: TextCallParams): Promise<StructuredCallRe
   return { ok: false, rawText: bodyText.slice(0, 4000), usage: b.usage ?? null, error: "No output_text found in OpenAI response." };
 }
 
+/**
+ * Free-form composition with the built-in web_search tool. Runs entirely on
+ * the OpenAI account (no separate search key). Returns the model's answer
+ * after it has searched; the query and any context passed here leave to
+ * OpenAI's search — callers must pass only public identifiers, never
+ * internal/confidential content.
+ */
+export async function callWebSearch(params: TextCallParams): Promise<StructuredCallResult> {
+  const env = getEnv();
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: params.model,
+        tools: [{ type: "web_search" }],
+        input: [
+          { role: "system", content: params.system },
+          { role: "user", content: params.user },
+        ],
+        max_output_tokens: params.maxOutputTokens ?? 1200,
+      }),
+    });
+  } catch (err) {
+    return { ok: false, rawText: null, usage: null, error: `OpenAI request failed: ${errMessage(err)}` };
+  }
+  const bodyText = await response.text();
+  if (!response.ok) {
+    return { ok: false, rawText: bodyText.slice(0, 2000), usage: null, error: `OpenAI API error ${response.status}` };
+  }
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return { ok: false, rawText: null, usage: null, error: "OpenAI returned non-JSON body." };
+  }
+  const b = body as {
+    output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+    usage?: unknown;
+    error?: { message?: string };
+  };
+  if (b.error?.message) return { ok: false, rawText: null, usage: b.usage ?? null, error: b.error.message };
+  let text = "";
+  for (const item of b.output ?? []) {
+    if (item.type !== "message") continue;
+    for (const content of item.content ?? []) {
+      if (content.type === "output_text" && typeof content.text === "string") text += content.text;
+    }
+  }
+  return { ok: text.length > 0, rawText: text || null, usage: b.usage ?? null, error: text ? null : "No text in web-search response." };
+}
+
 function errMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
