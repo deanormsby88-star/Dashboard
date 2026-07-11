@@ -70,9 +70,13 @@ describe("buildUserMessage", () => {
       openWaitingOn: [
         { id: "c-123", text: "Lawrence to send revised team proposal", person: "Lawrence Cole" },
       ],
+      recentTasks: [{ title: "Approve supplier artwork", status: "rejected" }],
+      threadAlreadyHandled: true,
     });
     expect(message).toContain("id: c-123");
     expect(message).toContain("Lawrence to send revised team proposal");
     expect(message).toContain("Revised proposal attached");
+    expect(message).toContain("[rejected] Approve supplier artwork");
+    expect(message).toContain("THREAD ALREADY HANDLED: true");
   });
 });

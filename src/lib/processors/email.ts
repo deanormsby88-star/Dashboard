@@ -28,6 +28,7 @@ import {
   markCommitmentDone,
   setEmailProcessing,
   setTaskStatus,
+  threadHasResolvedEmail,
 } from "@/lib/db/repo";
 import { executeComplete } from "@/lib/todoist/execute";
 
@@ -58,7 +59,14 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   const owner = await ensureOwner();
   await setEmailProcessing(email.id, "processing");
 
+  // Retry-safe: drop this email's still-suggested tasks up front, so both
+  // the model's context and the dedup list reflect a clean slate for this
+  // email. Rejected/created tasks are kept — they must never be re-suggested.
+  await clearSuggestedTasksForSource(owner.user.id, email.message_id);
+
   const openWaitingOn = await listOpenWaitingOn(owner.user.id);
+  const allTasks = await listAllTaskTitles(owner.user.id);
+  const threadHandled = await threadHasResolvedEmail(owner.user.id, email.thread_id, email.id);
   const input: EmailProcessorInput = {
     mailbox: email.mailbox,
     direction: email.direction,
@@ -69,6 +77,9 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
     emailDate: email.email_date ? email.email_date.toISOString() : null,
     flags: email.flags,
     openWaitingOn: openWaitingOn.map((w) => ({ id: w.id, text: w.text, person: w.person_name })),
+    // Recent-first; 60 titles is plenty of context without bloating the prompt.
+    recentTasks: allTasks.slice(0, 60).map((t) => ({ title: t.title, status: t.status })),
+    threadAlreadyHandled: threadHandled,
   };
 
   const model = getEnv().OPENAI_MODEL_EMAIL_PROCESSOR;
@@ -141,10 +152,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   const counts = { tasks: 0, waitingOn: 0, risks: 0, relationshipUpdates: 0, resolvedWaitingOn: 0 };
   let suggestedTaskId: string | null = null;
 
-  // Retry-safe: drop this email's still-suggested tasks before re-extracting.
-  // Rejected/created ones are kept — the dedup list below stops re-suggesting them.
-  await clearSuggestedTasksForSource(owner.user.id, email.message_id);
-  const existingTitles = await listAllTaskTitles(owner.user.id);
+  const existingTitles = [...allTasks];
 
   // Action → one suggested task for Dean's review.
   if (output.classification === "action" && output.suggested_task) {

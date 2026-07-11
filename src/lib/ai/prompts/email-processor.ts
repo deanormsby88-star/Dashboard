@@ -10,10 +10,12 @@ import { z } from "zod";
  *
  * Version history:
  *   1.0.0 — initial version (Phase 2).
+ *   1.1.0 — duplicate suppression: model sees recent task titles (all
+ *           statuses) and whether the thread was already handled by Dean.
  */
 
 export const PROMPT_NAME = "email-processor";
-export const PROMPT_VERSION = "1.0.0";
+export const PROMPT_VERSION = "1.1.0";
 
 // ── Input ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +31,8 @@ export const emailProcessorInputSchema = z.object({
   openWaitingOn: z.array(
     z.object({ id: z.string(), text: z.string(), person: z.string().nullable() })
   ),
+  recentTasks: z.array(z.object({ title: z.string(), status: z.string() })).default([]),
+  threadAlreadyHandled: z.boolean().default(false),
 });
 
 export type EmailProcessorInput = z.infer<typeof emailProcessorInputSchema>;
@@ -161,6 +165,12 @@ HARD RULES
 - Priorities (Todoist scale): 4 only for same-day urgency, serious client risk, payroll, legal deadlines, outages, or material financial exposure; 3 for client-facing commitments, approvals blocking others, finance deadlines, or work clearly due soon; 2 normal (default); 1 backlog.
 - waiting_on.text should read as a follow-up, e.g. "Lawrence to send signed contract".
 
+NO DUPLICATE WORK — CRITICAL
+You are given Dean's recent DeanOS tasks with their statuses. One underlying obligation must map to at most ONE task, ever:
+- If the email concerns a matter already covered by an existing task — whatever its status (suggested, created, completed, or rejected/dismissed) — do NOT suggest a new task and do NOT create a new waiting_on. A rejected or completed task means Dean has already dealt with or deliberately dismissed that matter; a later email about it does not revive it. Classify such emails "reference" (or "ignore") unless they introduce a genuinely NEW obligation that no existing task covers.
+- If THREAD ALREADY HANDLED is true, Dean explicitly marked an earlier email in this same conversation as handled. Treat follow-ups in that thread as "reference" unless they clearly introduce a new, distinct obligation.
+- Judge by meaning, not exact wording — "confirm medication script" and "confirm when medications are ready" are the same underlying matter.
+
 RESOLVING WAITING-ON ITEMS
 You are given Dean's currently open waiting-on items with IDs. If this INBOUND email substantively delivers what an item was waiting for (the document arrives, the approval is given, the question is answered, payment confirmed), include that item's id in resolves_waiting_on_ids. A mere acknowledgment ("got it, will look next week") does NOT resolve. Only use IDs from the provided list. When unsure, do not resolve.
 
@@ -176,6 +186,10 @@ export function buildUserMessage(input: EmailProcessorInput): string {
           .map((w) => `- id: ${w.id} | ${w.text}${w.person ? ` (from ${w.person})` : ""}`)
           .join("\n")
       : "(none)";
+  const recentTasks =
+    input.recentTasks.length > 0
+      ? input.recentTasks.map((t) => `- [${t.status}] ${t.title}`).join("\n")
+      : "(none)";
   return [
     `MAILBOX (business context): ${input.mailbox}`,
     `DIRECTION: ${input.direction}`,
@@ -184,9 +198,13 @@ export function buildUserMessage(input: EmailProcessorInput): string {
     `DATE: ${input.emailDate ?? "unknown"}`,
     `FLAGS/CATEGORIES: ${input.flags.join(", ") || "(none)"}`,
     `SUBJECT: ${input.subject || "(no subject)"}`,
+    `THREAD ALREADY HANDLED: ${input.threadAlreadyHandled ? "true — Dean marked an earlier email in this conversation as handled" : "false"}`,
     "",
     "DEAN'S OPEN WAITING-ON ITEMS:",
     waiting,
+    "",
+    "DEAN'S RECENT TASKS (all statuses — do not duplicate any of these):",
+    recentTasks,
     "",
     "EMAIL BODY:",
     input.body || "(empty)",

@@ -343,15 +343,31 @@ export async function listTasks(filter?: { status?: TaskStatus; meetingId?: stri
  */
 export async function listAllTaskTitles(
   userId: string
-): Promise<Array<{ id: string; title: string }>> {
-  const res = await getPool().query<{ id: string; title: string }>(
-    `select id, title from tasks
+): Promise<Array<{ id: string; title: string; status: string }>> {
+  const res = await getPool().query<{ id: string; title: string; status: string }>(
+    `select id, title, status from tasks
      where user_id = $1
      order by created_at desc
      limit 1000`,
     [userId]
   );
   return res.rows;
+}
+
+/** Has Dean marked any other email in this thread as handled? */
+export async function threadHasResolvedEmail(
+  userId: string,
+  threadId: string | null,
+  excludeEmailId: string
+): Promise<boolean> {
+  if (!threadId) return false;
+  const res = await getPool().query(
+    `select 1 from emails
+     where user_id = $1 and thread_id = $2 and id <> $3 and resolved = true
+     limit 1`,
+    [userId, threadId, excludeEmailId]
+  );
+  return res.rows.length > 0;
 }
 
 /** Reject any still-suggested tasks extracted from a given source record. */

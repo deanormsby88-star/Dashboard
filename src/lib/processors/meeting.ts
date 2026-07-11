@@ -190,7 +190,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
       continue;
     }
     counts.tasks++;
-    existingTitles.push({ id: inserted.id, title: inserted.title });
+    existingTitles.push({ id: inserted.id, title: inserted.title, status: inserted.status });
     insertedTaskIds.set(inserted.title, inserted.id);
   }
 
@@ -240,7 +240,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
       });
       if (inserted) {
         linkedTaskId = inserted.id;
-        existingTitles.push({ id: inserted.id, title: inserted.title });
+        existingTitles.push({ id: inserted.id, title: inserted.title, status: inserted.status });
       }
     }
     const person = await getOrCreatePersonByName(owner.user.id, w.person);
