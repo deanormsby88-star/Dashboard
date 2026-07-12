@@ -6,7 +6,7 @@ import type { BusinessKey } from "@/lib/types";
 
 const AUTH_BASE = "https://login.microsoftonline.com/common/oauth2/v2.0";
 const GRAPH = "https://graph.microsoft.com/v1.0";
-const SCOPE = "offline_access openid profile email User.Read Calendars.ReadWrite";
+const SCOPE = "offline_access openid profile email User.Read Calendars.ReadWrite Mail.ReadWrite Mail.Send";
 
 export function redirectUri(): string {
   return `${getEnv().APP_URL}/api/auth/microsoft/callback`;
@@ -216,6 +216,102 @@ function graphBody(input: EventInput): Record<string, unknown> {
 
 function attendeeList(emails: string[]): unknown[] {
   return emails.map((address) => ({ emailAddress: { address }, type: "required" }));
+}
+
+// ── Mail ────────────────────────────────────────────────────────────────────
+
+export interface GraphMessage {
+  id: string;
+  subject: string;
+  from: string;
+  fromAddress: string | null;
+  receivedIso: string;
+  preview: string;
+  webLink: string | null;
+}
+
+const MAIL_SELECT = "id,subject,from,receivedDateTime,bodyPreview,webLink";
+
+function mapMessage(m: Record<string, unknown>): GraphMessage {
+  const from = m.from as { emailAddress?: { name?: string; address?: string } } | undefined;
+  return {
+    id: String(m.id),
+    subject: (m.subject as string) || "(no subject)",
+    from: from?.emailAddress?.name || from?.emailAddress?.address || "(unknown)",
+    fromAddress: from?.emailAddress?.address ?? null,
+    receivedIso: (m.receivedDateTime as string) ?? "",
+    preview: ((m.bodyPreview as string) || "").slice(0, 300),
+    webLink: (m.webLink as string) || null,
+  };
+}
+
+/**
+ * Search a mailbox. With `query`, does a full-text $search (relevance order);
+ * otherwise lists recent mail, optionally since `sinceIso`, newest first.
+ */
+export async function searchMessages(
+  token: string,
+  opts: { query?: string; sinceIso?: string; top?: number }
+): Promise<GraphMessage[]> {
+  const top = String(opts.top ?? 15);
+  let path: string;
+  if (opts.query && opts.query.trim()) {
+    const q = encodeURIComponent(`"${opts.query.replace(/"/g, "")}"`);
+    path = `/me/messages?$search=${q}&$select=${MAIL_SELECT}&$top=${top}`;
+  } else {
+    const filter = opts.sinceIso ? `&$filter=${encodeURIComponent(`receivedDateTime ge ${opts.sinceIso}`)}` : "";
+    path = `/me/messages?$select=${MAIL_SELECT}&$orderby=receivedDateTime%20desc&$top=${top}${filter}`;
+  }
+  const res = await graphFetch(token, path);
+  if (!res.ok) throw new Error(`Graph mail search ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = (await res.json()) as { value?: Array<Record<string, unknown>> };
+  return (data.value ?? []).map(mapMessage);
+}
+
+/** Full plain-text body of a single message. */
+export async function getMessageBody(token: string, messageId: string): Promise<{ subject: string; from: string; body: string } | null> {
+  const res = await graphFetch(token, `/me/messages/${messageId}?$select=subject,from,body`);
+  if (!res.ok) return null;
+  const m = (await res.json()) as {
+    subject?: string;
+    from?: { emailAddress?: { name?: string; address?: string } };
+    body?: { contentType?: string; content?: string };
+  };
+  let body = m.body?.content ?? "";
+  if (m.body?.contentType === "html") body = body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return {
+    subject: m.subject ?? "",
+    from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || "",
+    body: body.slice(0, 6000),
+  };
+}
+
+/** Reply (threaded) to a message with plain-text body. */
+export async function replyToMessage(token: string, messageId: string, body: string): Promise<void> {
+  const res = await graphFetch(token, `/me/messages/${messageId}/reply`, {
+    method: "POST",
+    body: JSON.stringify({ comment: body }),
+  });
+  if (!res.ok) throw new Error(`Graph reply ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
+/** Send a brand-new email. */
+export async function sendNewMessage(
+  token: string,
+  input: { to: string[]; subject: string; body: string }
+): Promise<void> {
+  const res = await graphFetch(token, "/me/sendMail", {
+    method: "POST",
+    body: JSON.stringify({
+      message: {
+        subject: input.subject,
+        body: { contentType: "text", content: input.body },
+        toRecipients: input.to.map((address) => ({ emailAddress: { address } })),
+      },
+      saveToSentItems: true,
+    }),
+  });
+  if (!res.ok) throw new Error(`Graph sendMail ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
 /** Graph returns naive datetimes (no offset) that ARE UTC given our Prefer header. */

@@ -12,8 +12,13 @@ import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
 import {
   createEvent,
   deleteEvent,
+  getMessageBody,
   getValidAccessToken,
+  replyToMessage,
+  searchMessages,
+  sendNewMessage,
   updateEvent,
+  type GraphMessage,
 } from "@/lib/calendar/microsoft";
 import { listCalendarConnections } from "@/lib/db/repo";
 import {
@@ -49,7 +54,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.4.0";
+export const AGENT_PROMPT_VERSION = "1.5.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -264,6 +269,65 @@ const TOOLS: AgentTool[] = [
     },
   },
   {
+    name: "search_email",
+    description:
+      "Search Dean's actual Outlook mail directly (Heya and/or JIC) — the live inbox, full history. Use for ANY question about his email ('what did Lisa send about X', 'anything from ylazarus this week', 'check my Heya inbox'). Returns messages with ids for reading or replying.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["mailbox", "query", "days"],
+      properties: {
+        mailbox: { type: "string", enum: ["heya", "jic", "both"], description: "Which mailbox. Default 'both' if unclear." },
+        query: { type: ["string", "null"], description: "Free-text search over subject/body/sender. Null lists most recent mail." },
+        days: { type: ["integer", "null"], description: "Only mail newer than this many days (used when query is null). Null = no date limit." },
+      },
+    },
+  },
+  {
+    name: "read_email",
+    description: "Read the full body of one email. Get mailbox + message_id from search_email first.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["mailbox", "message_id"],
+      properties: {
+        mailbox: { type: "string", enum: ["heya", "jic"] },
+        message_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "send_email_reply",
+    description:
+      "Send a threaded reply to an email from Dean's Outlook. ONLY call after Dean has seen the draft and explicitly approved sending. Get mailbox + message_id from search_email.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["mailbox", "message_id", "body"],
+      properties: {
+        mailbox: { type: "string", enum: ["heya", "jic"] },
+        message_id: { type: "string" },
+        body: { type: "string", description: "The reply body, in Dean's voice, signed off as Dean." },
+      },
+    },
+  },
+  {
+    name: "send_email",
+    description:
+      "Send a brand-new email from Dean's Outlook. ONLY call after Dean has seen the draft and explicitly approved sending.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["mailbox", "to", "subject", "body"],
+      properties: {
+        mailbox: { type: "string", enum: ["heya", "jic"] },
+        to: { type: "array", items: { type: "string" }, description: "Recipient email addresses." },
+        subject: { type: "string" },
+        body: { type: "string", description: "The email body, in Dean's voice, signed off as Dean." },
+      },
+    },
+  },
+  {
     name: "web_research",
     description:
       "Search the public web for current information about a person, company, topic, or news. Use for 'what's the latest on…', 'who is…', 'look up…', or to prep with public context. Pass ONLY public identifiers — never Dean's internal/confidential details.",
@@ -384,7 +448,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
-  • Email: find_emails to see what's unhandled/needs a reply; draft_email_reply to write a response in Dean's voice. Proactively offer to draft when Dean mentions an email needing a reply. Show him the draft to review and give him the one-tap send link; you can't send email directly yet, so never claim you sent it.
+  • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the message yourself in Dean's voice (warm, direct, concise, SA business English, signed "Dean"), SHOW HIM THE DRAFT, and only call send_email_reply / send_email once he has explicitly approved sending — never send unprompted, and never claim you sent something you didn't. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
@@ -619,6 +683,75 @@ async function executeTool(
     case "cancel_reminder": {
       const ok = await cancelReminder(str(args.id));
       return JSON.stringify({ ok, error: ok ? undefined : "not found or already sent" });
+    }
+    case "search_email": {
+      const which = str(args.mailbox) || "both";
+      const boxes = which === "both" ? (["heya", "jic"] as const) : ([which] as ("heya" | "jic")[]);
+      const query = typeof args.query === "string" && args.query.trim() ? args.query.trim() : undefined;
+      const days = typeof args.days === "number" ? args.days : null;
+      const sinceIso = !query && days ? new Date(Date.now() - days * 86400_000).toISOString() : undefined;
+      const results: Array<GraphMessage & { mailbox: string }> = [];
+      const errors: string[] = [];
+      for (const box of boxes) {
+        const token = await getValidAccessToken(owner.user.id, box);
+        if (!token) {
+          errors.push(`${box} not connected`);
+          continue;
+        }
+        try {
+          const msgs = await searchMessages(token, { query, sinceIso, top: 12 });
+          results.push(...msgs.map((m) => ({ ...m, mailbox: box })));
+        } catch (err) {
+          errors.push(`${box}: ${err instanceof Error ? err.message : "search failed"}`);
+        }
+      }
+      results.sort((a, b) => (b.receivedIso || "").localeCompare(a.receivedIso || ""));
+      return JSON.stringify({
+        emails: results.slice(0, 20).map((m) => ({
+          mailbox: m.mailbox,
+          message_id: m.id,
+          from: m.from,
+          subject: m.subject,
+          received: m.receivedIso,
+          preview: m.preview,
+        })),
+        errors: errors.length ? errors : undefined,
+        note: errors.length
+          ? "Some mailboxes aren't connected for email yet — Dean may need to reconnect them in Settings to grant email access."
+          : undefined,
+      });
+    }
+    case "read_email": {
+      const box = str(args.mailbox) as "heya" | "jic";
+      const token = await getValidAccessToken(owner.user.id, box);
+      if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
+      const msg = await getMessageBody(token, str(args.message_id));
+      if (!msg) return JSON.stringify({ ok: false, error: "couldn't read that email (reconnect email access?)" });
+      return JSON.stringify({ ok: true, ...msg });
+    }
+    case "send_email_reply": {
+      const box = str(args.mailbox) as "heya" | "jic";
+      const token = await getValidAccessToken(owner.user.id, box);
+      if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
+      try {
+        await replyToMessage(token, str(args.message_id), str(args.body));
+        return JSON.stringify({ ok: true, sent: true, mailbox: box });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "send failed" });
+      }
+    }
+    case "send_email": {
+      const box = str(args.mailbox) as "heya" | "jic";
+      const token = await getValidAccessToken(owner.user.id, box);
+      if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
+      const to = Array.isArray(args.to) ? (args.to as string[]).filter(Boolean) : [];
+      if (to.length === 0) return JSON.stringify({ ok: false, error: "no recipient" });
+      try {
+        await sendNewMessage(token, { to, subject: str(args.subject), body: str(args.body) });
+        return JSON.stringify({ ok: true, sent: true, mailbox: box, to });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "send failed" });
+      }
     }
     case "find_emails": {
       const emails = await listEmails({ unresolvedOnly: true, limit: 20 });

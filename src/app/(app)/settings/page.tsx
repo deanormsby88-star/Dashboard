@@ -26,7 +26,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
     { key: "jic", name: "JIC Outlook" },
   ];
   const calMsg: Record<string, string> = {
-    connected: "Calendar connected.",
+    connected: "Outlook connected (calendar + email).",
     error: "Microsoft returned an error — try again.",
     exchange_failed: "Couldn't complete sign-in — try again.",
     bad_state: "Sign-in expired — start again.",
@@ -62,9 +62,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
       detail: `Inbound: POST ${appUrl}/api/webhooks/zapier/email — flagged/foldered emails flow from each mailbox's Zap with its business context. Bodies are stored truncated; the mail platform stays the system of record.`,
     },
     {
-      name: "Calendar (Outlook, Microsoft Graph)",
+      name: "Outlook calendar + email (Microsoft Graph)",
       configured: status.MS_CLIENT_ID && status.MS_CLIENT_SECRET,
-      detail: "Two-way: DeanOS reads and schedules meetings in the Heya and JIC Outlook calendars. Connect each below.",
+      detail: "Two-way: DeanOS reads and schedules meetings, and reads/replies/sends email, across the Heya and JIC Outlook accounts. Connect each below.",
     },
   ];
 
@@ -111,7 +111,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Calendars (Outlook)
+          Outlook (calendar + email)
         </h2>
         {searchParams.calendar && (
           <p className="rounded-2xl bg-slate-100 px-4 py-2 text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">
@@ -126,7 +126,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
                 <div>
                   <p className="text-sm font-medium">{c.name}</p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    {conn ? `Connected${conn.account_email ? ` — ${conn.account_email}` : ""}` : "Read + write meetings via Microsoft Graph."}
+                    {conn ? `Connected${conn.account_email ? ` — ${conn.account_email}` : ""}` : "Read + write meetings and email via Microsoft Graph."}
                   </p>
                 </div>
                 {graphConfigured ? (
@@ -146,7 +146,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           })}
         </div>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Sign in with each Outlook account to let DeanOS view and schedule meetings. Tokens are stored encrypted.
+          Sign in with each Outlook account to let DeanOS read and manage that mailbox's calendar and email (read, reply, send). If you connected before email was added, click Reconnect to grant the new access. Tokens are stored encrypted.
         </p>
       </section>
 
