@@ -22,9 +22,9 @@ function fmtTime(d: Date): string {
   });
 }
 
-/** A real meeting worth a nudge: has people or a place. Skips solo focus blocks. */
-function isMeeting(e: CalendarEventRow): boolean {
-  return !e.all_day && (e.attendees.length > 0 || Boolean(e.location));
+/** Anything with a specific start time gets a nudge; all-day banners don't. */
+function isRemindable(e: CalendarEventRow): boolean {
+  return !e.all_day;
 }
 
 function reminderKey(e: CalendarEventRow): string {
@@ -63,7 +63,7 @@ export async function sendDueMeetingReminders(
 
   let sent = 0;
   for (const e of events) {
-    if (!isMeeting(e)) continue;
+    if (!isRemindable(e)) continue;
     const key = reminderKey(e);
     if (await getLastSyncRun(key)) continue; // already reminded
     const ok = await sendToDean(await compose(e, now));

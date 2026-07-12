@@ -47,6 +47,44 @@ async function todoistFetch(path: string, init: RequestInit): Promise<Response> 
   });
 }
 
+export interface TodoistTask {
+  id: string;
+  content: string;
+  priority: number; // 4 = urgent … 1 = normal
+  url: string | null;
+  due: { date: string; datetime?: string | null; string?: string } | null;
+}
+
+/** All active (incomplete) Todoist tasks across projects, following pagination. */
+export async function listActiveTodoistTasks(): Promise<TodoistTask[]> {
+  const out: TodoistTask[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < 10; page++) {
+    const q = new URLSearchParams({ limit: "200" });
+    if (cursor) q.set("cursor", cursor);
+    const res = await todoistFetch(`/tasks?${q.toString()}`, { method: "GET" });
+    if (!res.ok) throw new Error(`Todoist list error ${res.status}: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+    const data = (await res.json()) as
+      | Array<Record<string, unknown>>
+      | { results?: Array<Record<string, unknown>>; next_cursor?: string | null };
+    const results = Array.isArray(data) ? data : (data.results ?? []);
+    for (const t of results) {
+      const due = t.due as { date?: string; datetime?: string | null; string?: string } | null | undefined;
+      out.push({
+        id: String(t.id),
+        content: typeof t.content === "string" ? t.content : "(untitled)",
+        priority: typeof t.priority === "number" ? t.priority : 1,
+        url: typeof t.url === "string" ? t.url : null,
+        due: due?.date ? { date: due.date, datetime: due.datetime ?? null, string: due.string } : null,
+      });
+    }
+    const next = Array.isArray(data) ? null : (data.next_cursor ?? null);
+    if (!next) break;
+    cursor = next;
+  }
+  return out;
+}
+
 export async function createTodoistTask(task: Task, business: Business | null): Promise<TodoistApiResult> {
   try {
     const res = await todoistFetch("/tasks", {
