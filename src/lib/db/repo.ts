@@ -1017,6 +1017,21 @@ export async function recordSyncRun(params: {
   );
 }
 
+/** Recent succeeded sync_runs for a source (stats returned parsed — jsonb). */
+export async function listSyncRunsBySource(
+  sourceSystem: string,
+  sinceDays = 45
+): Promise<Array<{ stats: Record<string, unknown>; started_at: Date }>> {
+  const res = await getPool().query<{ stats: Record<string, unknown>; started_at: Date }>(
+    `select stats, started_at from sync_runs
+     where source_system = $1 and status = 'succeeded'
+       and started_at > now() - make_interval(days => $2)
+     order by started_at desc limit 1000`,
+    [sourceSystem, sinceDays]
+  );
+  return res.rows;
+}
+
 export interface RecentChanges {
   tasksCreated: Array<{ title: string; status: string }>;
   commitmentsOpened: Array<{ text: string; direction: string; person_name: string | null }>;

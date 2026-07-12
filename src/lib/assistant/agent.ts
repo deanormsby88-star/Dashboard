@@ -3,6 +3,7 @@ import { getEnv } from "@/lib/env";
 import { callResponses, type AgentInputItem, type AgentTool } from "@/lib/ai/openai";
 import { buildSnapshot } from "@/lib/assistant/state";
 import { generateDailyBrief } from "@/lib/assistant/brief";
+import { cancelReminder, createReminder, listUpcomingReminders } from "@/lib/assistant/adhoc-reminders";
 import { normalizeTitle } from "@/lib/dedup";
 import { research } from "@/lib/research";
 import { wazeLink } from "@/lib/maps";
@@ -48,7 +49,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.3.0";
+export const AGENT_PROMPT_VERSION = "1.4.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -216,6 +217,30 @@ const TOOLS: AgentTool[] = [
     },
   },
   {
+    name: "set_reminder",
+    description:
+      "Schedule a one-off reminder that DeanOS will send Dean as a Telegram message at a specific time. Use whenever Dean says 'remind me to… at/​in…'. Convert his local SAST time to UTC ISO for remind_at_utc (e.g. '3pm today' → todayT13:00:00Z; 'in 30 minutes' → now + 30 min in UTC).",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["text", "remind_at_utc"],
+      properties: {
+        text: { type: "string", description: "What to remind him about, phrased as the reminder itself (e.g. 'call the plumber')." },
+        remind_at_utc: { type: "string", description: "When to send it, UTC ISO 8601, e.g. 2026-07-13T13:00:00Z. Must be in the future." },
+      },
+    },
+  },
+  {
+    name: "list_reminders",
+    description: "List Dean's upcoming one-off reminders (not yet sent) with their ids, so you can tell him what's scheduled or cancel one.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: "cancel_reminder",
+    description: "Cancel a scheduled one-off reminder so it won't be sent. Get the id from list_reminders first.",
+    parameters: { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } },
+  },
+  {
     name: "find_emails",
     description:
       "List Dean's recent unhandled emails (needing a reply or action) with ids, sender, subject and a one-line summary. Call this before drafting a reply, or when Dean asks what's in his inbox / what needs a response.",
@@ -358,6 +383,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
+  • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
   • Email: find_emails to see what's unhandled/needs a reply; draft_email_reply to write a response in Dean's voice. Proactively offer to draft when Dean mentions an email needing a reply. Show him the draft to review and give him the one-tap send link; you can't send email directly yet, so never claim you sent it.
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
@@ -580,6 +606,19 @@ async function executeTool(
       } catch (err) {
         return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "cancel failed" });
       }
+    }
+    case "set_reminder": {
+      const r = await createReminder(str(args.text), str(args.remind_at_utc));
+      if (!r.ok) return JSON.stringify({ ok: false, error: r.error });
+      return JSON.stringify({ ok: true, reminder: str(args.text), when_local: r.when, id: r.id });
+    }
+    case "list_reminders": {
+      const rems = await listUpcomingReminders();
+      return JSON.stringify(rems.map((r) => ({ id: r.id, text: r.text, when_local: r.when })));
+    }
+    case "cancel_reminder": {
+      const ok = await cancelReminder(str(args.id));
+      return JSON.stringify({ ok, error: ok ? undefined : "not found or already sent" });
     }
     case "find_emails": {
       const emails = await listEmails({ unresolvedOnly: true, limit: 20 });
