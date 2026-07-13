@@ -97,8 +97,7 @@ export async function getTodayWeather(now: Date = new Date()): Promise<TodayWeat
 
     const temps: number[] = [];
     let precipMm = 0;
-    let headline = "clearsky_day";
-    let topSeverity = -1;
+    const dayCounts = new Map<string, number>(); // symbol → daytime hours
     let matched = 0;
 
     for (const e of series) {
@@ -109,17 +108,31 @@ export async function getTodayWeather(now: Date = new Date()): Promise<TodayWeat
       const nx = e.data.next_1_hours;
       if (nx?.details?.precipitation_amount) precipMm += nx.details.precipitation_amount;
       const sym = nx?.summary?.symbol_code;
-      if (sym && severity(sym) > topSeverity) {
-        topSeverity = severity(sym);
-        headline = sym;
+      const hour = Number(e.time.match(/T(\d\d)/)?.[1] ?? -1) + 2; // → SAST (UTC+2)
+      const localHour = (hour + 24) % 24;
+      if (sym && localHour >= 6 && localHour <= 18) {
+        dayCounts.set(sym, (dayCounts.get(sym) ?? 0) + 1);
       }
     }
     if (matched === 0 || temps.length === 0) return null;
 
+    // Headline = the dominant daytime condition (most hours); ties broken by
+    // severity so a genuinely stormy afternoon still shows through.
+    let headline = "clearsky_day";
+    let best = -1;
+    for (const [sym, count] of dayCounts) {
+      if (count > best || (count === best && severity(sym) > severity(headline))) {
+        best = count;
+        headline = sym;
+      }
+    }
+
     const tempMin = Math.round(Math.min(...temps));
     const tempMax = Math.round(Math.max(...temps));
     const roundedMm = Math.round(precipMm * 10) / 10;
-    const wet = roundedMm >= 0.3 || topSeverity >= 3;
+    // Only call it "wet" for meaningful rain, or when the day is dominantly
+    // rainy — not a trivial passing shower on an otherwise clear day.
+    const wet = roundedMm >= 1 || severity(headline) >= 3;
 
     return {
       summary: describeSymbol(headline),
