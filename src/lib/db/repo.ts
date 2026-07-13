@@ -659,7 +659,7 @@ export async function getOrCreatePersonByName(userId: string, fullName: string):
 
 export async function updatePerson(
   id: string,
-  fields: { role?: string; organization?: string; email?: string; phone?: string; notes?: string }
+  fields: { fullName?: string; role?: string | null; organization?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
 ): Promise<Person | null> {
   const sets: string[] = [];
   const values: unknown[] = [id];
@@ -667,6 +667,7 @@ export async function updatePerson(
     values.push(v);
     sets.push(`${col} = $${values.length}`);
   };
+  if (fields.fullName !== undefined && fields.fullName.trim()) push("full_name", fields.fullName.trim());
   if (fields.role !== undefined) push("role", fields.role);
   if (fields.organization !== undefined) push("organization", fields.organization);
   if (fields.email !== undefined) push("email", fields.email);
@@ -678,6 +679,11 @@ export async function updatePerson(
     values
   );
   return res.rows[0] ?? null;
+}
+
+export async function deletePerson(id: string): Promise<boolean> {
+  const res = await getPool().query(`delete from people where id = $1`, [id]);
+  return (res.rowCount ?? 0) > 0;
 }
 
 export async function listPeople(): Promise<Person[]> {

@@ -125,6 +125,8 @@ export interface Person {
   role: string | null;
   organization: string | null;
   email: string | null;
+  phone?: string | null;
+  notes?: string | null;
   created_at: Date;
 }
 

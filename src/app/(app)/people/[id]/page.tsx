@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { getPersonBundleById } from "@/lib/db/repo";
 import { StatusBadge } from "@/components/badges";
 import NextActionButton from "@/components/NextActionButton";
+import PersonEditor from "@/components/PersonEditor";
 import PublicResearchButton from "@/components/PublicResearchButton";
 import { formatDate, formatDateTime } from "@/lib/format";
 
@@ -27,13 +28,21 @@ export default async function PersonPage({ params }: { params: { id: string } })
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-lg font-bold text-white dark:bg-white dark:text-slate-900">
           {p.full_name.slice(0, 1).toUpperCase()}
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{p.full_name}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {[p.role, p.organization, p.email].filter(Boolean).join(" · ") || "No details on file yet"}
+            {[p.role, p.organization, p.email, p.phone].filter(Boolean).join(" · ") || "No details on file yet"}
           </p>
         </div>
       </div>
+
+      <PersonEditor person={p} />
+
+      {p.notes && (
+        <p className="rounded-2xl bg-slate-100 px-4 py-3 text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">
+          {p.notes}
+        </p>
+      )}
 
       <NextActionButton personId={p.id} />
       <PublicResearchButton personId={p.id} />

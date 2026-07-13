@@ -25,6 +25,7 @@ import {
   appendConversationMessage,
   businessByKey,
   completeTaskByTodoistId,
+  deletePerson,
   ensureOwner,
   getCommitment,
   findPersonByName,
@@ -54,7 +55,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.5.0";
+export const AGENT_PROMPT_VERSION = "1.6.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -157,6 +158,17 @@ const TOOLS: AgentTool[] = [
         phone: { type: ["string", "null"] },
         notes: { type: ["string", "null"], description: "Free-text bio / anything worth remembering." },
       },
+    },
+  },
+  {
+    name: "remove_person",
+    description:
+      "Delete a person from Dean's people list (e.g. he says someone is unimportant / not a real contact). Their past commitments and history are kept. Confirm with Dean before removing if there's any doubt.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["name"],
+      properties: { name: { type: "string" } },
     },
   },
   {
@@ -445,7 +457,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Tasks: create_task, and to change/finish existing ones first call find_tasks to get the id, then update_task / complete_task / approve_task / reject_task. Changes to tasks already in Todoist are pushed there automatically.
   • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
-  • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person.
+  • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person. remove_person to delete someone Dean says is unimportant / not a real contact (their history is kept).
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
   • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the message yourself in Dean's voice (warm, direct, concise, SA business English, signed "Dean"), SHOW HIM THE DRAFT, and only call send_email_reply / send_email once he has explicitly approved sending — never send unprompted, and never claim you sent something you didn't. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
@@ -785,6 +797,12 @@ async function executeTool(
     case "web_research": {
       const r = await research(str(args.query), "agent");
       return JSON.stringify({ ok: r.ok, findings: r.text });
+    }
+    case "remove_person": {
+      const existing = await findPersonByName(str(args.name));
+      if (!existing) return JSON.stringify({ ok: false, error: "no such person on file" });
+      const ok = await deletePerson(existing.id);
+      return JSON.stringify({ ok, removed: ok ? existing.full_name : undefined });
     }
     case "get_brief": {
       const b = await generateDailyBrief();
