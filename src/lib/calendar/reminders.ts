@@ -8,7 +8,7 @@ import {
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
 import { buildMeetingPrep } from "@/lib/calendar/prep";
 import { sendToDean } from "@/lib/telegram/notify";
-import { wazeLink } from "@/lib/maps";
+import { wazeLinkFor } from "@/lib/maps";
 
 /**
  * Two nudges per meeting: ~30 min before (with prep) and ~5 min before (a
@@ -44,7 +44,8 @@ async function compose(e: CalendarEventRow, now: Date, withPrep: boolean): Promi
   const lines = [`⏰ In ${minsAway} min · ${fmtTime(e.starts_at)} — ${e.title}`];
   if (e.location) {
     lines.push(`📍 ${e.location}`);
-    lines.push(`🚗 ${wazeLink(e.location)}`);
+    const waze = wazeLinkFor(e.location);
+    if (waze) lines.push(`🚗 ${waze}`);
   }
   if (e.attendees.length > 0) lines.push(`👥 ${e.attendees.slice(0, 5).join(", ")}`);
 

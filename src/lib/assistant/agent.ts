@@ -7,7 +7,7 @@ import { cancelReminder, createReminder, listUpcomingReminders } from "@/lib/ass
 import { normalizeTitle } from "@/lib/dedup";
 import { DEAN_VOICE } from "@/lib/voice";
 import { research } from "@/lib/research";
-import { wazeLink } from "@/lib/maps";
+import { wazeLinkFor } from "@/lib/maps";
 import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
 import { withHeyaSignature } from "@/lib/email/signature";
 import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
@@ -635,7 +635,7 @@ async function executeTool(
           end: e.ends_at ? formatLocal(e.ends_at) : null,
           all_day: e.all_day,
           location: e.location,
-          navigate: e.location ? wazeLink(e.location) : null,
+          navigate: wazeLinkFor(e.location),
           attendees: e.attendees,
         })),
       });

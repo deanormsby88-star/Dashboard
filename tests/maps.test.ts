@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { wazeLink } from "@/lib/maps";
+import { wazeLink, wazeLinkFor } from "@/lib/maps";
 
 describe("wazeLink", () => {
   it("builds a navigating Waze deep link", () => {
@@ -10,5 +10,25 @@ describe("wazeLink", () => {
     expect(wazeLink("New Office, 12 Main Rd")).toBe(
       "https://www.waze.com/ul?q=New%20Office%2C%2012%20Main%20Rd&navigate=yes"
     );
+  });
+});
+
+describe("wazeLinkFor", () => {
+  it("links to a real physical place", () => {
+    expect(wazeLinkFor("Senderwood")).toBe("https://www.waze.com/ul?q=Senderwood&navigate=yes");
+  });
+  it("skips online meetings", () => {
+    expect(wazeLinkFor("Microsoft Teams Meeting")).toBeNull();
+    expect(wazeLinkFor("Zoom")).toBeNull();
+    expect(wazeLinkFor("https://teams.microsoft.com/l/xyz")).toBeNull();
+    expect(wazeLinkFor("Online")).toBeNull();
+  });
+  it("skips Dean's Beyachad office", () => {
+    expect(wazeLinkFor("Heya SA, 2nd Floor, Beyachad")).toBeNull();
+    expect(wazeLinkFor("Beyachad")).toBeNull();
+  });
+  it("returns null for no location", () => {
+    expect(wazeLinkFor(null)).toBeNull();
+    expect(wazeLinkFor("  ")).toBeNull();
   });
 });

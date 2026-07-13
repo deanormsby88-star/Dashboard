@@ -2,7 +2,7 @@ import { buildSnapshot, type StateSnapshot } from "@/lib/assistant/state";
 import { runPrioritizer } from "@/lib/assistant/prioritize";
 import { ensureOwner, insertBrief, type BriefRow, type CalendarEventRow } from "@/lib/db/repo";
 import { getToday } from "@/lib/calendar/sync";
-import { wazeLink } from "@/lib/maps";
+import { wazeLinkFor } from "@/lib/maps";
 import { getTodayWeather } from "@/lib/weather";
 import { listActiveTodoistTasks } from "@/lib/todoist/api";
 import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
@@ -26,7 +26,8 @@ function meetingLines(events: CalendarEventRow[]): string {
     .map((e) => {
       const when = e.all_day ? "All day" : `${fmtTime(e.starts_at)}${e.ends_at ? `–${fmtTime(e.ends_at)}` : ""}`;
       const loc = e.location ? ` @ ${e.location}` : "";
-      const nav = e.location ? `\n   🚗 ${wazeLink(e.location)}` : "";
+      const waze = wazeLinkFor(e.location);
+      const nav = waze ? `\n   🚗 ${waze}` : "";
       return `- ${when} · ${e.title}${loc}${nav}`;
     })
     .join("\n");
