@@ -5,6 +5,9 @@ import { runCommand } from "@/lib/assistant/commands";
 import { answerCallbackQuery, downloadFile, editMessageText, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
 import { transcribeAudio } from "@/lib/ai/openai";
 import { approveSuggestedTask, rejectSuggestedTask } from "@/lib/tasks/review";
+import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
+import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calendar/microsoft";
+import { signedEmailBody } from "@/lib/email/signature";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -146,6 +149,12 @@ async function handleCallback(
     }
   }
 
+  // Email approval buttons.
+  const emailMatch = /^email:(send|cancel):(.+)$/.exec(cb.data ?? "");
+  if (emailMatch) {
+    return handleEmailCallback(cb, emailMatch[1] as "send" | "cancel", emailMatch[2], String(cbChat));
+  }
+
   const match = /^task:(approve|reject):(.+)$/.exec(cb.data ?? "");
   if (!match) {
     await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
@@ -172,6 +181,59 @@ async function handleCallback(
   await answerCallbackQuery(cb.id, toast).catch(() => {});
   if (cb.message?.message_id !== undefined) {
     await editMessageText(String(cbChat), cb.message.message_id, newText).catch(() => {});
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/** Send or cancel a staged email when Dean taps the button. */
+async function handleEmailCallback(
+  cb: { id: string; message?: { message_id?: number } },
+  action: "send" | "cancel",
+  id: string,
+  chatId: string
+): Promise<NextResponse> {
+  const pending = await getPendingEmail(id);
+  if (!pending) {
+    await answerCallbackQuery(cb.id, "This draft has expired or was already handled").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+
+  if (action === "cancel") {
+    await markPendingDone(id);
+    await answerCallbackQuery(cb.id, "Cancelled").catch(() => {});
+    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, "❌ Draft cancelled — not sent.").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+
+  // Send.
+  const { ensureOwner } = await import("@/lib/db/repo");
+  const owner = await ensureOwner();
+  const token = await getValidAccessToken(owner.user.id, pending.mailbox);
+  if (!token) {
+    await answerCallbackQuery(cb.id, `${pending.mailbox} not connected`).catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  try {
+    const { html, attachments } = await signedEmailBody(pending.mailbox, pending.body);
+    if (pending.kind === "reply" && pending.messageId) {
+      await replyToMessage(token, pending.messageId, pending.body, html, attachments);
+    } else {
+      await sendNewMessage(token, {
+        to: pending.to ?? [],
+        subject: pending.subject ?? "",
+        body: pending.body,
+        html,
+        attachments,
+      });
+    }
+    await markPendingDone(id);
+    await answerCallbackQuery(cb.id, "Sent ✅").catch(() => {});
+    if (cb.message?.message_id !== undefined) {
+      await editMessageText(chatId, cb.message.message_id, `✅ Sent (${pending.mailbox.toUpperCase()})`).catch(() => {});
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "send failed";
+    await answerCallbackQuery(cb.id, `Send failed: ${msg}`.slice(0, 190)).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

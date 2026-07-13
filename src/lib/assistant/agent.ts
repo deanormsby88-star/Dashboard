@@ -9,16 +9,14 @@ import { DEAN_VOICE } from "@/lib/voice";
 import { research } from "@/lib/research";
 import { wazeLinkFor } from "@/lib/maps";
 import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
-import { heyaLogoAttachment, withHeyaSignature, withJicSignature } from "@/lib/email/signature";
+import { stagePendingEmail } from "@/lib/email/pending";
 import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
 import {
   createEvent,
   deleteEvent,
   getMessageBody,
   getValidAccessToken,
-  replyToMessage,
   searchMessages,
-  sendNewMessage,
   updateEvent,
   type GraphMessage,
 } from "@/lib/calendar/microsoft";
@@ -57,7 +55,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.8.0";
+export const AGENT_PROMPT_VERSION = "1.9.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -313,7 +311,7 @@ const TOOLS: AgentTool[] = [
   {
     name: "send_email_reply",
     description:
-      "Send a threaded reply to an email from Dean's Outlook. ONLY call after Dean has seen the draft and explicitly approved sending. Get mailbox + message_id from search_email.",
+      "Stage a threaded reply from Dean's Outlook. This does NOT send — it shows Dean the draft with Send/Cancel buttons and he approves. Compose the full reply in his voice. Get mailbox + message_id from search_email.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -328,7 +326,7 @@ const TOOLS: AgentTool[] = [
   {
     name: "send_email",
     description:
-      "Send a brand-new email from Dean's Outlook. ONLY call after Dean has seen the draft and explicitly approved sending.",
+      "Stage a brand-new email from Dean's Outlook. This does NOT send — it shows Dean the draft with Send/Cancel buttons and he approves. Compose the full email in his voice.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -462,7 +460,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person. remove_person to delete someone Dean says is unimportant / not a real contact (their history is kept).
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
-  • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the message yourself in DEAN'S VOICE (see the voice guide below — short, direct, closes with "Thanks,"), SHOW HIM THE DRAFT, and only call send_email_reply / send_email once he has explicitly approved sending — never send unprompted, and never claim you sent something you didn't. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
+  • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the FULL message yourself in DEAN'S VOICE (see the voice guide below — short, direct, closes with "Thanks,") and call send_email_reply / send_email. These do NOT send — they show Dean the draft with Send/Cancel buttons for him to approve, so always put the complete finished message in the body. After calling, tell him the draft is ready above and he can tap Send; never claim you've sent it. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
   • remember for durable notes/person facts.
 - When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
@@ -750,24 +748,12 @@ async function executeTool(
       const box = str(args.mailbox) as "heya" | "jic";
       const token = await getValidAccessToken(owner.user.id, box);
       if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
-      try {
-        let html: string | undefined;
-        let attachments: unknown[] | undefined;
-        if (box === "heya") {
-          html = withHeyaSignature(str(args.body));
-          attachments = [heyaLogoAttachment];
-        } else if (box === "jic") {
-          const jic = await withJicSignature(str(args.body));
-          if (jic) {
-            html = jic.html;
-            attachments = jic.attachments;
-          }
-        }
-        await replyToMessage(token, str(args.message_id), str(args.body), html, attachments);
-        return JSON.stringify({ ok: true, sent: true, mailbox: box, signature: Boolean(html) });
-      } catch (err) {
-        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "send failed" });
-      }
+      const staged = await stagePendingEmail({ kind: "reply", mailbox: box, messageId: str(args.message_id), body: str(args.body) });
+      return JSON.stringify({
+        ok: staged.ok,
+        staged: true,
+        note: "Draft shown to Dean with Send/Cancel buttons — NOT sent yet. Tell him the draft is above and he can tap Send. Do not say you sent it.",
+      });
     }
     case "send_email": {
       const box = str(args.mailbox) as "heya" | "jic";
@@ -775,24 +761,12 @@ async function executeTool(
       if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
       const to = Array.isArray(args.to) ? (args.to as string[]).filter(Boolean) : [];
       if (to.length === 0) return JSON.stringify({ ok: false, error: "no recipient" });
-      try {
-        let html: string | undefined;
-        let attachments: unknown[] | undefined;
-        if (box === "heya") {
-          html = withHeyaSignature(str(args.body));
-          attachments = [heyaLogoAttachment];
-        } else if (box === "jic") {
-          const jic = await withJicSignature(str(args.body));
-          if (jic) {
-            html = jic.html;
-            attachments = jic.attachments;
-          }
-        }
-        await sendNewMessage(token, { to, subject: str(args.subject), body: str(args.body), html, attachments });
-        return JSON.stringify({ ok: true, sent: true, mailbox: box, to, signature: Boolean(html) });
-      } catch (err) {
-        return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "send failed" });
-      }
+      const staged = await stagePendingEmail({ kind: "new", mailbox: box, to, subject: str(args.subject), body: str(args.body) });
+      return JSON.stringify({
+        ok: staged.ok,
+        staged: true,
+        note: "Draft shown to Dean with Send/Cancel buttons — NOT sent yet. Tell him the draft is above and he can tap Send. Do not say you sent it.",
+      });
     }
     case "find_emails": {
       const emails = await listEmails({ unresolvedOnly: true, limit: 20 });

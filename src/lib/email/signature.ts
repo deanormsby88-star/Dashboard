@@ -44,6 +44,16 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** Build the HTML body + inline attachments for a mailbox's signature (empty for none). */
+export async function signedEmailBody(
+  mailbox: "heya" | "jic",
+  body: string
+): Promise<{ html?: string; attachments?: unknown[] }> {
+  if (mailbox === "heya") return { html: withHeyaSignature(body), attachments: [heyaLogoAttachment] };
+  const jic = await withJicSignature(body);
+  return jic ? { html: jic.html, attachments: jic.attachments } : {};
+}
+
 // ── JIC signature (a designed banner image, imported from Dean's mailbox) ────
 
 import { listSyncRunsBySource } from "@/lib/db/repo";
