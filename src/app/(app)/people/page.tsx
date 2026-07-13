@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listPeopleWithCounts } from "@/lib/db/repo";
 import EmptyState from "@/components/EmptyState";
-import { formatDate } from "@/lib/format";
+import ImportDirectoryButton from "@/components/ImportDirectoryButton";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "People — DeanOS" };
@@ -11,12 +11,15 @@ export default async function PeoplePage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">People</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Everyone DeanOS has picked up from meetings, email and what you’ve told it. Open anyone
-          for their full history and a recommended next move.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">People</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Everyone DeanOS has picked up from meetings, email and what you’ve told it. Open anyone
+            for their full history and a recommended next move.
+          </p>
+        </div>
+        <ImportDirectoryButton />
       </div>
 
       {people.length === 0 ? (
