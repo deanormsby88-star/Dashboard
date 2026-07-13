@@ -1,27 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { describeWeatherCode, layeringSuggestion } from "@/lib/weather";
+import { describeSymbol, layeringSuggestion } from "@/lib/weather";
 
-describe("describeWeatherCode", () => {
-  it("maps common WMO codes", () => {
-    expect(describeWeatherCode(0)).toBe("Clear");
-    expect(describeWeatherCode(3)).toBe("Overcast");
-    expect(describeWeatherCode(63)).toBe("Rain");
-    expect(describeWeatherCode(95)).toBe("Thunderstorms");
+describe("describeSymbol", () => {
+  it("maps met.no symbol codes, stripping day/night", () => {
+    expect(describeSymbol("clearsky_day")).toBe("Clear");
+    expect(describeSymbol("partlycloudy_night")).toBe("Partly cloudy");
+    expect(describeSymbol("rain")).toBe("Rain");
+    expect(describeSymbol("heavyrainshowers_day")).toBe("Heavy rain");
+    expect(describeSymbol("lightthunderrain")).toBe("Thunderstorms");
   });
 });
 
 describe("layeringSuggestion", () => {
   it("flags a cold day", () => {
-    expect(layeringSuggestion(4, 12, 10, 3)).toMatch(/Cold/);
+    expect(layeringSuggestion(4, 12, false)).toMatch(/Cold/);
   });
   it("flags a chilly start on a warm day", () => {
-    expect(layeringSuggestion(6, 24, 0, 0)).toMatch(/chilly start/i);
+    expect(layeringSuggestion(6, 24, false)).toMatch(/chilly start/i);
   });
-  it("warns about rain when likely", () => {
-    expect(layeringSuggestion(14, 19, 80, 61)).toMatch(/rain likely/i);
+  it("warns about rain when wet", () => {
+    expect(layeringSuggestion(14, 19, true)).toMatch(/rain about/i);
   });
-  it("keeps a hot day light with no rain warning", () => {
-    const s = layeringSuggestion(20, 33, 0, 0);
+  it("keeps a hot dry day light with no rain warning", () => {
+    const s = layeringSuggestion(20, 33, false);
     expect(s).toMatch(/Hot/);
     expect(s).not.toMatch(/rain/i);
   });

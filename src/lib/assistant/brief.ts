@@ -98,7 +98,7 @@ export async function generateDailyBrief(now: Date = new Date()): Promise<DailyB
   if (weather) {
     parts.push(
       `\n🌤 Weather\n${weather.summary}, ${weather.tempMin}–${weather.tempMax}°C` +
-        `${weather.precipProb ? ` · ${weather.precipProb}% rain` : ""}\n${weather.suggestion}`
+        `${weather.wet ? ` · rain ~${weather.precipMm}mm` : ""}\n${weather.suggestion}`
     );
   }
 
