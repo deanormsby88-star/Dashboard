@@ -86,11 +86,20 @@ export async function listActiveTodoistTasks(): Promise<TodoistTask[]> {
 }
 
 export async function createTodoistTask(task: Task, business: Business | null): Promise<TodoistApiResult> {
+  const body = buildTodoistCreateBody(task, business);
   try {
-    const res = await todoistFetch("/tasks", {
-      method: "POST",
-      body: JSON.stringify(buildTodoistCreateBody(task, business)),
-    });
+    let res = await todoistFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
+    // If the project_id is bad (e.g. a stale/migrated ID), retry in the Inbox
+    // so the task still lands rather than silently failing.
+    if (!res.ok && res.status === 400 && body.project_id) {
+      const text = await res.text().catch(() => "");
+      if (/project_id/i.test(text)) {
+        delete body.project_id;
+        res = await todoistFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
+      } else {
+        return { ok: false, error: `Todoist API error ${res.status}: ${text.slice(0, 300)}` };
+      }
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
       return { ok: false, error: `Todoist API error ${res.status}: ${text.slice(0, 300)}` };

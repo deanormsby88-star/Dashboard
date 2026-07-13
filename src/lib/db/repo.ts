@@ -25,7 +25,7 @@ type Queryable = Pool | PoolClient;
 export const BUSINESS_SEED: Array<{ key: BusinessKey; name: string; todoistProjectId: string | null }> = [
   { key: "heya", name: "Heya", todoistProjectId: "6h4cX6qV6VRX9gQ8" },
   { key: "jic", name: "JIC", todoistProjectId: "6Crg2Ch856x5xC46" },
-  { key: "personal", name: "Personal", todoistProjectId: null },
+  { key: "personal", name: "Personal", todoistProjectId: "6Crg2Ch83pFrmj7H" },
 ];
 
 export interface Owner {
@@ -52,7 +52,9 @@ export async function ensureOwner(db: Queryable = getPool()): Promise<Owner> {
     await db.query(
       `insert into businesses (user_id, key, name, todoist_project_id)
        values ($1, $2, $3, $4)
-       on conflict (user_id, key) do nothing`,
+       on conflict (user_id, key) do update set
+         name = excluded.name,
+         todoist_project_id = excluded.todoist_project_id`,
       [user.id, b.key, b.name, b.todoistProjectId]
     );
   }
