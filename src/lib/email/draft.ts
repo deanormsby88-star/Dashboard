@@ -1,5 +1,6 @@
 import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
+import { DEAN_VOICE } from "@/lib/voice";
 import type { Email } from "@/lib/types";
 
 /** Pull the bare address out of a "Name <addr@x>" sender string. */
@@ -14,9 +15,11 @@ export function mailtoLink(to: string, subject: string, body: string): string {
   return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
 }
 
-const DRAFT_SYSTEM = `You draft email replies for Dean Ormsby. Write in his voice: warm but direct, concise, professional, South African business English, no flowery filler or corporate padding. Get to the point, be decisive, and keep it brief.
+const DRAFT_SYSTEM = `You draft email replies for Dean Ormsby.
 
-Return ONLY the reply body text — no subject line, no "Here's a draft" preamble, no surrounding quotes. Sign off simply as "Dean". Do not invent facts, figures, dates, or commitments that aren't supported by the incoming email or Dean's instruction; if something needs a detail Dean hasn't given, leave a clearly-marked placeholder like [confirm date].`;
+${DEAN_VOICE}
+
+Return ONLY the reply body text — no subject line, no "Here's a draft" preamble, no surrounding quotes. Do not invent facts, figures, dates, or commitments that aren't supported by the incoming email or Dean's instruction; if something needs a detail Dean hasn't given, leave a clearly-marked placeholder like [confirm date].`;
 
 /**
  * Draft a reply to an inbound email in Dean's voice. Optional `guidance` is
