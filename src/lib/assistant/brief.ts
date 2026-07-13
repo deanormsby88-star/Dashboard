@@ -1,8 +1,11 @@
 import { buildSnapshot, type StateSnapshot } from "@/lib/assistant/state";
-import { runPrioritizer, formatTop3 } from "@/lib/assistant/prioritize";
+import { runPrioritizer } from "@/lib/assistant/prioritize";
 import { ensureOwner, insertBrief, type BriefRow, type CalendarEventRow } from "@/lib/db/repo";
 import { getToday } from "@/lib/calendar/sync";
 import { wazeLink } from "@/lib/maps";
+import { getTodayWeather } from "@/lib/weather";
+import { listActiveTodoistTasks } from "@/lib/todoist/api";
+import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
 
 function fmtTime(d: Date): string {
   return new Date(d).toLocaleTimeString("en-ZA", {
@@ -11,6 +14,11 @@ function fmtTime(d: Date): string {
     minute: "2-digit",
     hour12: false,
   });
+}
+
+function taskLine(content: string, priority: number, suffix = ""): string {
+  const flag = priority >= 4 ? "🔴 " : priority === 3 ? "🟠 " : "";
+  return `- ${flag}${content}${suffix}`;
 }
 
 function meetingLines(events: CalendarEventRow[]): string {
@@ -55,6 +63,19 @@ export async function generateDailyBrief(now: Date = new Date()): Promise<DailyB
     /* no calendar / sync failed — omit the section */
   }
 
+  // Weather (best-effort) and today's Todoist tasks (due today + overdue).
+  const weather = await getTodayWeather().catch(() => null);
+  let dueTasks: { overdue: Array<{ content: string; priority: number; due: { date: string } | null }>; today: Array<{ content: string; priority: number }> } = {
+    overdue: [],
+    today: [],
+  };
+  try {
+    const tasks = await listActiveTodoistTasks();
+    dueTasks = bucketDueTasks(tasks, localToday(now));
+  } catch {
+    /* Todoist unavailable — omit the section */
+  }
+
   const escalations = snapshot.waiting_on.filter((w) => w.needs_escalation);
   const top3 = result.ok ? result.output.top_three : [];
   const ignoreToday = result.ok ? result.output.ignore_today : [];
@@ -63,25 +84,34 @@ export async function generateDailyBrief(now: Date = new Date()): Promise<DailyB
     : escalations.map((w) => `${w.text}${w.person ? ` — ${w.person}` : ""}`);
   const recommendation = result.ok ? result.output.recommendation : null;
 
-  const parts: string[] = [`EXECUTIVE BRIEF — ${snapshot.today}`];
-  if (meetings.length > 0) parts.push(`\nToday's meetings (${meetings.length}):\n${meetingLines(meetings)}`);
-  if (result.ok && top3.length > 0) parts.push(`\nTop 3:\n${formatTop3(result.output)}`);
-  if (chase.length > 0) parts.push(`\nChase today:\n${chase.map((s) => `- ${s}`).join("\n")}`);
-  if (escalations.length > 0)
+  // ── Message: 1) Date  2) Weather  3) Calendar  4) Tasks ──────────────────
+  const dateLine = now.toLocaleDateString("en-ZA", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Africa/Johannesburg",
+  });
+
+  const parts: string[] = [`📋 DAILY BRIEF — ${dateLine}`];
+
+  if (weather) {
     parts.push(
-      `\nOverdue (waiting on others):\n${escalations
-        .map((w) => `- ${w.text}${w.person ? ` — ${w.person}` : ""} (${w.business_days_waiting} business days)`)
-        .join("\n")}`
+      `\n🌤 Weather\n${weather.summary}, ${weather.tempMin}–${weather.tempMax}°C` +
+        `${weather.precipProb ? ` · ${weather.precipProb}% rain` : ""}\n${weather.suggestion}`
     );
-  if (snapshot.open_risks.length > 0)
-    parts.push(`\nRisks:\n${snapshot.open_risks.map((r) => `- [${r.severity}] ${r.description}`).join("\n")}`);
-  const queued: string[] = [];
-  if (snapshot.tasks_awaiting_review.length > 0)
-    queued.push(`${snapshot.tasks_awaiting_review.length} task suggestion(s) to review`);
-  if (snapshot.unresolved_inbox_items > 0) queued.push(`${snapshot.unresolved_inbox_items} inbox item(s)`);
-  if (queued.length > 0) parts.push(`\nQueue: ${queued.join(", ")}.`);
-  if (recommendation) parts.push(`\n${recommendation}`);
-  if (!result.ok) parts.push(`\n(Prioritizer unavailable: ${result.error})`);
+  }
+
+  parts.push(
+    `\n📅 Calendar (${meetings.length})\n${meetings.length ? meetingLines(meetings) : "Nothing scheduled today."}`
+  );
+
+  const taskLines: string[] = [
+    ...dueTasks.overdue.map((t) => taskLine(t.content, t.priority, ` — overdue (${t.due?.date ?? "no date"})`)),
+    ...dueTasks.today.map((t) => taskLine(t.content, t.priority)),
+  ];
+  const taskCount = dueTasks.overdue.length + dueTasks.today.length;
+  parts.push(`\n✅ Tasks (${taskCount})\n${taskLines.length ? taskLines.join("\n") : "Nothing due today."}`);
 
   return {
     ok: result.ok,

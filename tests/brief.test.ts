@@ -63,15 +63,13 @@ describe("generateDailyBrief", () => {
     expect(b.recommendation).toBe("Payroll first.");
   });
 
-  it("composes readable text with the key sections", async () => {
+  it("composes the 4-section message (date, weather, calendar, tasks)", async () => {
     const b = await generateDailyBrief(new Date("2026-07-13T06:00:00Z"));
-    expect(b.text).toContain("EXECUTIVE BRIEF — 2026-07-13");
-    expect(b.text).toContain("Top 3:");
-    expect(b.text).toContain("1. Fix payroll");
-    expect(b.text).toContain("Overdue (waiting on others):");
-    expect(b.text).toContain("Lawrence to send proposal");
-    expect(b.text).toContain("[high] Payroll may recur");
-    expect(b.text).toContain("Payroll first.");
+    expect(b.text).toContain("📋 DAILY BRIEF — Monday, 13 July 2026");
+    expect(b.text).toContain("📅 Calendar (0)");
+    expect(b.text).toContain("Nothing scheduled today.");
+    expect(b.text).toContain("✅ Tasks (0)");
+    expect(b.text).toContain("Nothing due today.");
   });
 
   it("falls back to escalations for chase when the prioritizer fails", async () => {
@@ -79,8 +77,7 @@ describe("generateDailyBrief", () => {
     const b = await generateDailyBrief(new Date("2026-07-13T06:00:00Z"));
     expect(b.ok).toBe(false);
     expect(b.top3).toEqual([]);
-    // escalated waiting-on item still surfaces as something to chase
+    // escalated waiting-on item still surfaces as something to chase (dashboard field)
     expect(b.chase.some((c) => c.includes("Lawrence"))).toBe(true);
-    expect(b.text).toContain("Prioritizer unavailable: boom");
   });
 });
