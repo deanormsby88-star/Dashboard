@@ -1,15 +1,28 @@
-import { getEnv } from "@/lib/env";
+import { HEYA_LOGO_BASE64 } from "@/lib/email/logo";
+
+/** Content-ID for the inline logo, referenced as <img src="cid:..."> and set on the attachment. */
+export const LOGO_CID = "heyalogo";
+
+/** Inline logo attachment for Graph sendMail / draft, so the logo always renders (no remote-image blocking). */
+export const heyaLogoAttachment = {
+  "@odata.type": "#microsoft.graph.fileAttachment",
+  name: "heya-logo.png",
+  contentType: "image/png",
+  contentBytes: HEYA_LOGO_BASE64,
+  isInline: true,
+  contentId: LOGO_CID,
+};
 
 /**
  * Dean's Heya email signature as email-safe HTML (table layout, inline styles).
- * The logo is served from the app's public folder so it renders reliably.
+ * The logo is embedded inline via CID (see heyaLogoAttachment) so it always
+ * displays — remote-hosted signature images get blocked by Outlook/Gmail.
  */
 export function heyaSignatureHtml(): string {
-  const logo = `${getEnv().APP_URL}/heya-logo.png`;
   return `<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;color:#3f4a5a;font-size:13px;line-height:1.5;margin-top:8px;">
   <tr>
     <td style="vertical-align:middle;padding-right:18px;">
-      <img src="${logo}" alt="heya" width="130" style="display:block;border:0;width:130px;height:auto;" />
+      <img src="cid:${LOGO_CID}" alt="heya" width="130" style="display:block;border:0;width:130px;height:auto;" />
     </td>
     <td style="vertical-align:middle;border-left:3px solid #4a9e3f;padding-left:18px;">
       <div style="font-weight:bold;font-size:15px;color:#2f6db3;">Dean Ormsby</div>

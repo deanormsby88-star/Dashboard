@@ -295,13 +295,22 @@ export async function replyToMessage(
   token: string,
   messageId: string,
   body: string,
-  html?: string
+  html?: string,
+  attachments?: unknown[]
 ): Promise<void> {
   if (html) {
     const cr = await graphFetch(token, `/me/messages/${messageId}/createReply`, { method: "POST" });
     if (!cr.ok) throw new Error(`Graph createReply ${cr.status}: ${(await cr.text()).slice(0, 200)}`);
     const draft = (await cr.json()) as { id: string; body?: { content?: string } };
     const quoted = draft.body?.content ?? "";
+    // Add inline attachments (e.g. the logo) to the draft before sending.
+    for (const att of attachments ?? []) {
+      const a = await graphFetch(token, `/me/messages/${draft.id}/attachments`, {
+        method: "POST",
+        body: JSON.stringify(att),
+      });
+      if (!a.ok) throw new Error(`Graph add attachment ${a.status}: ${(await a.text()).slice(0, 200)}`);
+    }
     const patch = await graphFetch(token, `/me/messages/${draft.id}`, {
       method: "PATCH",
       body: JSON.stringify({ body: { contentType: "HTML", content: `${html}${quoted}` } }),
@@ -318,21 +327,20 @@ export async function replyToMessage(
   if (!res.ok) throw new Error(`Graph reply ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
-/** Send a brand-new email. Pass `html` to send an HTML body instead of plain text. */
+/** Send a brand-new email. Pass `html` for an HTML body, `attachments` for inline images/files. */
 export async function sendNewMessage(
   token: string,
-  input: { to: string[]; subject: string; body: string; html?: string }
+  input: { to: string[]; subject: string; body: string; html?: string; attachments?: unknown[] }
 ): Promise<void> {
+  const message: Record<string, unknown> = {
+    subject: input.subject,
+    body: input.html ? { contentType: "HTML", content: input.html } : { contentType: "text", content: input.body },
+    toRecipients: input.to.map((address) => ({ emailAddress: { address } })),
+  };
+  if (input.attachments && input.attachments.length) message.attachments = input.attachments;
   const res = await graphFetch(token, "/me/sendMail", {
     method: "POST",
-    body: JSON.stringify({
-      message: {
-        subject: input.subject,
-        body: input.html ? { contentType: "HTML", content: input.html } : { contentType: "text", content: input.body },
-        toRecipients: input.to.map((address) => ({ emailAddress: { address } })),
-      },
-      saveToSentItems: true,
-    }),
+    body: JSON.stringify({ message, saveToSentItems: true }),
   });
   if (!res.ok) throw new Error(`Graph sendMail ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
