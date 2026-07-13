@@ -268,6 +268,77 @@ export async function searchMessages(
   return (data.value ?? []).map(mapMessage);
 }
 
+export interface SentMessage {
+  id: string;
+  conversationId: string;
+  subject: string;
+  to: string[];
+  sentIso: string;
+}
+
+/** Dean's recent sent mail (for awaiting-reply detection). */
+export async function listSentMessages(token: string, sinceIso: string, top = 40): Promise<SentMessage[]> {
+  const q = new URLSearchParams({
+    $select: "id,conversationId,subject,toRecipients,sentDateTime",
+    $orderby: "sentDateTime desc",
+    $top: String(top),
+    $filter: `sentDateTime ge ${sinceIso}`,
+  });
+  const res = await graphFetch(token, `/me/mailFolders/sentitems/messages?${q.toString()}`);
+  if (!res.ok) throw new Error(`Graph sent items ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = (await res.json()) as { value?: Array<Record<string, unknown>> };
+  return (data.value ?? []).map((m) => {
+    const to = (m.toRecipients as Array<{ emailAddress?: { name?: string; address?: string } }> | undefined) ?? [];
+    return {
+      id: String(m.id),
+      conversationId: String(m.conversationId ?? ""),
+      subject: (m.subject as string) || "(no subject)",
+      to: to.map((r) => r.emailAddress?.name || r.emailAddress?.address || "").filter(Boolean),
+      sentIso: (m.sentDateTime as string) ?? "",
+    };
+  });
+}
+
+/** Recent inbox messages (for triage). */
+export async function listInboxMessages(
+  token: string,
+  sinceIso: string,
+  opts: { unreadOnly?: boolean; top?: number } = {}
+): Promise<GraphMessage[]> {
+  const filters = [`receivedDateTime ge ${sinceIso}`];
+  if (opts.unreadOnly) filters.push("isRead eq false");
+  const q = new URLSearchParams({
+    $select: MAIL_SELECT,
+    $orderby: "receivedDateTime desc",
+    $top: String(opts.top ?? 25),
+    $filter: filters.join(" and "),
+  });
+  const res = await graphFetch(token, `/me/mailFolders/inbox/messages?${q.toString()}`);
+  if (!res.ok) throw new Error(`Graph inbox ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  const data = (await res.json()) as { value?: Array<Record<string, unknown>> };
+  return (data.value ?? []).map(mapMessage);
+}
+
+/** The most recent message in a conversation: who it's from and when. */
+export async function latestInConversation(
+  token: string,
+  conversationId: string
+): Promise<{ fromAddress: string | null; receivedIso: string } | null> {
+  const q = new URLSearchParams({
+    $filter: `conversationId eq '${conversationId}'`,
+    $select: "from,receivedDateTime",
+    $orderby: "receivedDateTime desc",
+    $top: "1",
+  });
+  const res = await graphFetch(token, `/me/messages?${q.toString()}`);
+  if (!res.ok) return null;
+  const data = (await res.json()) as { value?: Array<Record<string, unknown>> };
+  const m = data.value?.[0];
+  if (!m) return null;
+  const from = m.from as { emailAddress?: { address?: string } } | undefined;
+  return { fromAddress: from?.emailAddress?.address ?? null, receivedIso: (m.receivedDateTime as string) ?? "" };
+}
+
 /** Full plain-text body of a single message. */
 export async function getMessageBody(token: string, messageId: string): Promise<{ subject: string; from: string; body: string } | null> {
   const res = await graphFetch(token, `/me/messages/${messageId}?$select=subject,from,body`);
