@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getEnv } from "@/lib/env";
 import { recordWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
 import { runCommand } from "@/lib/assistant/commands";
-import { downloadFile, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
+import { answerCallbackQuery, downloadFile, editMessageText, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
 import { transcribeAudio } from "@/lib/ai/openai";
+import { approveSuggestedTask, rejectSuggestedTask } from "@/lib/tasks/review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,17 @@ export async function POST(request: NextRequest) {
       audio?: { file_id?: string; mime_type?: string };
       reply_to_message?: { text?: string; caption?: string };
     };
+    callback_query?: {
+      id: string;
+      data?: string;
+      message?: { message_id?: number; chat?: { id?: number | string }; text?: string };
+    };
   } | null;
+
+  // ── Button taps (Approve/Reject on a task card) ──────────────────────────
+  if (update?.callback_query) {
+    return handleCallback(update.update_id, update.callback_query, env.TELEGRAM_ALLOWED_CHAT_ID);
+  }
 
   const chatId = update?.message?.chat?.id;
   const voice = update?.message?.voice ?? update?.message?.audio;
@@ -105,6 +116,62 @@ export async function POST(request: NextRequest) {
     const message = err instanceof Error ? err.message : String(err);
     await updateWebhookEvent(event.id, "failed", message);
     await sendMessage(String(chatId), `Something went wrong: ${message}`).catch(() => {});
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/** Handle an inline-button tap: approve/reject a task, then update the card. */
+async function handleCallback(
+  updateId: number | undefined,
+  cb: { id: string; data?: string; message?: { message_id?: number; chat?: { id?: number | string }; text?: string } },
+  allowedChatId: string
+): Promise<NextResponse> {
+  const cbChat = cb.message?.chat?.id;
+  if (cbChat === undefined || String(cbChat) !== String(allowedChatId)) {
+    await answerCallbackQuery(cb.id).catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+
+  // Idempotency: one callback processed once (Telegram retries).
+  if (updateId) {
+    const event = await recordWebhookEvent({
+      endpoint: ENDPOINT,
+      idempotencyKey: `${ENDPOINT}:cb:${updateId}`,
+      payload: cb,
+      rawBody: null,
+    });
+    if (event.duplicate) {
+      await answerCallbackQuery(cb.id).catch(() => {});
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
+  }
+
+  const match = /^task:(approve|reject):(.+)$/.exec(cb.data ?? "");
+  if (!match) {
+    await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  const [, action, taskId] = match;
+  const result = action === "approve" ? await approveSuggestedTask(taskId) : await rejectSuggestedTask(taskId);
+
+  const original = cb.message?.text ?? "Task";
+  const title = result.title ?? "task";
+  let toast: string;
+  let newText: string;
+  if (result.ok && action === "approve") {
+    toast = "Approved — sent to Todoist";
+    newText = `✅ Approved · ${title}`;
+  } else if (result.ok) {
+    toast = "Rejected";
+    newText = `❌ Rejected · ${title}`;
+  } else {
+    toast = result.error ?? "Couldn't do that";
+    newText = `${original}\n\n⚠️ ${result.error ?? "action failed"}`;
+  }
+
+  await answerCallbackQuery(cb.id, toast).catch(() => {});
+  if (cb.message?.message_id !== undefined) {
+    await editMessageText(String(cbChat), cb.message.message_id, newText).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

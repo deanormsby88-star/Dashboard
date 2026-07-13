@@ -85,11 +85,40 @@ export async function sendChatAction(chatId: string, action = "typing"): Promise
   await call("sendChatAction", { chat_id: chatId, action });
 }
 
+export interface InlineButton {
+  text: string;
+  callback_data: string;
+}
+
+/** Send a message with an inline-keyboard (tap-to-act buttons). Single message. */
+export async function sendMessageWithButtons(
+  chatId: string,
+  text: string,
+  buttons: InlineButton[][]
+): Promise<TelegramResult> {
+  return call("sendMessage", {
+    chat_id: chatId,
+    text,
+    disable_web_page_preview: true,
+    reply_markup: { inline_keyboard: buttons },
+  });
+}
+
+/** Acknowledge a button tap (stops Telegram's spinner; optional toast text). */
+export async function answerCallbackQuery(callbackQueryId: string, text?: string): Promise<void> {
+  await call("answerCallbackQuery", { callback_query_id: callbackQueryId, text });
+}
+
+/** Replace a message's text and drop its buttons — used to show the outcome. */
+export async function editMessageText(chatId: string, messageId: number, text: string): Promise<void> {
+  await call("editMessageText", { chat_id: chatId, message_id: messageId, text, reply_markup: { inline_keyboard: [] } });
+}
+
 export async function setWebhook(url: string, secretToken: string): Promise<TelegramResult> {
   return call("setWebhook", {
     url,
     secret_token: secretToken,
-    allowed_updates: ["message"],
+    allowed_updates: ["message", "callback_query"],
     drop_pending_updates: true,
   });
 }
