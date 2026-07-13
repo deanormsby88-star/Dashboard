@@ -362,6 +362,23 @@ export async function getMessageBody(token: string, messageId: string): Promise<
  * the quoted original: create a reply draft, prepend our HTML above the quote,
  * then send. Otherwise a plain-text reply via the reply action.
  */
+/** File attachments (with base64 bytes) on a message. */
+export async function getMessageAttachments(
+  token: string,
+  messageId: string
+): Promise<Array<{ name: string; contentType: string; contentBytes: string }>> {
+  const res = await graphFetch(token, `/me/messages/${messageId}/attachments?$select=name,contentType,contentBytes`);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { value?: Array<Record<string, unknown>> };
+  return (data.value ?? [])
+    .filter((a) => typeof a.contentBytes === "string")
+    .map((a) => ({
+      name: String(a.name ?? "attachment"),
+      contentType: String(a.contentType ?? "application/octet-stream"),
+      contentBytes: String(a.contentBytes),
+    }));
+}
+
 export async function replyToMessage(
   token: string,
   messageId: string,

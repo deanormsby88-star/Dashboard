@@ -3,6 +3,7 @@ import { ensureOwner, listCalendarConnections, listWebhookEvents } from "@/lib/d
 import { StatusBadge } from "@/components/badges";
 import JsonViewer from "@/components/JsonViewer";
 import RetryWebhookButton from "@/components/RetryWebhookButton";
+import ImportJicSignatureButton from "@/components/ImportJicSignatureButton";
 import TelegramSetup from "@/components/TelegramSetup";
 import { formatDateTime } from "@/lib/format";
 
@@ -148,6 +149,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
         <p className="text-xs text-slate-400 dark:text-slate-500">
           Sign in with each Outlook account to let DeanOS read and manage that mailbox's calendar and email (read, reply, send). If you connected before email was added, click Reconnect to grant the new access. Tokens are stored encrypted.
         </p>
+        <div className="flex flex-col gap-1.5 pt-1">
+          <ImportJicSignatureButton />
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            JIC signature: email the banner image to your JIC account with “signature” in the subject, then click to use it on JIC emails.
+          </p>
+        </div>
       </section>
 
       <section className="space-y-3">
