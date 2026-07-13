@@ -36,12 +36,17 @@ export async function POST(request: NextRequest) {
       chat?: { id?: number | string };
       voice?: { file_id?: string; mime_type?: string };
       audio?: { file_id?: string; mime_type?: string };
+      reply_to_message?: { text?: string; caption?: string };
     };
   } | null;
 
   const chatId = update?.message?.chat?.id;
   const voice = update?.message?.voice ?? update?.message?.audio;
   const text = update?.message?.text?.trim();
+  // If Dean reply-quotes a message (e.g. a meeting reminder), that quoted text
+  // is the referent for "this" — carry it through as context, or the agent
+  // has nothing to anchor on.
+  const quoted = (update?.message?.reply_to_message?.text ?? update?.message?.reply_to_message?.caption)?.trim();
   // Need a chat and either text or a voice note; otherwise 200-and-ignore.
   if (!update?.update_id || chatId === undefined || (!text && !voice?.file_id)) {
     return NextResponse.json({ ok: true });
@@ -88,7 +93,12 @@ export async function POST(request: NextRequest) {
       messageText = tr.text;
     }
 
-    const { reply } = await runCommand(messageText, "telegram");
+    // Prepend the quoted message so "this / that" has a referent.
+    const finalText = quoted
+      ? `[Replying to this earlier message:\n"${quoted}"]\n\n${messageText}`
+      : messageText;
+
+    const { reply } = await runCommand(finalText, "telegram");
     await sendMessage(String(chatId), reply);
     await updateWebhookEvent(event.id, "processed");
   } catch (err) {
