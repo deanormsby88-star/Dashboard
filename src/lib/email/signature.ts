@@ -19,18 +19,22 @@ export const heyaLogoAttachment = {
  * displays — remote-hosted signature images get blocked by Outlook/Gmail.
  */
 export function heyaSignatureHtml(): string {
-  return `<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;color:#3f4a5a;font-size:13px;line-height:1.5;margin-top:8px;">
+  const ring = (color: string) => `<span style="color:${color};font-size:12px;">&#9675;</span>`;
+  return `<table cellpadding="0" cellspacing="0" border="0" style="font-family:Arial,Helvetica,sans-serif;color:#4a5568;font-size:13px;line-height:1.6;margin-top:10px;">
   <tr>
-    <td style="vertical-align:middle;padding-right:18px;">
-      <img src="cid:${LOGO_CID}" alt="heya" width="130" style="display:block;border:0;width:130px;height:auto;" />
+    <td style="vertical-align:middle;padding-right:22px;">
+      <img src="cid:${LOGO_CID}" alt="heya" width="155" style="display:block;border:0;width:155px;height:auto;" />
     </td>
-    <td style="vertical-align:middle;border-left:3px solid #4a9e3f;padding-left:18px;">
-      <div style="font-weight:bold;font-size:15px;color:#2f6db3;">Dean Ormsby</div>
-      <div style="color:#8a94a6;margin-bottom:6px;">COO</div>
-      <div><span style="color:#a23a7a;">&#9679;</span>&nbsp; 072 457 6258</div>
-      <div><span style="color:#4a9e3f;">&#9679;</span>&nbsp; 561 408 7250 <span style="color:#8a94a6;">direct</span></div>
-      <div><span style="color:#3f77bd;">&#9679;</span>&nbsp; <a href="mailto:deano@heya.team" style="color:#2f6db3;text-decoration:none;">deano@heya.team</a></div>
-      <div><span style="color:#a23a7a;">&#9679;</span>&nbsp; <a href="https://www.heya.team" style="color:#2f6db3;text-decoration:none;">www.heya.team</a></div>
+    <td style="padding:0;">
+      <div style="width:3px;height:104px;background-color:#4aa543;background-image:linear-gradient(180deg,#4aa543 0%,#3f77bd 55%,#c0398f 100%);"></div>
+    </td>
+    <td style="vertical-align:middle;padding-left:22px;">
+      <div style="font-weight:bold;font-size:16px;color:#2f6db3;">Dean Ormsby</div>
+      <div style="color:#9aa3b2;margin-bottom:8px;">COO</div>
+      <div>${ring("#c0398f")}&nbsp;&nbsp;072.457.6258</div>
+      <div>${ring("#4aa543")}&nbsp;&nbsp;561.408.7250 <span style="color:#9aa3b2;">direct</span></div>
+      <div>${ring("#3f77bd")}&nbsp;&nbsp;<a href="mailto:deano@heya.team" style="color:#2f6db3;text-decoration:underline;">deano@heya.team</a></div>
+      <div>${ring("#c0398f")}&nbsp;&nbsp;<a href="https://www.heya.team" style="color:#2f6db3;text-decoration:underline;">www.heya.team</a></div>
     </td>
   </tr>
 </table>`;
