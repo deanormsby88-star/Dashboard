@@ -9,6 +9,7 @@ import { DEAN_VOICE } from "@/lib/voice";
 import { research } from "@/lib/research";
 import { wazeLink } from "@/lib/maps";
 import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
+import { withHeyaSignature } from "@/lib/email/signature";
 import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
 import {
   createEvent,
@@ -750,8 +751,9 @@ async function executeTool(
       const token = await getValidAccessToken(owner.user.id, box);
       if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
       try {
-        await replyToMessage(token, str(args.message_id), str(args.body));
-        return JSON.stringify({ ok: true, sent: true, mailbox: box });
+        const html = box === "heya" ? withHeyaSignature(str(args.body)) : undefined;
+        await replyToMessage(token, str(args.message_id), str(args.body), html);
+        return JSON.stringify({ ok: true, sent: true, mailbox: box, signature: box === "heya" });
       } catch (err) {
         return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "send failed" });
       }
@@ -763,8 +765,9 @@ async function executeTool(
       const to = Array.isArray(args.to) ? (args.to as string[]).filter(Boolean) : [];
       if (to.length === 0) return JSON.stringify({ ok: false, error: "no recipient" });
       try {
-        await sendNewMessage(token, { to, subject: str(args.subject), body: str(args.body) });
-        return JSON.stringify({ ok: true, sent: true, mailbox: box, to });
+        const html = box === "heya" ? withHeyaSignature(str(args.body)) : undefined;
+        await sendNewMessage(token, { to, subject: str(args.subject), body: str(args.body), html });
+        return JSON.stringify({ ok: true, sent: true, mailbox: box, to, signature: box === "heya" });
       } catch (err) {
         return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "send failed" });
       }

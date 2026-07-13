@@ -286,8 +286,31 @@ export async function getMessageBody(token: string, messageId: string): Promise<
   };
 }
 
-/** Reply (threaded) to a message with plain-text body. */
-export async function replyToMessage(token: string, messageId: string, body: string): Promise<void> {
+/**
+ * Reply (threaded) to a message. With `html`, sends an HTML reply that keeps
+ * the quoted original: create a reply draft, prepend our HTML above the quote,
+ * then send. Otherwise a plain-text reply via the reply action.
+ */
+export async function replyToMessage(
+  token: string,
+  messageId: string,
+  body: string,
+  html?: string
+): Promise<void> {
+  if (html) {
+    const cr = await graphFetch(token, `/me/messages/${messageId}/createReply`, { method: "POST" });
+    if (!cr.ok) throw new Error(`Graph createReply ${cr.status}: ${(await cr.text()).slice(0, 200)}`);
+    const draft = (await cr.json()) as { id: string; body?: { content?: string } };
+    const quoted = draft.body?.content ?? "";
+    const patch = await graphFetch(token, `/me/messages/${draft.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body: { contentType: "HTML", content: `${html}${quoted}` } }),
+    });
+    if (!patch.ok) throw new Error(`Graph patch reply ${patch.status}: ${(await patch.text()).slice(0, 200)}`);
+    const send = await graphFetch(token, `/me/messages/${draft.id}/send`, { method: "POST" });
+    if (!send.ok) throw new Error(`Graph send reply ${send.status}: ${(await send.text()).slice(0, 200)}`);
+    return;
+  }
   const res = await graphFetch(token, `/me/messages/${messageId}/reply`, {
     method: "POST",
     body: JSON.stringify({ comment: body }),
@@ -295,17 +318,17 @@ export async function replyToMessage(token: string, messageId: string, body: str
   if (!res.ok) throw new Error(`Graph reply ${res.status}: ${(await res.text()).slice(0, 200)}`);
 }
 
-/** Send a brand-new email. */
+/** Send a brand-new email. Pass `html` to send an HTML body instead of plain text. */
 export async function sendNewMessage(
   token: string,
-  input: { to: string[]; subject: string; body: string }
+  input: { to: string[]; subject: string; body: string; html?: string }
 ): Promise<void> {
   const res = await graphFetch(token, "/me/sendMail", {
     method: "POST",
     body: JSON.stringify({
       message: {
         subject: input.subject,
-        body: { contentType: "text", content: input.body },
+        body: input.html ? { contentType: "HTML", content: input.html } : { contentType: "text", content: input.body },
         toRecipients: input.to.map((address) => ({ emailAddress: { address } })),
       },
       saveToSentItems: true,
