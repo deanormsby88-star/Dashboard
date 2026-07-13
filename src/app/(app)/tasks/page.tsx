@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { ensureOwner, listTasks } from "@/lib/db/repo";
 import type { TaskStatus } from "@/lib/types";
 import TaskReviewCard from "@/components/TaskReviewCard";
+import RepushFailedButton from "@/components/RepushFailedButton";
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
@@ -32,12 +33,15 @@ export default async function TasksPage({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-xl font-bold">Tasks</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Extracted and manual tasks. Todoist remains the system of record — approving a task
-          sends it straight there.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold">Tasks</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Extracted and manual tasks. Todoist remains the system of record — approving a task
+            sends it straight there.
+          </p>
+        </div>
+        <RepushFailedButton />
       </div>
 
       <div className="flex flex-wrap gap-2">
