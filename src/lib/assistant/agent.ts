@@ -55,7 +55,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.6.0";
+export const AGENT_PROMPT_VERSION = "1.7.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -452,7 +452,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
 - Answer directly from the snapshot when it already contains the answer (waiting-on, commitments, risks, counts, recent meetings).
 - Use get_person for questions about a specific person or to prep a meeting; compose the prep yourself from what it returns (state the single most important outcome, a few talking points, a few questions). For meeting prep, if internal context is thin or Dean wants background, also call web_research for public context — keep public findings clearly labelled as such, separate from internal facts.
 - Use web_research to look up public information (people, companies, news). Only ever pass public identifiers to it, never Dean's internal or confidential details.
-- Use get_brief for daily-focus questions.
+- Use get_brief when Dean asks for his brief / "how's my day" — it returns the fully-formatted brief (date, weather, calendar, tasks); send it back essentially verbatim, don't reformat it.
 - Take actions when Dean clearly asks. You can create AND manage things:
   • Tasks: create_task, and to change/finish existing ones first call find_tasks to get the id, then update_task / complete_task / approve_task / reject_task. Changes to tasks already in Todoist are pushed there automatically.
   • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
@@ -807,11 +807,8 @@ async function executeTool(
     case "get_brief": {
       const b = await generateDailyBrief();
       return JSON.stringify({
-        top3: b.top3,
-        chase: b.chase,
-        ignore_today: b.ignoreToday,
-        recommendation: b.recommendation,
-        open_risks: b.snapshot.open_risks,
+        brief: b.text,
+        note: "Send this brief to Dean as-is — it is already formatted (date, weather, calendar, tasks). Do not reformat or add sections.",
       });
     }
     case "find_tasks": {
