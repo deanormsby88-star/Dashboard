@@ -1,0 +1,25 @@
+# Nunu's Bakery — basic hardening for shared hosting
+
+# Never list directory contents
+Options -Indexes
+
+# Block direct browser access to config.php and the SQL dump.
+# (config.php is still include()-able by the PHP scripts; this only
+#  stops it being requested directly over HTTP.)
+<FilesMatch "^(config\.php|setup\.sql)$">
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
+</FilesMatch>
+
+# Send everything through https where available (optional; comment out
+# if your domain does not yet have an SSL certificate).
+# <IfModule mod_rewrite.c>
+#   RewriteEngine On
+#   RewriteCond %{HTTPS} off
+#   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+# </IfModule>
