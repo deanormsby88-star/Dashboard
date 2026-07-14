@@ -11,9 +11,9 @@ const MAX_ATTENDEES = 4;
  * Returns null when there's genuinely nothing on file (caller falls back to a
  * plain nudge).
  */
-async function gatherContext(event: CalendarEventRow): Promise<string | null> {
+async function gatherContext(event: CalendarEventRow): Promise<{ text: string; known: boolean }> {
   const attendees = event.attendees.slice(0, MAX_ATTENDEES);
-  if (attendees.length === 0) return null;
+  if (attendees.length === 0) return { text: "(no attendees on file)", known: false };
 
   const bundles = await Promise.all(attendees.map((a) => getPersonBundle(a).catch(() => null)));
   let known = false;
@@ -33,36 +33,40 @@ async function gatherContext(event: CalendarEventRow): Promise<string | null> {
     }
     const lastMeeting = b?.meetings?.[0];
     if (lastMeeting) lines.push(`last met: ${lastMeeting.title}${lastMeeting.summary ? ` — ${lastMeeting.summary}` : ""}`);
-    const lastEmail = b?.emails?.[0];
-    if (lastEmail) lines.push(`recent email: ${lastEmail.subject}`);
     if (lines.length) known = true;
     return `${a}:\n  ${lines.length ? lines.join("\n  ") : "(no history on file)"}`;
   });
 
-  if (!known) return null;
-  return blocks.join("\n");
+  return { text: blocks.join("\n"), known };
 }
 
 const PREP_SYSTEM = `You are DeanOS, Dean Ormsby's chief of staff, writing a quick pre-meeting prep for a Telegram message. Be concise and practical — Dean reads this walking into the room.
 
-Given the meeting and what we know about the attendees, produce:
-1. The single most important OUTCOME to drive in this meeting.
-2. 2–3 short talking points or things to raise (fold in any open items each party owes the other).
+Anchor the prep on what THIS meeting is actually about — read the title and the agenda/notes first and let them drive everything. The attendee background is only supporting colour: use a person's open item or history ONLY if it clearly relates to this meeting's topic. Do NOT turn unrelated recent threads about the attendees into the agenda — if something isn't obviously on-topic, leave it out.
+
+Produce:
+1. The single most important OUTCOME to drive, based on the meeting's purpose.
+2. 2–3 short, on-topic talking points.
 3. If useful, one question worth asking.
 
-Plain text, no markdown headers. Tight — a handful of lines. Don't invent facts not supported by the context; if context is thin, keep it to a crisp objective and note that background is light.`;
+Plain text, no markdown headers. Tight — a handful of lines. If the agenda is thin and you can't tell what it's about, say so plainly and keep it to a one-line objective rather than guessing. Never invent an agenda from unrelated attendee history.`;
 
 /**
- * Build a pre-meeting prep pack for Telegram, or null if there isn't enough
- * on file to be worth more than a plain reminder.
+ * Build a pre-meeting prep pack for Telegram, or null if there's nothing to
+ * work with (no agenda and no attendee history → caller falls back to a plain
+ * nudge).
  */
 export async function buildMeetingPrep(event: CalendarEventRow): Promise<string | null> {
-  const context = await gatherContext(event);
-  if (!context) return null;
+  const { text: context, known } = await gatherContext(event);
+  const agenda = event.description?.trim();
+  // Nothing to prep from at all.
+  if (!known && !agenda) return null;
 
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
-  const user = `Meeting: "${event.title}"${event.location ? ` at ${event.location}` : ""}.
-Attendees and what we know:
+  const user = `Meeting title: "${event.title}"${event.location ? ` (at ${event.location})` : ""}.
+Agenda / notes from the invite: ${agenda || "(none provided)"}
+
+Attendee background (supporting context only — use only what's on-topic):
 ${context}`;
   const res = await callText({ model, system: PREP_SYSTEM, user, maxOutputTokens: 500 });
   if (!res.ok || !res.rawText?.trim()) return null;

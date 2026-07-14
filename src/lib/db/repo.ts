@@ -1287,6 +1287,7 @@ export interface CalendarEventRow {
   ends_at: Date | null;
   all_day: boolean;
   url: string | null;
+  description: string | null;
 }
 
 export async function replaceCalendarEvents(
@@ -1304,6 +1305,7 @@ export async function replaceCalendarEvents(
     endsAt: Date | null;
     allDay: boolean;
     url: string | null;
+    description?: string | null;
     businessId: string | null;
   }>
 ): Promise<void> {
@@ -1315,12 +1317,12 @@ export async function replaceCalendarEvents(
   for (const e of events) {
     await db.query(
       `insert into calendar_events
-         (user_id, business_id, calendar, source_uid, title, location, organizer, attendees, starts_at, ends_at, all_day, url)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         (user_id, business_id, calendar, source_uid, title, location, organizer, attendees, starts_at, ends_at, all_day, url, description)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        on conflict (user_id, calendar, source_uid, starts_at) do update set
          title=excluded.title, location=excluded.location, organizer=excluded.organizer,
          attendees=excluded.attendees, ends_at=excluded.ends_at, all_day=excluded.all_day,
-         url=excluded.url, updated_at=now()`,
+         url=excluded.url, description=excluded.description, updated_at=now()`,
       [
         userId,
         e.businessId,
@@ -1334,6 +1336,7 @@ export async function replaceCalendarEvents(
         e.endsAt,
         e.allDay,
         e.url,
+        e.description ?? null,
       ]
     );
   }
@@ -1345,7 +1348,7 @@ export async function listCalendarEvents(
   toTs: Date
 ): Promise<CalendarEventRow[]> {
   const res = await getPool().query<CalendarEventRow>(
-    `select id, calendar, source_uid, title, location, organizer, attendees, starts_at, ends_at, all_day, url
+    `select id, calendar, source_uid, title, location, organizer, attendees, starts_at, ends_at, all_day, url, description
      from calendar_events where user_id=$1 and starts_at >= $2 and starts_at < $3
      order by starts_at asc limit 200`,
     [userId, fromTs, toTs]

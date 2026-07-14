@@ -36,6 +36,7 @@ export async function syncCalendar(userId: string, calendar: BusinessKey, busine
       endsAt: e.end ? new Date(e.end) : null,
       allDay: e.allDay,
       url: e.webLink,
+      description: e.bodyPreview,
       businessId,
     }))
   );

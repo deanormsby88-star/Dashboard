@@ -131,6 +131,7 @@ export interface GraphEvent {
   attendees: string[];
   allDay: boolean;
   webLink: string | null;
+  bodyPreview: string | null;
 }
 
 export async function listEvents(
@@ -141,7 +142,7 @@ export async function listEvents(
   const q = new URLSearchParams({
     startDateTime: fromIso,
     endDateTime: toIso,
-    $select: "id,subject,start,end,location,organizer,attendees,isAllDay,webLink",
+    $select: "id,subject,start,end,location,organizer,attendees,isAllDay,webLink,bodyPreview",
     $orderby: "start/dateTime",
     $top: "100",
   });
@@ -164,6 +165,7 @@ export async function listEvents(
       attendees: att.map((a) => a.emailAddress?.name || a.emailAddress?.address || "").filter(Boolean),
       allDay: Boolean(e.isAllDay),
       webLink: (e.webLink as string) || null,
+      bodyPreview: typeof e.bodyPreview === "string" ? e.bodyPreview.replace(/\s+/g, " ").trim().slice(0, 600) || null : null,
     };
   });
 }
