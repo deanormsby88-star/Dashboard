@@ -8,6 +8,8 @@ import { approveSuggestedTask, rejectSuggestedTask } from "@/lib/tasks/review";
 import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
 import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calendar/microsoft";
 import { signedEmailBody } from "@/lib/email/signature";
+import { getPendingTeams, markPendingTeamsDone } from "@/lib/teams/pending";
+import { messageTeammate } from "@/lib/teams/send";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -155,6 +157,12 @@ async function handleCallback(
     return handleEmailCallback(cb, emailMatch[1] as "send" | "cancel", emailMatch[2], String(cbChat));
   }
 
+  // Teams-message approval buttons.
+  const teamsMatch = /^tmsg:(send|cancel):(.+)$/.exec(cb.data ?? "");
+  if (teamsMatch) {
+    return handleTeamsCallback(cb, teamsMatch[1] as "send" | "cancel", teamsMatch[2], String(cbChat));
+  }
+
   const match = /^task:(approve|reject):(.+)$/.exec(cb.data ?? "");
   if (!match) {
     await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
@@ -234,6 +242,35 @@ async function handleEmailCallback(
   } catch (err) {
     const msg = err instanceof Error ? err.message : "send failed";
     await answerCallbackQuery(cb.id, `Send failed: ${msg}`.slice(0, 190)).catch(() => {});
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/** Send or cancel a staged Teams message to a teammate when Dean taps the button. */
+async function handleTeamsCallback(
+  cb: { id: string; message?: { message_id?: number } },
+  action: "send" | "cancel",
+  id: string,
+  chatId: string
+): Promise<NextResponse> {
+  const pending = await getPendingTeams(id);
+  if (!pending) {
+    await answerCallbackQuery(cb.id, "This draft has expired or was already handled").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  if (action === "cancel") {
+    await markPendingTeamsDone(id);
+    await answerCallbackQuery(cb.id, "Cancelled").catch(() => {});
+    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, "❌ Teams message cancelled — not sent.").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  const res = await messageTeammate(pending.email, pending.body);
+  if (res.ok) {
+    await markPendingTeamsDone(id);
+    await answerCallbackQuery(cb.id, "Sent ✅").catch(() => {});
+    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, `✅ Sent to ${pending.name} on Teams`).catch(() => {});
+  } else {
+    await answerCallbackQuery(cb.id, `Failed: ${res.error ?? "send error"}`.slice(0, 190)).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

@@ -6,7 +6,8 @@ import type { BusinessKey } from "@/lib/types";
 
 const AUTH_BASE = "https://login.microsoftonline.com/common/oauth2/v2.0";
 const GRAPH = "https://graph.microsoft.com/v1.0";
-const SCOPE = "offline_access openid profile email User.Read Calendars.ReadWrite Mail.ReadWrite Mail.Send";
+const SCOPE =
+  "offline_access openid profile email User.Read User.ReadBasic.All Calendars.ReadWrite Mail.ReadWrite Mail.Send Chat.ReadWrite";
 
 export function redirectUri(): string {
   return `${getEnv().APP_URL}/api/auth/microsoft/callback`;
@@ -433,6 +434,89 @@ export async function sendNewMessage(
     body: JSON.stringify({ message, saveToSentItems: true }),
   });
   if (!res.ok) throw new Error(`Graph sendMail ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
+// ── Teams ────────────────────────────────────────────────────────────────────
+
+/** Dean's own Azure AD user id. */
+export async function getMyId(token: string): Promise<string | null> {
+  const res = await graphFetch(token, "/me?$select=id");
+  if (!res.ok) return null;
+  return ((await res.json()) as { id?: string }).id ?? null;
+}
+
+/** Resolve a teammate's Azure AD user id by email (same tenant). */
+export async function resolveTeamsUser(token: string, email: string): Promise<string | null> {
+  const res = await graphFetch(token, `/users/${encodeURIComponent(email)}?$select=id`);
+  if (!res.ok) return null;
+  return ((await res.json()) as { id?: string }).id ?? null;
+}
+
+/** Get or create the 1:1 chat between Dean and a teammate; returns chat id. */
+export async function ensureOneOnOneChat(token: string, myId: string, otherId: string): Promise<string | null> {
+  const member = (id: string) => ({
+    "@odata.type": "#microsoft.graph.aadUserConversationMember",
+    roles: ["owner"],
+    "user@odata.bind": `https://graph.microsoft.com/v1.0/users('${id}')`,
+  });
+  const res = await graphFetch(token, "/chats", {
+    method: "POST",
+    body: JSON.stringify({ chatType: "oneOnOne", members: [member(myId), member(otherId)] }),
+  });
+  if (!res.ok) throw new Error(`Graph create chat ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return ((await res.json()) as { id?: string }).id ?? null;
+}
+
+/** Post a message into a Teams chat (sends as the token's user). */
+export async function sendTeamsChatMessage(token: string, chatId: string, text: string): Promise<void> {
+  const res = await graphFetch(token, `/chats/${chatId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ body: { contentType: "text", content: text } }),
+  });
+  if (!res.ok) throw new Error(`Graph send chat message ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
+export interface TeamsMessage {
+  id: string;
+  chatId: string;
+  chatTopic: string | null;
+  from: string;
+  fromId: string | null;
+  text: string;
+  createdIso: string;
+}
+
+/** Recent messages across Dean's most-active 1:1/group chats (for task extraction). */
+export async function listRecentTeamsMessages(token: string, sinceIso: string, maxChats = 15): Promise<TeamsMessage[]> {
+  const chatsRes = await graphFetch(token, `/me/chats?$top=${maxChats}&$select=id,topic,chatType`);
+  if (!chatsRes.ok) throw new Error(`Graph list chats ${chatsRes.status}: ${(await chatsRes.text()).slice(0, 200)}`);
+  const chats = ((await chatsRes.json()) as { value?: Array<{ id: string; topic?: string }> }).value ?? [];
+
+  const out: TeamsMessage[] = [];
+  for (const chat of chats) {
+    const q = new URLSearchParams({ $top: "12" });
+    const mRes = await graphFetch(token, `/me/chats/${chat.id}/messages?${q.toString()}`);
+    if (!mRes.ok) continue;
+    const msgs = ((await mRes.json()) as { value?: Array<Record<string, unknown>> }).value ?? [];
+    for (const m of msgs) {
+      const created = (m.createdDateTime as string) ?? "";
+      if (created && created < sinceIso) continue;
+      const from = m.from as { user?: { displayName?: string; id?: string } } | null | undefined;
+      const bodyContent = (m.body as { content?: string } | undefined)?.content ?? "";
+      const text = bodyContent.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (!text) continue;
+      out.push({
+        id: String(m.id),
+        chatId: chat.id,
+        chatTopic: chat.topic ?? null,
+        from: from?.user?.displayName ?? "(unknown)",
+        fromId: from?.user?.id ?? null,
+        text: text.slice(0, 800),
+        createdIso: created,
+      });
+    }
+  }
+  return out;
 }
 
 /** Graph returns naive datetimes (no offset) that ARE UTC given our Prefer header. */

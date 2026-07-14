@@ -39,6 +39,10 @@
     {
       "path": "/api/cron/meeting-followups",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/teams-tasks",
+      "schedule": "0 6-15 * * 1-5"
     }
   ]
 }

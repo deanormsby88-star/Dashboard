@@ -10,6 +10,7 @@ import { research } from "@/lib/research";
 import { wazeLinkFor } from "@/lib/maps";
 import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
 import { stagePendingEmail } from "@/lib/email/pending";
+import { stagePendingTeams } from "@/lib/teams/pending";
 import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
 import {
   createEvent,
@@ -55,7 +56,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.9.0";
+export const AGENT_PROMPT_VERSION = "1.10.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -256,6 +257,35 @@ const TOOLS: AgentTool[] = [
     name: "cancel_reminder",
     description: "Cancel a scheduled one-off reminder so it won't be sent. Get the id from list_reminders first.",
     parameters: { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } },
+  },
+  {
+    name: "message_teammate",
+    description:
+      "Send a Microsoft Teams message NOW to one of Dean's Heya teammates, as Dean. This does NOT send immediately — it shows Dean a draft with Send/Cancel to approve. Compose the full message in his voice. Use for 'ping/message X on Teams'.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["person", "text"],
+      properties: {
+        person: { type: "string", description: "The teammate's name (must be someone on file with an email)." },
+        text: { type: "string", description: "The full message to send, in Dean's voice." },
+      },
+    },
+  },
+  {
+    name: "remind_teammate",
+    description:
+      "Schedule a Teams reminder to be sent to a teammate at a future time, as Dean. Use for 'remind X to… at/by…'. Convert Dean's local SAST time to UTC ISO. Fires automatically at that time (Dean's scheduling is the approval).",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["person", "text", "remind_at_utc"],
+      properties: {
+        person: { type: "string", description: "The teammate's name (must be on file with an email)." },
+        text: { type: "string", description: "What to remind them about (e.g. 'send the LEA report')." },
+        remind_at_utc: { type: "string", description: "When to send, UTC ISO 8601. Must be future." },
+      },
+    },
   },
   {
     name: "find_emails",
@@ -459,6 +489,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person. remove_person to delete someone Dean says is unimportant / not a real contact (their history is kept).
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
+  • Teammates on Teams: message_teammate to send a Heya teammate a Microsoft Teams message now (as Dean — it shows Dean a draft with Send/Cancel to approve first); remind_teammate to schedule a Teams reminder to them for a future time. Both need the person on file with an email; if there's none, ask Dean for it. Use these for "ping/remind [teammate] on Teams".
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
   • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the FULL message yourself in DEAN'S VOICE (see the voice guide below — short, direct, closes with "Thanks,") and call send_email_reply / send_email. These do NOT send — they show Dean the draft with Send/Cancel buttons for him to approve, so always put the complete finished message in the body. After calling, tell him the draft is ready above and he can tap Send; never claim you've sent it. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
   • remember for durable notes/person facts.
@@ -698,6 +729,30 @@ async function executeTool(
     case "cancel_reminder": {
       const ok = await cancelReminder(str(args.id));
       return JSON.stringify({ ok, error: ok ? undefined : "not found or already sent" });
+    }
+    case "message_teammate": {
+      const person = await findPersonByName(str(args.person));
+      if (!person?.email) {
+        return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
+      }
+      const staged = await stagePendingTeams({ name: person.full_name, email: person.email, body: str(args.text) });
+      return JSON.stringify({
+        ok: staged.ok,
+        staged: true,
+        note: "Draft Teams message shown to Dean with Send/Cancel — NOT sent yet. Tell him it's ready to approve; don't claim you sent it.",
+      });
+    }
+    case "remind_teammate": {
+      const person = await findPersonByName(str(args.person));
+      if (!person?.email) {
+        return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
+      }
+      const r = await createReminder(str(args.text), str(args.remind_at_utc), new Date(), {
+        email: person.email,
+        name: person.full_name,
+      });
+      if (!r.ok) return JSON.stringify({ ok: false, error: r.error });
+      return JSON.stringify({ ok: true, reminder_for: person.full_name, when_local: r.when, via: "Teams" });
     }
     case "search_email": {
       const which = str(args.mailbox) || "both";

@@ -6,6 +6,7 @@ import {
   recordSyncRun,
 } from "@/lib/db/repo";
 import { sendToDean } from "@/lib/telegram/notify";
+import { messageTeammate } from "@/lib/teams/send";
 
 /**
  * Ad-hoc, conversational reminders: Dean tells the bot "remind me to call the
@@ -22,6 +23,8 @@ export interface PendingReminder {
   id: string;
   text: string;
   at: string; // UTC ISO
+  recipientEmail?: string; // if set, reminder is sent to this teammate via Teams
+  recipientName?: string;
 }
 
 function fmtLocal(iso: string): string {
@@ -36,11 +39,13 @@ function fmtLocal(iso: string): string {
   });
 }
 
-/** Schedule a reminder. `atIso` must be a valid future UTC timestamp. */
+/** Schedule a reminder. `atIso` must be a valid future UTC timestamp. Pass a
+ *  recipient to send it to a teammate on Teams instead of Dean on Telegram. */
 export async function createReminder(
   text: string,
   atIso: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  recipient?: { email: string; name?: string }
 ): Promise<{ ok: boolean; error?: string; id?: string; when?: string }> {
   const at = new Date(atIso);
   if (Number.isNaN(at.getTime())) return { ok: false, error: "invalid time" };
@@ -52,7 +57,12 @@ export async function createReminder(
   await recordSyncRun({
     userId: owner.user.id,
     sourceSystem: PENDING,
-    stats: { id, text: text.trim(), at: at.toISOString() },
+    stats: {
+      id,
+      text: text.trim(),
+      at: at.toISOString(),
+      ...(recipient ? { recipientEmail: recipient.email, recipientName: recipient.name } : {}),
+    },
   });
   return { ok: true, id, when: fmtLocal(at.toISOString()) };
 }
@@ -99,7 +109,14 @@ export async function fireDueReminders(now: Date = new Date()): Promise<{ fired:
       continue; // not yet due
     }
     if (await getLastSyncRun(firedKey(s.id))) continue; // already delivered/cancelled
-    const ok = await sendToDean(`⏰ Reminder: ${s.text}`);
+    let ok: boolean;
+    if (s.recipientEmail) {
+      const first = (s.recipientName ?? "").split(" ")[0] || "there";
+      const res = await messageTeammate(s.recipientEmail, `Hi ${first}, quick reminder: ${s.text}\n\nThanks, Dean`);
+      ok = res.ok;
+    } else {
+      ok = await sendToDean(`⏰ Reminder: ${s.text}`);
+    }
     if (ok) {
       await recordSyncRun({ userId: owner.user.id, sourceSystem: firedKey(s.id), stats: { delivered: true } });
       fired++;

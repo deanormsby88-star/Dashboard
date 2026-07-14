@@ -147,7 +147,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           })}
         </div>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Sign in with each Outlook account to let DeanOS read and manage that mailbox's calendar and email (read, reply, send). If you connected before email was added, click Reconnect to grant the new access. Tokens are stored encrypted.
+          Sign in with each Outlook account to let DeanOS read and manage that mailbox's calendar and email (read, reply, send), and — for Heya — read Teams chats and message teammates. If you connected before a capability was added (email, Teams), click Reconnect to grant it; Teams messaging needs tenant admin consent (tick “consent on behalf of your organization” if you're an admin). Tokens are stored encrypted.
         </p>
         <div className="flex flex-col gap-1.5 pt-1">
           <ImportJicSignatureButton />
