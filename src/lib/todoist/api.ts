@@ -124,7 +124,11 @@ export async function getInboxProjectId(): Promise<string | null> {
     if (!res.ok) return null;
     const data = (await res.json()) as Array<Record<string, unknown>> | { results?: Array<Record<string, unknown>> };
     const results = Array.isArray(data) ? data : (data.results ?? []);
-    const inbox = results.find((p) => p.is_inbox_project === true);
+    // The v1 /projects response doesn't include an inbox flag, so fall back to
+    // the project named "Inbox".
+    const inbox =
+      results.find((p) => p.is_inbox_project === true || p.inbox_project === true) ??
+      results.find((p) => String(p.name).toLowerCase() === "inbox");
     return inbox ? String(inbox.id) : null;
   } catch {
     return null;
