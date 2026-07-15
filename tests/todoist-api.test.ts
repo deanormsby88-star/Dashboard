@@ -39,20 +39,21 @@ const heya: Business = {
 };
 
 describe("buildTodoistCreateBody", () => {
-  it("maps title, description, priority and project", () => {
+  it("maps title, description, priority; routes to Inbox (no project_id) with a business label", () => {
     const body = buildTodoistCreateBody(makeTask(), heya);
     expect(body).toEqual({
       content: "Review June discrepancy report",
       description: "From the ops meeting.",
       priority: 3,
-      project_id: "6h4cX6qV6VRX9gQ8",
+      labels: ["Heya"],
     });
+    expect(body).not.toHaveProperty("project_id");
   });
 
-  it("omits project_id for Personal (Todoist Inbox)", () => {
+  it("never sets project_id (everything goes to the Inbox)", () => {
     const personal: Business = { ...heya, key: "personal", name: "Personal", todoist_project_id: null };
-    const body = buildTodoistCreateBody(makeTask(), personal);
-    expect(body).not.toHaveProperty("project_id");
+    expect(buildTodoistCreateBody(makeTask(), personal)).not.toHaveProperty("project_id");
+    expect(buildTodoistCreateBody(makeTask(), heya)).not.toHaveProperty("project_id");
   });
 
   it("formats Date-object due dates as YYYY-MM-DD (pg returns Date columns as Dates)", () => {
@@ -60,15 +61,15 @@ describe("buildTodoistCreateBody", () => {
     expect(body.due_date).toBe("2026-07-15");
   });
 
-  it("includes due_date and labels only when present", () => {
+  it("combines task labels with the business label; both optional", () => {
     const withDue = buildTodoistCreateBody(
       makeTask({ due_date: "2026-07-15" as unknown as Date, labels: ["finance"] }),
       heya
     );
     expect(withDue.due_date).toBe("2026-07-15");
-    expect(withDue.labels).toEqual(["finance"]);
-    const without = buildTodoistCreateBody(makeTask(), heya);
-    expect(without).not.toHaveProperty("due_date");
-    expect(without).not.toHaveProperty("labels");
+    expect(withDue.labels).toEqual(["finance", "Heya"]);
+    const noBusiness = buildTodoistCreateBody(makeTask(), null);
+    expect(noBusiness).not.toHaveProperty("due_date");
+    expect(noBusiness).not.toHaveProperty("labels");
   });
 });

@@ -23,10 +23,12 @@ export function buildTodoistCreateBody(task: Task, business: Business | null): R
     description: task.description,
     priority: task.priority,
   };
-  // Personal has no validated project ID — omitting project_id targets the Inbox.
-  if (business?.todoist_project_id) body.project_id = business.todoist_project_id;
+  // Everything goes to the Inbox (no project_id) so Dean triages it in one
+  // place; the business is preserved as a label (Heya / JIC / Personal).
+  const labels = [...task.labels];
+  if (business?.name) labels.push(business.name);
   if (task.due_date) body.due_date = toIsoDate(task.due_date);
-  if (task.labels.length > 0) body.labels = task.labels;
+  if (labels.length > 0) body.labels = labels;
   return body;
 }
 
