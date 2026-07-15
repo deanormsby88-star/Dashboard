@@ -4,6 +4,7 @@ import { ensureOwner, listTasks } from "@/lib/db/repo";
 import type { TaskStatus } from "@/lib/types";
 import TaskReviewCard from "@/components/TaskReviewCard";
 import RepushFailedButton from "@/components/RepushFailedButton";
+import MoveToInboxButton from "@/components/MoveToInboxButton";
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,10 @@ export default async function TasksPage({
             sends it straight there.
           </p>
         </div>
-        <RepushFailedButton />
+        <div className="flex flex-col items-end gap-2">
+          <RepushFailedButton />
+          <MoveToInboxButton />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

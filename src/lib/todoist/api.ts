@@ -117,14 +117,43 @@ export async function createTodoistTask(task: Task, business: Business | null): 
   }
 }
 
+/** The Todoist Inbox project id. */
+export async function getInboxProjectId(): Promise<string | null> {
+  try {
+    const res = await todoistFetch("/projects", { method: "GET" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Array<Record<string, unknown>> | { results?: Array<Record<string, unknown>> };
+    const results = Array.isArray(data) ? data : (data.results ?? []);
+    const inbox = results.find((p) => p.is_inbox_project === true);
+    return inbox ? String(inbox.id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Move a task to a project (e.g. the Inbox). 404 = already gone; treated as ok. */
+export async function moveTodoistTask(todoistTaskId: string, projectId: string): Promise<TodoistApiResult> {
+  try {
+    const res = await todoistFetch(`/tasks/${todoistTaskId}/move`, {
+      method: "POST",
+      body: JSON.stringify({ project_id: projectId }),
+    });
+    if (!res.ok && res.status !== 404) return { ok: false, error: `Todoist move error ${res.status}` };
+    return { ok: true, todoistTaskId };
+  } catch (err) {
+    return { ok: false, error: `Todoist API unreachable: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
 export async function updateTodoistTask(
   todoistTaskId: string,
-  fields: { title?: string; description?: string; priority?: number; due_date?: string | null }
+  fields: { title?: string; description?: string; priority?: number; due_date?: string | null; labels?: string[] }
 ): Promise<TodoistApiResult> {
   const body: Record<string, unknown> = {};
   if (fields.title !== undefined) body.content = fields.title;
   if (fields.description !== undefined) body.description = fields.description;
   if (fields.priority !== undefined) body.priority = fields.priority;
+  if (fields.labels !== undefined) body.labels = fields.labels;
   if (fields.due_date !== undefined) {
     if (fields.due_date === null) body.due_string = "no date";
     else body.due_date = fields.due_date;
