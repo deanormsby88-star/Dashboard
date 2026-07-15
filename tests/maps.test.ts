@@ -23,9 +23,16 @@ describe("wazeLinkFor", () => {
     expect(wazeLinkFor("https://teams.microsoft.com/l/xyz")).toBeNull();
     expect(wazeLinkFor("Online")).toBeNull();
   });
-  it("skips Dean's Beyachad office", () => {
+  it("skips Dean's own workplace / internal rooms", () => {
     expect(wazeLinkFor("Heya SA, 2nd Floor, Beyachad")).toBeNull();
     expect(wazeLinkFor("Beyachad")).toBeNull();
+    expect(wazeLinkFor("Dean's Office")).toBeNull();
+    expect(wazeLinkFor("In Office")).toBeNull();
+    expect(wazeLinkFor("Office")).toBeNull();
+    expect(wazeLinkFor("Boardroom")).toBeNull();
+  });
+  it("still links genuine off-site client offices", () => {
+    expect(wazeLinkFor("Anchor Offices, Cape Town")).not.toBeNull();
   });
   it("returns null for no location", () => {
     expect(wazeLinkFor(null)).toBeNull();
