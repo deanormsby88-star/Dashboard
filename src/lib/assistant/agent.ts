@@ -6,7 +6,7 @@ import { generateDailyBrief } from "@/lib/assistant/brief";
 import { cancelReminder, createReminder, listUpcomingReminders } from "@/lib/assistant/adhoc-reminders";
 import { normalizeTitle } from "@/lib/dedup";
 import { DEAN_VOICE } from "@/lib/voice";
-import { research } from "@/lib/research";
+import { findRecommendations, research } from "@/lib/research";
 import { wazeLinkFor } from "@/lib/maps";
 import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
 import { stagePendingEmail } from "@/lib/email/pending";
@@ -56,7 +56,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.10.0";
+export const AGENT_PROMPT_VERSION = "1.11.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -381,6 +381,17 @@ const TOOLS: AgentTool[] = [
     },
   },
   {
+    name: "find_recommendations",
+    description:
+      "Research options for something Dean wants and return a shortlist with tappable links (website, phone, directions, booking). Use for 'find me a plumber/electrician', 'a good restaurant for Friday', 'where can I buy X', 'recommend a…'. Include the key criteria (location, cuisine, budget, timing) in the query.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["query"],
+      properties: { query: { type: "string", description: "What Dean's after, with criteria — e.g. 'reliable plumber near Pierneef Park, Randburg' or 'family-friendly Italian restaurant in Bedfordview for Friday dinner'." } },
+    },
+  },
+  {
     name: "find_tasks",
     description:
       "List Dean's current tasks (suggested/approved/sent/created) with their ids, so you can then edit, complete, approve or reject a specific one. Call this before any task action to get the right id.",
@@ -482,6 +493,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
 - Answer directly from the snapshot when it already contains the answer (waiting-on, commitments, risks, counts, recent meetings).
 - Use get_person for questions about a specific person or to prep a meeting; compose the prep yourself from what it returns (state the single most important outcome, a few talking points, a few questions). For meeting prep, if internal context is thin or Dean wants background, also call web_research for public context — keep public findings clearly labelled as such, separate from internal facts.
 - Use web_research to look up public information (people, companies, news). Only ever pass public identifiers to it, never Dean's internal or confidential details.
+- Use find_recommendations when Dean wants options for something (a plumber, electrician, restaurant, gift, product, place to buy X). It returns a shortlist with tappable website/phone/directions/booking links — relay them to him with the links intact. Fold in criteria he gives (location, budget, timing); default location is Pierneef Park, Randburg.
 - Use get_brief when Dean asks for his brief / "how's my day" — it returns the fully-formatted brief (date, weather, calendar, tasks); send it back essentially verbatim, don't reformat it.
 - Take actions when Dean clearly asks. You can create AND manage things:
   • Tasks: create_task, and to change/finish existing ones first call find_tasks to get the id, then update_task / complete_task / approve_task / reject_task. Changes to tasks already in Todoist are pushed there automatically.
@@ -855,6 +867,14 @@ async function executeTool(
     case "web_research": {
       const r = await research(str(args.query), "agent");
       return JSON.stringify({ ok: r.ok, findings: r.text });
+    }
+    case "find_recommendations": {
+      const r = await findRecommendations(str(args.query));
+      return JSON.stringify({
+        ok: r.ok,
+        recommendations: r.text,
+        note: "Relay these options to Dean with their links intact (website/phone/directions/booking) so he can tap through.",
+      });
     }
     case "remove_person": {
       const existing = await findPersonByName(str(args.name));
