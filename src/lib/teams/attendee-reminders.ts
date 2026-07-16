@@ -8,7 +8,7 @@ import {
   recordSyncRun,
 } from "@/lib/db/repo";
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
-import { sendToDeanWithButtons } from "@/lib/telegram/notify";
+import { sendToDean, sendToDeanWithButtons } from "@/lib/telegram/notify";
 import { messageTeammate } from "@/lib/teams/send";
 
 /** Offer to remind attendees when a meeting is within this many minutes. */
@@ -27,6 +27,11 @@ interface PendingOffer {
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+/** Dean's daily 1-1s auto-remind their attendee (no approval needed). */
+function isDaily1on1(title: string): boolean {
+  return /\b1\s*[-:]\s*1\b/.test(title) || /\bone[-\s]?on[-\s]?one\b/i.test(title);
 }
 
 /** Resolve a meeting's attendees to Heya teammates we can message on Teams. */
@@ -74,8 +79,18 @@ export async function offerAttendeeReminders(now: Date = new Date()): Promise<{ 
 
     const id = randomUUID().slice(0, 8);
     const offer: PendingOffer = { id, title: e.title, startIso: new Date(e.starts_at).toISOString(), attendees: teammates.slice(0, 10) };
-    await recordSyncRun({ userId: owner.user.id, sourceSystem: `attoffer:${id}`, stats: offer });
 
+    // Daily 1-1s: auto-remind, no approval; else ask Dean first.
+    if (isDaily1on1(e.title)) {
+      const sent = await sendAttendeeReminders(offer, now);
+      if (sent > 0) {
+        await sendToDean(`🔔 Reminded ${teammates.map((t) => t.name.split(" ")[0]).join(", ")} about your ${fmtTime(offer.startIso)} 1-1 on Teams.`);
+        offered++;
+      }
+      continue;
+    }
+
+    await recordSyncRun({ userId: owner.user.id, sourceSystem: `attoffer:${id}`, stats: offer });
     const card = `👥 Remind attendees of your ${fmtTime(offer.startIso)} — “${e.title}”?\nWould ping on Teams: ${teammates.map((t) => t.name.split(" ")[0]).join(", ")}`;
     const ok = await sendToDeanWithButtons(card, [
       [
