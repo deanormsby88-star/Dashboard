@@ -10,6 +10,7 @@ import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calen
 import { signedEmailBody } from "@/lib/email/signature";
 import { getPendingTeams, markPendingTeamsDone } from "@/lib/teams/pending";
 import { messageTeammate } from "@/lib/teams/send";
+import { getPendingOffer, markOfferDone, sendAttendeeReminders } from "@/lib/teams/attendee-reminders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -163,6 +164,12 @@ async function handleCallback(
     return handleTeamsCallback(cb, teamsMatch[1] as "send" | "cancel", teamsMatch[2], String(cbChat));
   }
 
+  // Attendee-reminder approval buttons.
+  const attMatch = /^attrem:(go|skip):(.+)$/.exec(cb.data ?? "");
+  if (attMatch) {
+    return handleAttendeeReminderCallback(cb, attMatch[1] as "go" | "skip", attMatch[2], String(cbChat));
+  }
+
   const match = /^task:(approve|reject):(.+)$/.exec(cb.data ?? "");
   if (!match) {
     await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
@@ -271,6 +278,33 @@ async function handleTeamsCallback(
     if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, `✅ Sent to ${pending.name} on Teams`).catch(() => {});
   } else {
     await answerCallbackQuery(cb.id, `Failed: ${res.error ?? "send error"}`.slice(0, 190)).catch(() => {});
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/** Approve or skip reminding a meeting's attendees on Teams. */
+async function handleAttendeeReminderCallback(
+  cb: { id: string; message?: { message_id?: number; text?: string } },
+  action: "go" | "skip",
+  id: string,
+  chatId: string
+): Promise<NextResponse> {
+  const offer = await getPendingOffer(id);
+  if (!offer) {
+    await answerCallbackQuery(cb.id, "This has expired or was already handled").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  if (action === "skip") {
+    await markOfferDone(id);
+    await answerCallbackQuery(cb.id, "Skipped").catch(() => {});
+    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, `❌ Skipped — didn't remind attendees of “${offer.title}”.`).catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  const sent = await sendAttendeeReminders(offer);
+  await markOfferDone(id);
+  await answerCallbackQuery(cb.id, sent ? `Reminded ${sent} on Teams ✅` : "Couldn't send").catch(() => {});
+  if (cb.message?.message_id !== undefined) {
+    await editMessageText(chatId, cb.message.message_id, `✅ Reminded ${sent} attendee(s) of “${offer.title}” on Teams.`).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }
