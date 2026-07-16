@@ -34,11 +34,16 @@ function isDaily1on1(title: string): boolean {
   return /\b1\s*[-:]\s*1\b/.test(title) || /\bone[-\s]?on[-\s]?one\b/i.test(title);
 }
 
+/** People who must never receive attendee reminders (e.g. Dean's EA). */
+const NEVER_REMIND_EMAILS = new Set(["lisaw@heya.team"]);
+const NEVER_REMIND_NAME = /\blisa\s+wainbergas\b|^\s*lisa\s*$/i;
+
 /** Resolve a meeting's attendees to Heya teammates we can message on Teams. */
 async function resolveTeammates(attendees: string[]): Promise<OfferAttendee[]> {
   const out: OfferAttendee[] = [];
   const seen = new Set<string>();
   for (const a of attendees) {
+    if (NEVER_REMIND_NAME.test(a)) continue;
     let email: string | null = null;
     let name = a;
     if (/@/.test(a)) {
@@ -51,6 +56,7 @@ async function resolveTeammates(attendees: string[]): Promise<OfferAttendee[]> {
       }
     }
     if (!email || !/@heya\.team$/i.test(email) || seen.has(email.toLowerCase())) continue;
+    if (NEVER_REMIND_EMAILS.has(email.toLowerCase()) || NEVER_REMIND_NAME.test(name)) continue;
     seen.add(email.toLowerCase());
     out.push({ name, email });
   }
