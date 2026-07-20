@@ -3,6 +3,7 @@ import { getEnv } from "@/lib/env";
 import { recordWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
 import { runCommand } from "@/lib/assistant/commands";
 import { answerCallbackQuery, downloadFile, editMessageText, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
+import { transcriptionFilename, transcriptionMimeType } from "@/lib/telegram/audio";
 import { transcribeAudio } from "@/lib/ai/openai";
 import { approveSuggestedTask, rejectSuggestedTask } from "@/lib/tasks/review";
 import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
@@ -88,7 +89,9 @@ export async function POST(request: NextRequest) {
 
     // Voice note → transcribe, then treat the transcript as the message.
     let messageText = text ?? "";
+    let fromVoice = false;
     if (!messageText && voice?.file_id) {
+      fromVoice = true;
       const path = await getFilePath(voice.file_id);
       const bytes = path ? await downloadFile(path) : null;
       if (!bytes) {
@@ -96,11 +99,12 @@ export async function POST(request: NextRequest) {
         await updateWebhookEvent(event.id, "failed", "voice download failed");
         return NextResponse.json({ ok: true });
       }
-      const ext = (path!.split(".").pop() || "ogg").toLowerCase();
       const tr = await transcribeAudio({
         bytes,
-        filename: `voice.${ext}`,
-        mimeType: voice.mime_type ?? "audio/ogg",
+        // Telegram voice notes download as `.oga`, which OpenAI rejects — map
+        // to a supported container (`.ogg`) so transcription actually runs.
+        filename: transcriptionFilename(path!, voice.mime_type),
+        mimeType: transcriptionMimeType(voice.mime_type),
       });
       if (!tr.ok || !tr.text) {
         await sendMessage(String(chatId), "I couldn't make out that voice note — try again or type it?");
@@ -116,7 +120,10 @@ export async function POST(request: NextRequest) {
       : messageText;
 
     const { reply } = await runCommand(finalText, "telegram");
-    await sendMessage(String(chatId), reply);
+    // For voice notes, echo what was heard so Dean can confirm it understood
+    // him — and so any mis-hear is obvious rather than silent.
+    const out = fromVoice ? `🎤 “${messageText}”\n\n${reply}` : reply;
+    await sendMessage(String(chatId), out);
     await updateWebhookEvent(event.id, "processed");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
