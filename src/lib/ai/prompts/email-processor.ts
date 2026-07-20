@@ -12,10 +12,14 @@ import { z } from "zod";
  *   1.0.0 — initial version (Phase 2).
  *   1.1.0 — duplicate suppression: model sees recent task titles (all
  *           statuses) and whether the thread was already handled by Dean.
+ *   1.2.0 — ownership rule: an email where Dean is only CC'd / kept informed
+ *           (FYI), or where the action plainly belongs to someone else, must
+ *           NOT become a task for Dean. Model is told Dean's own addresses so
+ *           it can judge whether Dean is the actual action owner.
  */
 
 export const PROMPT_NAME = "email-processor";
-export const PROMPT_VERSION = "1.1.0";
+export const PROMPT_VERSION = "1.2.0";
 
 // ── Input ────────────────────────────────────────────────────────────────────
 
@@ -33,6 +37,9 @@ export const emailProcessorInputSchema = z.object({
   ),
   recentTasks: z.array(z.object({ title: z.string(), status: z.string() })).default([]),
   threadAlreadyHandled: z.boolean().default(false),
+  // Dean's own email addresses (this mailbox first). Lets the model judge
+  // whether Dean is the actual action owner vs. merely CC'd / kept informed.
+  ownerAddresses: z.array(z.string()).optional(),
 });
 
 export type EmailProcessorInput = z.infer<typeof emailProcessorInputSchema>;
@@ -157,6 +164,13 @@ CLASSIFICATION (choose exactly one)
 - "reference": legitimately useful information, no action required (reports, confirmations of things already done, FYIs from colleagues).
 - "ignore": newsletters, marketing, automated notifications, receipts for routine subscriptions, spam, out-of-office replies, calendar boilerplate.
 
+OWNERSHIP — CRITICAL (who does the action belong to?)
+Only classify "action" (and only then suggest a task) when the email requires DEAN HIMSELF to do something. Before choosing "action", ask: is Dean the person expected to act, or is he just being kept informed?
+- If Dean is only CC'd / copied for visibility, or the email is an FYI / heads-up / "keeping you in the loop", and the actual work belongs to someone else (the sender, another named recipient, a third party, or a professional/provider handling it), do NOT create a task for Dean. Classify "reference" (or "relationship_update"/"risk"/"ignore" if those fit better).
+- Judge ownership from the body: who is addressed ("Hi <name>"), who is asked to act, whose name follows the verb ("<person> to send…", "can you…" directed at someone specific), and whether Dean is merely mentioned. An action addressed to a provider, colleague, or the sender is NOT Dean's task, even if Dean is a recipient and the matter concerns him.
+- Dean's own email addresses are listed as OWNER ADDRESSES. The email's visible recipients are the To line. If Dean is not the primary/addressed recipient, lean strongly toward "reference".
+- A task must never be created just because Dean's name or address appears in the email. When you cannot clearly tell that the action is Dean's to perform, default to "reference".
+
 HARD RULES
 - Never create a task for newsletters, marketing, or routine automated notifications — classify them "ignore" even if they contain imperative language.
 - An email being unread or flagged is NOT by itself a reason for a task; judge the content.
@@ -190,11 +204,13 @@ export function buildUserMessage(input: EmailProcessorInput): string {
     input.recentTasks.length > 0
       ? input.recentTasks.map((t) => `- [${t.status}] ${t.title}`).join("\n")
       : "(none)";
+  const ownerAddrs = input.ownerAddresses?.length ? input.ownerAddresses.join(", ") : "(unknown)";
   return [
     `MAILBOX (business context): ${input.mailbox}`,
     `DIRECTION: ${input.direction}`,
+    `DEAN'S OWN ADDRESSES (he is the owner; action only counts if it is HIS to do): ${ownerAddrs}`,
     `FROM: ${input.sender}`,
-    `TO: ${input.recipients.join(", ") || "unknown"}`,
+    `TO (visible recipients): ${input.recipients.join(", ") || "unknown"}`,
     `DATE: ${input.emailDate ?? "unknown"}`,
     `FLAGS/CATEGORIES: ${input.flags.join(", ") || "(none)"}`,
     `SUBJECT: ${input.subject || "(no subject)"}`,

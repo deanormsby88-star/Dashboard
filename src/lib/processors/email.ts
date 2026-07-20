@@ -32,7 +32,17 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete } from "@/lib/todoist/execute";
 import { notifyNewPerson } from "@/lib/people/notify-new";
+import { MAILBOX_ADDRESSES } from "@/lib/email/schema";
 import type { Person } from "@/lib/types";
+
+/** Dean's own addresses, this email's mailbox first — lets the processor judge
+ * whether an action is Dean's to perform vs. an FYI he was merely CC'd on. */
+function ownerAddressesFor(mailbox: "heya" | "jic" | "personal"): string[] {
+  const all = Object.keys(MAILBOX_ADDRESSES);
+  const primary = all.filter((a) => MAILBOX_ADDRESSES[a] === mailbox);
+  const rest = all.filter((a) => MAILBOX_ADDRESSES[a] !== mailbox);
+  return [...primary, ...rest];
+}
 
 const AI_BODY_LIMIT = 6_000;
 
@@ -82,6 +92,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
     // Recent-first; 60 titles is plenty of context without bloating the prompt.
     recentTasks: allTasks.slice(0, 60).map((t) => ({ title: t.title, status: t.status })),
     threadAlreadyHandled: threadHandled,
+    ownerAddresses: ownerAddressesFor(email.mailbox),
   };
 
   const model = getEnv().OPENAI_MODEL_EMAIL_PROCESSOR;
