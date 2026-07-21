@@ -72,4 +72,14 @@ describe("buildTodoistCreateBody", () => {
     expect(noBusiness).not.toHaveProperty("due_date");
     expect(noBusiness).not.toHaveProperty("labels");
   });
+
+  it("sets the Todoist Deadline field only when a deadline is supplied", () => {
+    expect(buildTodoistCreateBody(makeTask(), heya)).not.toHaveProperty("deadline_date");
+    const withDeadline = buildTodoistCreateBody(makeTask(), heya, "2026-08-15");
+    expect(withDeadline.deadline_date).toBe("2026-08-15");
+    // Deadline is independent of the due/scheduling date.
+    expect(withDeadline).not.toHaveProperty("due_date");
+    const dateObj = buildTodoistCreateBody(makeTask(), heya, "2026-08-15T00:00:00Z");
+    expect(dateObj.deadline_date).toBe("2026-08-15");
+  });
 });

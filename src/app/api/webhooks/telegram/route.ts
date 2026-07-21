@@ -6,6 +6,13 @@ import { answerCallbackQuery, downloadFile, editMessageText, getFilePath, sendCh
 import { transcriptionFilename, transcriptionMimeType } from "@/lib/telegram/audio";
 import { transcribeAudio } from "@/lib/ai/openai";
 import { approveSuggestedTask, rejectSuggestedTask } from "@/lib/tasks/review";
+import {
+  clearAwaitingDeadline,
+  getAwaitingDeadline,
+  localDateSAST,
+  resolveDeadlineDate,
+  setAwaitingDeadline,
+} from "@/lib/tasks/deadline";
 import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
 import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calendar/microsoft";
 import { signedEmailBody } from "@/lib/email/signature";
@@ -114,6 +121,25 @@ export async function POST(request: NextRequest) {
       messageText = tr.text;
     }
 
+    // If Dean tapped "Pick a date" on a task card, his next reply is the
+    // deadline — resolve it and approve, rather than sending it to the agent.
+    const awaiting = await getAwaitingDeadline().catch(() => null);
+    if (awaiting && messageText) {
+      const deadline = await resolveDeadlineDate(messageText).catch(() => null);
+      if (deadline) {
+        await clearAwaitingDeadline().catch(() => {});
+        const res = await approveSuggestedTask(awaiting.taskId, deadline);
+        const reply = res.ok
+          ? `✅ Approved with deadline ${deadline}: ${res.title ?? awaiting.title}`
+          : `Couldn't set that deadline: ${res.error ?? "unknown error"}`;
+        await sendMessage(String(chatId), reply);
+        await updateWebhookEvent(event.id, "processed");
+        return NextResponse.json({ ok: true });
+      }
+      // Not a date → abandon the deadline capture and handle the message normally.
+      await clearAwaitingDeadline().catch(() => {});
+    }
+
     // Prepend the quoted message so "this / that" has a referent.
     const finalText = quoted
       ? `[Replying to this earlier message:\n"${quoted}"]\n\n${messageText}`
@@ -177,24 +203,50 @@ async function handleCallback(
     return handleAttendeeReminderCallback(cb, attMatch[1] as "go" | "skip", attMatch[2], String(cbChat));
   }
 
-  const match = /^task:(approve|reject):(.+)$/.exec(cb.data ?? "");
+  const match = /^task:(approve|reject|today|tmrw|date):(.+)$/.exec(cb.data ?? "");
   if (!match) {
     await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
     return NextResponse.json({ ok: true });
   }
   const [, action, taskId] = match;
-  const result = action === "approve" ? await approveSuggestedTask(taskId) : await rejectSuggestedTask(taskId);
-
   const original = cb.message?.text ?? "Task";
+
+  // "Pick a date" → park a pending request; Dean's next reply is the deadline.
+  if (action === "date") {
+    await setAwaitingDeadline(taskId, original).catch(() => {});
+    await answerCallbackQuery(cb.id, "Reply with the date").catch(() => {});
+    if (cb.message?.message_id !== undefined) {
+      await editMessageText(
+        String(cbChat),
+        cb.message.message_id,
+        `${original}\n\n🗓 What's the deadline? Reply with a date — e.g. 2026-08-15, 25/08, or “next Friday”.`
+      ).catch(() => {});
+    }
+    return NextResponse.json({ ok: true });
+  }
+
+  let deadline: string | null = null;
+  let deadlineLabel = "";
+  if (action === "today") {
+    deadline = localDateSAST(0);
+    deadlineLabel = " · deadline today";
+  } else if (action === "tmrw") {
+    deadline = localDateSAST(1);
+    deadlineLabel = " · deadline tomorrow";
+  }
+
+  const result =
+    action === "reject" ? await rejectSuggestedTask(taskId) : await approveSuggestedTask(taskId, deadline);
+
   const title = result.title ?? "task";
   let toast: string;
   let newText: string;
-  if (result.ok && action === "approve") {
-    toast = "Approved — sent to Todoist";
-    newText = `✅ Approved · ${title}`;
-  } else if (result.ok) {
+  if (result.ok && action === "reject") {
     toast = "Rejected";
     newText = `❌ Rejected · ${title}`;
+  } else if (result.ok) {
+    toast = deadline ? `Approved — deadline ${deadline}` : "Approved — sent to Todoist";
+    newText = `✅ Approved${deadlineLabel} · ${title}`;
   } else {
     toast = result.error ?? "Couldn't do that";
     newText = `${original}\n\n⚠️ ${result.error ?? "action failed"}`;

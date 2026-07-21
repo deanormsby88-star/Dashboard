@@ -26,9 +26,13 @@ export function isDirectTodoist(): boolean {
   return Boolean(getEnv().TODOIST_API_TOKEN);
 }
 
-export async function executeCreate(task: Task, business: Business | null): Promise<ExecuteCreateResult> {
+export async function executeCreate(
+  task: Task,
+  business: Business | null,
+  deadlineDate?: string | null
+): Promise<ExecuteCreateResult> {
   if (isDirectTodoist()) {
-    const result = await createTodoistTask(task, business);
+    const result = await createTodoistTask(task, business, deadlineDate);
     if (!result.ok) return { ok: false, error: result.error, created: null };
     return {
       ok: true,

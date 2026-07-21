@@ -10,7 +10,10 @@ import { executeCreate } from "@/lib/todoist/execute";
  * Approve a suggested task → send it to Todoist. Guards against double-approve
  * (only acts while still 'suggested') so a repeat tap can't create duplicates.
  */
-export async function approveSuggestedTask(taskId: string): Promise<{ ok: boolean; title?: string; error?: string }> {
+export async function approveSuggestedTask(
+  taskId: string,
+  deadlineDate?: string | null
+): Promise<{ ok: boolean; title?: string; error?: string }> {
   const task = await getTask(taskId);
   if (!task) return { ok: false, error: "Task not found." };
   if (task.status !== "suggested") return { ok: false, title: task.title, error: `already ${task.status}` };
@@ -18,7 +21,7 @@ export async function approveSuggestedTask(taskId: string): Promise<{ ok: boolea
   const owner = await ensureOwner();
   const business = owner.businesses.find((b) => b.id === task.business_id) ?? null;
   await setTaskStatus(task.id, "approved");
-  const sent = await executeCreate(task, business);
+  const sent = await executeCreate(task, business, deadlineDate);
   if (!sent.ok) {
     await setTaskStatus(task.id, "failed", sent.error);
     return { ok: false, title: task.title, error: sent.error };

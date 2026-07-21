@@ -23,11 +23,19 @@ export async function notifyPendingTasks(): Promise<{ sent: number; pending: num
       .join(" · ");
     const lines = [`🆕 Task to approve`, `“${t.title}”`, meta];
     if (t.description && t.description !== "Captured via chat.") lines.push(t.description);
+    lines.push("", "Approve with a deadline:");
+    // Approving picks the Todoist deadline in one tap. "Pick a date" asks Dean
+    // to reply with a date; "No deadline" approves without one.
     const ok = await sendToDeanWithButtons(lines.join("\n"), [
       [
-        { text: "✅ Approve", callback_data: `task:approve:${t.id}` },
-        { text: "❌ Reject", callback_data: `task:reject:${t.id}` },
+        { text: "📅 Today", callback_data: `task:today:${t.id}` },
+        { text: "📅 Tomorrow", callback_data: `task:tmrw:${t.id}` },
       ],
+      [
+        { text: "🗓 Pick a date", callback_data: `task:date:${t.id}` },
+        { text: "✅ No deadline", callback_data: `task:approve:${t.id}` },
+      ],
+      [{ text: "❌ Reject", callback_data: `task:reject:${t.id}` }],
     ]);
     if (ok) {
       await recordSyncRun({ userId: owner.user.id, sourceSystem: key, stats: { title: t.title } });

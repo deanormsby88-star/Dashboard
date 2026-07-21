@@ -17,7 +17,11 @@ export interface TodoistApiResult {
   error?: string;
 }
 
-export function buildTodoistCreateBody(task: Task, business: Business | null): Record<string, unknown> {
+export function buildTodoistCreateBody(
+  task: Task,
+  business: Business | null,
+  deadlineDate?: string | null
+): Record<string, unknown> {
   const body: Record<string, unknown> = {
     content: task.title,
     description: task.description,
@@ -28,6 +32,9 @@ export function buildTodoistCreateBody(task: Task, business: Business | null): R
   const labels = [...task.labels];
   if (business?.name) labels.push(business.name);
   if (task.due_date) body.due_date = toIsoDate(task.due_date);
+  // Todoist's Deadline field (distinct from the due/scheduling date) — the
+  // "must be done by" date Dean picks when approving a suggested task.
+  if (deadlineDate) body.deadline_date = toIsoDate(deadlineDate);
   if (labels.length > 0) body.labels = labels;
   return body;
 }
@@ -87,8 +94,12 @@ export async function listActiveTodoistTasks(): Promise<TodoistTask[]> {
   return out;
 }
 
-export async function createTodoistTask(task: Task, business: Business | null): Promise<TodoistApiResult> {
-  const body = buildTodoistCreateBody(task, business);
+export async function createTodoistTask(
+  task: Task,
+  business: Business | null,
+  deadlineDate?: string | null
+): Promise<TodoistApiResult> {
+  const body = buildTodoistCreateBody(task, business, deadlineDate);
   try {
     let res = await todoistFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
     // If the project_id is bad (e.g. a stale/migrated ID), retry in the Inbox
@@ -97,6 +108,17 @@ export async function createTodoistTask(task: Task, business: Business | null): 
       const text = await res.text().catch(() => "");
       if (/project_id/i.test(text)) {
         delete body.project_id;
+        res = await todoistFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
+      } else {
+        return { ok: false, error: `Todoist API error ${res.status}: ${text.slice(0, 300)}` };
+      }
+    }
+    // If the deadline field is rejected, retry without it so the task still
+    // lands (deadline is a nice-to-have, not worth dropping the whole task).
+    if (!res.ok && res.status === 400 && body.deadline_date) {
+      const text = await res.text().catch(() => "");
+      if (/deadline/i.test(text)) {
+        delete body.deadline_date;
         res = await todoistFetch("/tasks", { method: "POST", body: JSON.stringify(body) });
       } else {
         return { ok: false, error: `Todoist API error ${res.status}: ${text.slice(0, 300)}` };
