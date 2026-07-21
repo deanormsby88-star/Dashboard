@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/repo";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 import { sendToDean } from "@/lib/telegram/notify";
+import { isNoiseSignal } from "@/lib/assistant/noise";
 
 export const WATCH_PROMPT_VERSION = "1.0.0";
 
@@ -101,7 +102,10 @@ async function gatherSignals(now: Date): Promise<Signal[]> {
     });
   }
 
-  return signals.slice(0, MAX_SIGNALS);
+  // Never nudge Dean about consumer-platform login spam (Facebook et al.) or
+  // DeanOS's own infrastructure (Supabase/RLS/Vercel) — both are pure noise.
+  const kept = signals.filter((s) => !isNoiseSignal(s.text));
+  return kept.slice(0, MAX_SIGNALS);
 }
 
 const JUDGE_SYSTEM = `You are DeanOS, Dean Ormsby's chief of staff. You are running a background "watch" pass — deciding whether anything below is worth interrupting Dean RIGHT NOW with a Telegram nudge.

@@ -16,10 +16,12 @@ import { z } from "zod";
  *           (FYI), or where the action plainly belongs to someone else, must
  *           NOT become a task for Dean. Model is told Dean's own addresses so
  *           it can judge whether Dean is the actual action owner.
+ *   1.3.0 — consumer-platform login/security spam (Facebook, Instagram, etc.)
+ *           is always "ignore" (Dean: "never raise Facebook, it's rubbish").
  */
 
 export const PROMPT_NAME = "email-processor";
-export const PROMPT_VERSION = "1.2.0";
+export const PROMPT_VERSION = "1.3.0";
 
 // ── Input ────────────────────────────────────────────────────────────────────
 
@@ -173,6 +175,7 @@ Only classify "action" (and only then suggest a task) when the email requires DE
 
 HARD RULES
 - Never create a task for newsletters, marketing, or routine automated notifications — classify them "ignore" even if they contain imperative language.
+- Consumer-platform login / security notifications — Facebook, Instagram, Meta, WhatsApp, TikTok, X/Twitter, LinkedIn and the like ("new login", "was this you", "verify your account", security/verification codes) — are ALWAYS "ignore". Never a task or a risk, however urgent the wording. Dean considers these rubbish.
 - An email being unread or flagged is NOT by itself a reason for a task; judge the content.
 - NEVER invent deadlines: due_date only when the email states an explicit date or unambiguous relative date (resolve it against the email date, format YYYY-MM-DD).
 - Task titles concise and verb-first, e.g. "Reply to Sam about AI tool options", "Approve supplier invoice", "Pay Anchor Offices deposit".

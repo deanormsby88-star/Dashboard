@@ -33,6 +33,7 @@ import {
 import { executeComplete } from "@/lib/todoist/execute";
 import { notifyNewPerson } from "@/lib/people/notify-new";
 import { MAILBOX_ADDRESSES } from "@/lib/email/schema";
+import { isNoiseEmail } from "@/lib/assistant/noise";
 import type { Person } from "@/lib/types";
 
 /** Dean's own addresses, this email's mailbox first — lets the processor judge
@@ -70,6 +71,20 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
 
   const owner = await ensureOwner();
   await setEmailProcessing(email.id, "processing");
+
+  // Consumer-platform login/security spam (Facebook et al.) is never actionable
+  // — Dean's standing instruction. Force "ignore" so it can't become a task or
+  // resurface in the watch loop, without spending a model call on it.
+  if (isNoiseEmail(email.sender, email.subject, email.body_text)) {
+    await clearSuggestedTasksForSource(owner.user.id, email.message_id);
+    await setEmailProcessing(email.id, "processed", {
+      classification: "ignore",
+      confidence: 1,
+      summary: "Consumer-platform login/security notification — auto-ignored (Dean never wants these raised).",
+      resolved: true,
+    });
+    return { ok: true, classification: "ignore", counts: { tasks: 0, waitingOn: 0, risks: 0, relationshipUpdates: 0, resolvedWaitingOn: 0 } };
+  }
 
   // Retry-safe: drop this email's still-suggested tasks up front, so both
   // the model's context and the dedup list reflect a clean slate for this
