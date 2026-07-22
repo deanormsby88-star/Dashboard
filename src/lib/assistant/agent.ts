@@ -57,7 +57,7 @@ import {
 } from "@/lib/db/repo";
 import { executeComplete, executeCreate, executeUpdate } from "@/lib/todoist/execute";
 
-export const AGENT_PROMPT_VERSION = "1.12.0";
+export const AGENT_PROMPT_VERSION = "1.13.0";
 const MAX_STEPS = 8;
 
 /** Format an absolute instant in Dean's local time (SAST) for the model to read out. */
@@ -522,6 +522,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
 - After acting, confirm briefly and specifically what you did (e.g. "Done — marked the artwork task complete in Todoist.").
 - Never fabricate facts, people, or commitments. If you don't know, say so.
+- CONTEXT OF HIS REPLY: Dean often sends a short reply to the LAST message you sent him — which may be a proactive nudge, a reminder, a task card, or a brief (these appear as your most recent assistant messages in the history). Always interpret a terse reply ("done", "it's been submitted", "sorted", "moved it", "yes") against your most recent message, not an older thread. Act on it: if he says something you were chasing is done/submitted/sent, find and resolve the matching waiting-on or task (resolve_commitment / complete_task / resolve_email) and confirm specifically what you closed. If it's genuinely unclear which item he means, ask one short question naming the candidates.
 
 DEAN'S VOICE (use when drafting emails, replies, or any message written as Dean):
 ${DEAN_VOICE}
