@@ -14,6 +14,22 @@ import { getMyId, getValidAccessToken, listRecentTeamsMessages } from "@/lib/cal
 const LOOKBACK_HOURS = 26;
 const MAX_MESSAGES = 40;
 
+/** Format a message timestamp in Dean's local time for the task note. */
+function fmtSent(iso: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString("en-ZA", {
+    timeZone: "Africa/Johannesburg",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
 const SYSTEM = `You extract concrete, actionable tasks FOR DEAN ORMSBY from his recent Microsoft Teams messages (his team at Heya). Only genuine action items that Dean owns or is being asked to do — ignore chit-chat, FYIs, greetings, and things other people own. Title each task verb-first and concise. priority: 4 urgent, 3 important, 2 normal, 1 low. due_date is YYYY-MM-DD only if a date is explicitly stated, else null. Set message_id to the id of the message the task came from. If there are no real tasks, return an empty list.`;
 
 const SCHEMA = {
@@ -89,15 +105,21 @@ export async function scanTeamsForTasks(now: Date = new Date()): Promise<{ scann
       parsed = null;
     }
     const heya = businessByKey(owner, "heya");
+    const byId = new Map(batch.map((m) => [m.id, m]));
     for (const t of parsed?.tasks ?? []) {
       if (!t.title?.trim()) continue;
       const dedupKey = createHash("sha256").update(`teams:${t.message_id}:${normalizeTitle(t.title)}`).digest("hex");
+      const src = byId.get(t.message_id);
+      const sender = src?.from && src.from !== "(unknown)" ? src.from : "a teammate";
+      const sentAt = src?.createdIso ? fmtSent(src.createdIso) : null;
+      const inChat = src?.chatTopic ? ` in “${src.chatTopic}”` : "";
+      const description = `From ${sender} on Teams${inChat}${sentAt ? ` — sent ${sentAt}` : ""}.`;
       const { task } = await insertTask({
         userId: owner.user.id,
         businessId: heya?.id ?? null,
         meetingId: null,
         title: t.title.trim(),
-        description: "From a Teams message.",
+        description,
         priority: [1, 2, 3, 4].includes(t.priority) ? t.priority : 2,
         dueDate: typeof t.due_date === "string" ? t.due_date : null,
         labels: [],
