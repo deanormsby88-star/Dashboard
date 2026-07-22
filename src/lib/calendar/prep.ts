@@ -1,9 +1,42 @@
 import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
-import { getPersonBundle, type CalendarEventRow } from "@/lib/db/repo";
+import { findPersonByEmail, findPersonByName, getPersonBundle, type CalendarEventRow } from "@/lib/db/repo";
+import type { Person } from "@/lib/types";
 
 /** How many attendees to research for a prep pack (bounds latency/tokens). */
 const MAX_ATTENDEES = 4;
+
+/** Resolve a calendar attendee (name or email) to a stored person. */
+async function resolveAttendee(attendee: string): Promise<Person | null> {
+  const a = attendee.trim();
+  if (!a) return null;
+  if (a.includes("@")) {
+    const byEmail = await findPersonByEmail(a).catch(() => null);
+    if (byEmail) return byEmail;
+  }
+  return findPersonByName(a).catch(() => null);
+}
+
+/**
+ * What matters to each attendee — their saved motivations / bio (person.notes).
+ * Surfaced on EVERY meeting reminder (deterministically, not via the topic-
+ * focused AI prep) so Dean always walks in knowing what drives the people in
+ * the room. Returns null when no attendee has notes on file.
+ */
+export async function attendeeMotivations(event: CalendarEventRow): Promise<string | null> {
+  const attendees = event.attendees.slice(0, MAX_ATTENDEES);
+  if (attendees.length === 0) return null;
+  const people = await Promise.all(attendees.map((a) => resolveAttendee(a)));
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  for (const p of people) {
+    if (!p || !p.notes?.trim() || seen.has(p.id)) continue;
+    seen.add(p.id);
+    const first = p.full_name.split(/\s+/)[0] || p.full_name;
+    lines.push(`• ${first}: ${p.notes.trim().replace(/\s+/g, " ").slice(0, 240)}`);
+  }
+  return lines.length ? lines.join("\n") : null;
+}
 
 /**
  * Assemble the internal context DeanOS holds on a meeting's attendees:

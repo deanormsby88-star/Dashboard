@@ -1090,6 +1090,14 @@ export async function findPersonByName(name: string): Promise<Person | null> {
   return res.rows[0] ?? null;
 }
 
+export async function findPersonByEmail(email: string): Promise<Person | null> {
+  const res = await getPool().query<Person>(
+    `select * from people where lower(email) = lower($1) limit 1`,
+    [email.trim()]
+  );
+  return res.rows[0] ?? null;
+}
+
 export interface PersonBundle {
   person: Person | null;
   interactions: Interaction[];

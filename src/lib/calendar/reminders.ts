@@ -6,7 +6,7 @@ import {
   type CalendarEventRow,
 } from "@/lib/db/repo";
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
-import { buildMeetingPrep } from "@/lib/calendar/prep";
+import { attendeeMotivations, buildMeetingPrep } from "@/lib/calendar/prep";
 import { sendToDean } from "@/lib/telegram/notify";
 import { wazeLinkFor } from "@/lib/maps";
 
@@ -50,8 +50,11 @@ async function compose(e: CalendarEventRow, now: Date, withPrep: boolean): Promi
   if (e.attendees.length > 0) lines.push(`👥 ${e.attendees.slice(0, 5).join(", ")}`);
 
   // Attach a prep pack on the 30-min nudge when we hold useful context; the
-  // 5-min nudge stays a quick heads-up.
+  // 5-min nudge stays a quick heads-up. Always lead the prep with what matters
+  // to each attendee (their saved motivations), so Dean gets that every meeting.
   if (withPrep) {
+    const motiv = await attendeeMotivations(e).catch(() => null);
+    if (motiv) lines.push(`\n💡 What matters to them:\n${motiv}`);
     const prep = await buildMeetingPrep(e).catch(() => null);
     if (prep) lines.push(`\n📝 Prep:\n${prep}`);
   }
