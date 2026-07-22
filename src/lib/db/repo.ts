@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "@/lib/db";
 import { getEnv } from "@/lib/env";
+import { isRemovedPerson } from "@/lib/people/removed";
 import type {
   Business,
   BusinessKey,
@@ -692,7 +693,7 @@ export async function listPeople(): Promise<Person[]> {
   const res = await getPool().query<Person>(
     `select * from people order by full_name asc limit 500`
   );
-  return res.rows;
+  return res.rows.filter((p) => !isRemovedPerson(p));
 }
 
 export async function getPerson(id: string): Promise<Person | null> {
@@ -714,7 +715,7 @@ export async function listPeopleWithCounts(): Promise<
        ) as last_activity
      from people p order by last_activity desc nulls last, p.full_name asc limit 500`
   );
-  return res.rows as never;
+  return res.rows.filter((p) => !isRemovedPerson(p as { full_name?: string | null; email?: string | null })) as never;
 }
 
 /** Full relationship bundle for one person by id (profile page). */
@@ -1087,7 +1088,8 @@ export async function findPersonByName(name: string): Promise<Person | null> {
     `select * from people where full_name ilike $1 order by created_at limit 1`,
     [`%${name}%`]
   );
-  return res.rows[0] ?? null;
+  const row = res.rows[0] ?? null;
+  return row && isRemovedPerson(row) ? null : row;
 }
 
 export async function findPersonByEmail(email: string): Promise<Person | null> {
@@ -1095,7 +1097,8 @@ export async function findPersonByEmail(email: string): Promise<Person | null> {
     `select * from people where lower(email) = lower($1) limit 1`,
     [email.trim()]
   );
-  return res.rows[0] ?? null;
+  const row = res.rows[0] ?? null;
+  return row && isRemovedPerson(row) ? null : row;
 }
 
 export interface PersonBundle {
@@ -1108,6 +1111,10 @@ export interface PersonBundle {
 
 /** Everything DeanOS knows about a person, for `people` and `prep`. */
 export async function getPersonBundle(name: string): Promise<PersonBundle> {
+  // A removed person surfaces nothing, even on an explicit lookup by name.
+  if (isRemovedPerson({ full_name: name, email: name })) {
+    return { person: null, interactions: [], commitments: [], meetings: [], emails: [] };
+  }
   const db = getPool();
   const person = await findPersonByName(name);
   const like = `%${name}%`;

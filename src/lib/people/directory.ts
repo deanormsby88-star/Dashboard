@@ -32,13 +32,8 @@ export const HEYA_DIRECTORY: DirectoryEntry[] = [
     notes:
       "Goes by Steph. Leads all IT: user support, equipment, licensing, network stability, client-facing system admin. Ran a structured KRISP noise-cancellation trial for DLP Funding and produced a recommendation report. Coordinated account deactivation and peripheral collection on A1 Equipment's exit. Methodical; escalates clearly to Dean on strategic IT and to Debbie on asset registers.",
   },
-  {
-    fullName: "Lisa Wainbergas",
-    role: "Executive Assistant to COO",
-    email: "lisaw@heya.team",
-    notes:
-      "Executive Assistant to Dean: manages his calendar, coordinates leadership meetings, handles scheduling for the leadership team. Recent: client touchbases (incl. Anchor), Yehuda 1-on-1s, shared a workable scorecard doc with Dean. Professional and detail-oriented; proactively notifies of rescheduling and follows up on confirmations. Key interface for external client contacts.",
-  },
+  // Lisa Wainbergas (former Executive Assistant) removed at Dean's request —
+  // no longer his PA. Kept out of the seed so a re-import won't restore her.
   {
     fullName: "Aidan Le Fleur",
     role: "Administration & Recruitment Coordinator",
