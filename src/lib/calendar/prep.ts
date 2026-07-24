@@ -1,10 +1,32 @@
 import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
 import { findPersonByEmail, findPersonByName, getPersonBundle, type CalendarEventRow } from "@/lib/db/repo";
+import { MAILBOX_ADDRESSES } from "@/lib/email/schema";
 import type { Person } from "@/lib/types";
 
 /** How many attendees to research for a prep pack (bounds latency/tokens). */
 const MAX_ATTENDEES = 4;
+
+/** Dean himself — his own record must never be surfaced as an "attendee". */
+const OWNER_EMAILS = new Set(Object.keys(MAILBOX_ADDRESSES));
+const OWNER_NAME = /\bdean\s+ormsby\b/i;
+
+/** True when an attendee string, or a resolved person, is Dean (the owner). */
+export function isOwnerAttendee(value: string | null | undefined, person?: Person | null): boolean {
+  const s = (value ?? "").trim();
+  if (s.includes("@") && OWNER_EMAILS.has(s.toLowerCase())) return true;
+  if (s && OWNER_NAME.test(s)) return true;
+  if (person) {
+    if (person.email && OWNER_EMAILS.has(person.email.trim().toLowerCase())) return true;
+    if (OWNER_NAME.test(person.full_name)) return true;
+  }
+  return false;
+}
+
+/** Attendees excluding Dean himself, capped for latency/tokens. */
+function otherAttendees(event: CalendarEventRow): string[] {
+  return event.attendees.filter((a) => !isOwnerAttendee(a)).slice(0, MAX_ATTENDEES);
+}
 
 /** Resolve a calendar attendee (name or email) to a stored person. */
 async function resolveAttendee(attendee: string): Promise<Person | null> {
@@ -24,13 +46,14 @@ async function resolveAttendee(attendee: string): Promise<Person | null> {
  * the room. Returns null when no attendee has notes on file.
  */
 export async function attendeeMotivations(event: CalendarEventRow): Promise<string | null> {
-  const attendees = event.attendees.slice(0, MAX_ATTENDEES);
+  const attendees = otherAttendees(event);
   if (attendees.length === 0) return null;
   const people = await Promise.all(attendees.map((a) => resolveAttendee(a)));
   const seen = new Set<string>();
   const lines: string[] = [];
   for (const p of people) {
-    if (!p || !p.notes?.trim() || seen.has(p.id)) continue;
+    // Never surface Dean's own record (or a duplicate / note-less person).
+    if (!p || isOwnerAttendee(null, p) || !p.notes?.trim() || seen.has(p.id)) continue;
     seen.add(p.id);
     const first = p.full_name.split(/\s+/)[0] || p.full_name;
     lines.push(`• ${first}: ${p.notes.trim().replace(/\s+/g, " ").slice(0, 240)}`);
@@ -45,7 +68,7 @@ export async function attendeeMotivations(event: CalendarEventRow): Promise<stri
  * plain nudge).
  */
 async function gatherContext(event: CalendarEventRow): Promise<{ text: string; known: boolean }> {
-  const attendees = event.attendees.slice(0, MAX_ATTENDEES);
+  const attendees = otherAttendees(event);
   if (attendees.length === 0) return { text: "(no attendees on file)", known: false };
 
   const bundles = await Promise.all(attendees.map((a) => getPersonBundle(a).catch(() => null)));
