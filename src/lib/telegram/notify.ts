@@ -1,40 +1,76 @@
 import { getEnv } from "@/lib/env";
-import { isTelegramConfigured, sendMessage, sendMessageWithButtons, type InlineButton } from "@/lib/telegram/api";
-import { appendConversationMessage, ensureOwner } from "@/lib/db/repo";
+import { sendMessage, sendMessageWithButtons, type InlineButton } from "@/lib/telegram/api";
+import { appendConversationMessage, ensureOwner, getUserById } from "@/lib/db/repo";
 
 /**
- * Record a proactive message the bot sent Dean into the Telegram conversation
- * memory (as an assistant turn), so when he replies — "it's been submitted",
- * "done", "reschedule that" — the agent understands his reply in the context of
- * what it last said, instead of picking up a stale earlier thread. Best-effort:
- * a memory failure must never block the actual send.
+ * Per-user Telegram delivery. Each user's proactive messages go to THEIR linked
+ * chat; the legacy owner (Dean) falls back to the env TELEGRAM_ALLOWED_CHAT_ID
+ * so he keeps working without re-linking. A user who hasn't linked Telegram
+ * simply gets no push (returns false) — never another user's chat.
  */
-async function rememberProactive(text: string): Promise<void> {
+
+function botConfigured(): boolean {
+  return Boolean(getEnv().TELEGRAM_BOT_TOKEN);
+}
+
+/** The Telegram chat id to deliver a given user's messages to, or null. */
+async function chatIdForUser(userId: string): Promise<string | null> {
+  const owner = await getUserById(userId).catch(() => null);
+  if (!owner) return null;
+  if (owner.user.telegram_chat_id) return owner.user.telegram_chat_id;
+  // Legacy owner fallback: the env-configured chat belongs to DEANOS_EMAIL.
+  const env = getEnv();
+  if (env.TELEGRAM_ALLOWED_CHAT_ID && owner.user.email.toLowerCase() === env.DEANOS_EMAIL.toLowerCase()) {
+    return env.TELEGRAM_ALLOWED_CHAT_ID;
+  }
+  return null;
+}
+
+/**
+ * Record a proactive message into the user's Telegram conversation memory (as
+ * an assistant turn), so a short reply — "done", "submitted", "reschedule that"
+ * — is understood in context. Best-effort: memory failure never blocks a send.
+ */
+async function rememberProactive(userId: string, text: string): Promise<void> {
   try {
-    const owner = await ensureOwner();
-    await appendConversationMessage({ userId: owner.user.id, channel: "telegram", role: "assistant", content: text });
+    await appendConversationMessage({ userId, channel: "telegram", role: "assistant", content: text });
   } catch {
     /* memory is best-effort; the message still went out */
   }
 }
 
-/**
- * Push a message to Dean's Telegram chat. No-op (returns false) when the bot
- * isn't configured, so callers can fire-and-forget without guarding.
- */
-export async function sendToDean(text: string): Promise<boolean> {
-  if (!isTelegramConfigured()) return false;
-  const chatId = getEnv().TELEGRAM_ALLOWED_CHAT_ID!;
+/** Push a message to a specific user's Telegram chat. No-op (false) if unlinked. */
+export async function sendToUser(userId: string, text: string): Promise<boolean> {
+  if (!botConfigured()) return false;
+  const chatId = await chatIdForUser(userId);
+  if (!chatId) return false;
   const res = await sendMessage(chatId, text);
-  if (res.ok) await rememberProactive(text);
+  if (res.ok) await rememberProactive(userId, text);
   return res.ok;
 }
 
-/** Push a message to Dean with tap-to-act inline buttons. */
-export async function sendToDeanWithButtons(text: string, buttons: InlineButton[][]): Promise<boolean> {
-  if (!isTelegramConfigured()) return false;
-  const chatId = getEnv().TELEGRAM_ALLOWED_CHAT_ID!;
+/** Push a message with tap-to-act inline buttons to a specific user. */
+export async function sendToUserWithButtons(
+  userId: string,
+  text: string,
+  buttons: InlineButton[][]
+): Promise<boolean> {
+  if (!botConfigured()) return false;
+  const chatId = await chatIdForUser(userId);
+  if (!chatId) return false;
   const res = await sendMessageWithButtons(chatId, text, buttons);
-  if (res.ok) await rememberProactive(text);
+  if (res.ok) await rememberProactive(userId, text);
   return res.ok;
+}
+
+/** Back-compat: deliver to the owner (Dean). Prefer sendToUser(userId, …). */
+export async function sendToDean(text: string): Promise<boolean> {
+  const owner = await ensureOwner();
+  return sendToUser(owner.user.id, text);
+}
+
+/** Back-compat: deliver to the owner with buttons. Prefer sendToUserWithButtons. */
+export async function sendToDeanWithButtons(text: string, buttons: InlineButton[][]): Promise<boolean> {
+  const owner = await ensureOwner();
+  return sendToUserWithButtons(owner.user.id, text, buttons);
 }

@@ -744,16 +744,16 @@ async function executeTool(
       }
     }
     case "set_reminder": {
-      const r = await createReminder(str(args.text), str(args.remind_at_utc));
+      const r = await createReminder(owner, str(args.text), str(args.remind_at_utc));
       if (!r.ok) return JSON.stringify({ ok: false, error: r.error });
       return JSON.stringify({ ok: true, reminder: str(args.text), when_local: r.when, id: r.id });
     }
     case "list_reminders": {
-      const rems = await listUpcomingReminders();
+      const rems = await listUpcomingReminders(owner);
       return JSON.stringify(rems.map((r) => ({ id: r.id, text: r.text, when_local: r.when })));
     }
     case "cancel_reminder": {
-      const ok = await cancelReminder(str(args.id));
+      const ok = await cancelReminder(owner, str(args.id));
       return JSON.stringify({ ok, error: ok ? undefined : "not found or already sent" });
     }
     case "message_teammate": {
@@ -773,7 +773,7 @@ async function executeTool(
       if (!person?.email) {
         return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
       }
-      const r = await createReminder(str(args.text), str(args.remind_at_utc), new Date(), {
+      const r = await createReminder(owner, str(args.text), str(args.remind_at_utc), new Date(), {
         email: person.email,
         name: person.full_name,
       });

@@ -78,7 +78,7 @@ export const DEFAULT_CONTEXT_SEED: Array<{ key: string; name: string }> = [
   { key: "personal", name: "Personal" },
 ];
 
-const USER_COLS = "id, email, name, microsoft_oid, setup_completed_at";
+const USER_COLS = "id, email, name, microsoft_oid, setup_completed_at, telegram_chat_id";
 
 async function loadBusinesses(userId: string, db: Queryable = getPool()): Promise<Business[]> {
   const res = await db.query<Business>(
@@ -143,6 +143,28 @@ export async function getUserByEmail(email: string, db: Queryable = getPool()): 
     email.trim(),
   ]);
   return res.rows[0] ?? null;
+}
+
+/** All users — for background jobs that must run per-user (briefs, reminders…). */
+export async function listAllUsers(): Promise<User[]> {
+  const res = await getPool().query<User>(`select ${USER_COLS} from users order by created_at`);
+  return res.rows;
+}
+
+/** Resolve a user by their linked Telegram chat id (inbound routing). */
+export async function getUserByTelegramChatId(chatId: string): Promise<User | null> {
+  const res = await getPool().query<User>(`select ${USER_COLS} from users where telegram_chat_id = $1`, [chatId]);
+  return res.rows[0] ?? null;
+}
+
+/** Link (or clear) a user's Telegram chat. Clears any other user holding it. */
+export async function setUserTelegramChat(userId: string, chatId: string | null): Promise<void> {
+  const db = getPool();
+  if (chatId) {
+    // A chat can belong to only one user — release it from anyone else first.
+    await db.query(`update users set telegram_chat_id = null where telegram_chat_id = $1 and id <> $2`, [chatId, userId]);
+  }
+  await db.query(`update users set telegram_chat_id = $2 where id = $1`, [userId, chatId]);
 }
 
 /** Mark a user's first-run setup wizard complete. */

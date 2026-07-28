@@ -4,7 +4,8 @@ import { getUpcoming } from "@/lib/calendar/sync";
 import { listActiveTodoistTasks } from "@/lib/todoist/api";
 import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
 import { wazeLinkFor } from "@/lib/maps";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
+import type { Owner } from "@/lib/db/repo";
 
 function fmtTime(d: Date): string {
   return new Date(d).toLocaleTimeString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -14,8 +15,7 @@ function fmtTime(d: Date): string {
  * End-of-day wrap: tomorrow's schedule, what's still on his plate (Todoist due
  * today/overdue), and who to chase — so nothing slips overnight.
  */
-export async function sendEndOfDay(now: Date = new Date()): Promise<{ delivered: boolean }> {
-  const owner = await ensureOwner();
+export async function sendEndOfDay(owner: Owner, now: Date = new Date()): Promise<{ delivered: boolean }> {
   const todayStr = localToday(now);
   const tomorrowStr = localToday(new Date(now.getTime() + 86400_000));
 
@@ -55,6 +55,6 @@ export async function sendEndOfDay(now: Date = new Date()): Promise<{ delivered:
   if (openLines.length) parts.push(`\n✅ Still on your plate (${openLines.length})\n${openLines.join("\n")}`);
   if (chase.length) parts.push(`\n⏳ Chase tomorrow\n${chase.join("\n")}`);
 
-  const delivered = await sendToDean(parts.join("\n"));
+  const delivered = await sendToUser(owner.user.id, parts.join("\n"));
   return { delivered };
 }

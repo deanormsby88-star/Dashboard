@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ConnectTelegramButton from "@/components/ConnectTelegramButton";
 
 interface Context {
   key: string;
@@ -12,10 +13,12 @@ export default function SetupWizard({
   accountEmail,
   name,
   contexts: initialContexts,
+  telegramLinked,
 }: {
   accountEmail: string;
   name: string | null;
   contexts: Context[];
+  telegramLinked: boolean;
 }) {
   const router = useRouter();
   const [contexts, setContexts] = useState<Context[]>(
@@ -87,12 +90,14 @@ export default function SetupWizard({
         </div>
       </section>
 
-      {/* Step 3 — Optional integrations (wired later) */}
+      {/* Step 3 — Telegram (optional but recommended) */}
       <section className="card p-5">
-        <h2 className="font-semibold">Todoist &amp; Telegram</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Optional. You can connect these anytime from Settings once you&apos;re in.
+        <h2 className="font-semibold">Chat on Telegram</h2>
+        <p className="mb-2 text-sm text-slate-500 dark:text-slate-400">
+          Optional. Link Telegram to get your daily brief, reminders and nudges on your phone — and chat back by text or voice.
         </p>
+        <ConnectTelegramButton linked={telegramLinked} />
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Todoist can be connected later from Settings.</p>
       </section>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

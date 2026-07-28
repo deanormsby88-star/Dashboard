@@ -2,7 +2,8 @@ import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
 import { appendConversationMessage, ensureOwner, getLastSyncRun, listCalendarConnections, recordSyncRun } from "@/lib/db/repo";
 import { getValidAccessToken, listInboxMessages, type GraphMessage } from "@/lib/calendar/microsoft";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
+import type { Owner } from "@/lib/db/repo";
 
 const LOOKBACK_HOURS = 36;
 
@@ -16,8 +17,7 @@ function localToday(now: Date): string {
  * Send Dean a morning inbox triage: unread mail across Heya + JIC, distilled by
  * the model into what needs him with suggested actions. Once per local day.
  */
-export async function morningTriage(now: Date = new Date()): Promise<{ status: string; count?: number }> {
-  const owner = await ensureOwner();
+export async function morningTriage(owner: Owner, now: Date = new Date()): Promise<{ status: string; count?: number }> {
 
   const dedupKey = `triage:${localToday(now)}`;
   if (await getLastSyncRun(dedupKey)) return { status: "already_sent" };
@@ -50,7 +50,7 @@ export async function morningTriage(now: Date = new Date()): Promise<{ status: s
   if (!res.ok || !res.rawText?.trim()) return { status: "ai_failed" };
 
   const msg = `📥 Inbox triage — ${all.length} unread\n\n${res.rawText.trim()}`;
-  const ok = await sendToDean(msg);
+  const ok = await sendToUser(owner.user.id, msg);
   if (ok) {
     await recordSyncRun({ userId: owner.user.id, sourceSystem: dedupKey, stats: { count: all.length } });
     await appendConversationMessage({ userId: owner.user.id, channel: "telegram", role: "assistant", content: msg });

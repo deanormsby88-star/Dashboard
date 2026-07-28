@@ -6,9 +6,10 @@ import {
   listCalendarEvents,
   listSyncRunsBySource,
   recordSyncRun,
+  type Owner,
 } from "@/lib/db/repo";
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
-import { sendToDean, sendToDeanWithButtons } from "@/lib/telegram/notify";
+import { sendToUser, sendToUserWithButtons } from "@/lib/telegram/notify";
 import { messageTeammate } from "@/lib/teams/send";
 
 /** Offer to remind attendees when a meeting is within this many minutes. */
@@ -69,8 +70,7 @@ async function resolveTeammates(userId: string, attendees: string[]): Promise<Of
  * For each upcoming meeting with teammate attendees, ask Dean (once) whether to
  * remind them on Teams. On approval (webhook callback) each teammate is pinged.
  */
-export async function offerAttendeeReminders(now: Date = new Date()): Promise<{ offered: number }> {
-  const owner = await ensureOwner();
+export async function offerAttendeeReminders(owner: Owner, now: Date = new Date()): Promise<{ offered: number }> {
   await ensureCalendarsFresh(owner.user.id).catch(() => {});
 
   const events = await listCalendarEvents(owner.user.id, now, new Date(now.getTime() + OFFER_WINDOW_MIN * 60_000));
@@ -92,7 +92,7 @@ export async function offerAttendeeReminders(now: Date = new Date()): Promise<{ 
     if (isDaily1on1(e.title)) {
       const sent = await sendAttendeeReminders(offer, now);
       if (sent > 0) {
-        await sendToDean(`🔔 Reminded ${teammates.map((t) => t.name.split(" ")[0]).join(", ")} about your ${fmtTime(offer.startIso)} 1-1 on Teams.`);
+        await sendToUser(owner.user.id, `🔔 Reminded ${teammates.map((t) => t.name.split(" ")[0]).join(", ")} about your ${fmtTime(offer.startIso)} 1-1 on Teams.`);
         offered++;
       }
       continue;
@@ -100,7 +100,7 @@ export async function offerAttendeeReminders(now: Date = new Date()): Promise<{ 
 
     await recordSyncRun({ userId: owner.user.id, sourceSystem: `attoffer:${id}`, stats: offer });
     const card = `👥 Remind attendees of your ${fmtTime(offer.startIso)} — “${e.title}”?\nWould ping on Teams: ${teammates.map((t) => t.name.split(" ")[0]).join(", ")}`;
-    const ok = await sendToDeanWithButtons(card, [
+    const ok = await sendToUserWithButtons(owner.user.id, card, [
       [
         { text: "✅ Remind them", callback_data: `attrem:go:${id}` },
         { text: "❌ Skip", callback_data: `attrem:skip:${id}` },

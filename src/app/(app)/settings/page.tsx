@@ -6,6 +6,7 @@ import JsonViewer from "@/components/JsonViewer";
 import RetryWebhookButton from "@/components/RetryWebhookButton";
 import ImportJicSignatureButton from "@/components/ImportJicSignatureButton";
 import TelegramSetup from "@/components/TelegramSetup";
+import ConnectTelegramButton from "@/components/ConnectTelegramButton";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -180,6 +181,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
             >
               {telegramConfigured ? "configured" : "not configured"}
             </span>
+          </div>
+          <div className="mt-3">
+            <p className="mb-1 text-sm font-medium">Connect your Telegram</p>
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              Link your own Telegram chat so DeanOS messages you — briefs, reminders and nudges — and you can chat back.
+            </p>
+            <ConnectTelegramButton linked={Boolean(owner.user.telegram_chat_id)} />
           </div>
           <TelegramSetup />
         </div>

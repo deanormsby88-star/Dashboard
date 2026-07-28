@@ -1,5 +1,5 @@
-import { ensureOwner, getLastSyncRun, listTasks, recordSyncRun } from "@/lib/db/repo";
-import { sendToDeanWithButtons } from "@/lib/telegram/notify";
+import { getLastSyncRun, listTasks, recordSyncRun, type Owner } from "@/lib/db/repo";
+import { sendToUserWithButtons } from "@/lib/telegram/notify";
 
 const PRIORITY_LABEL: Record<number, string> = { 4: "urgent", 3: "important", 2: "normal", 1: "backlog" };
 
@@ -8,8 +8,7 @@ const PRIORITY_LABEL: Record<number, string> = { 4: "urgent", 3: "important", 2:
  * Dedup via sync_runs (`tasknotify:<id>`) so a task is only sent for review one
  * time. Called by the notify-tasks cron.
  */
-export async function notifyPendingTasks(): Promise<{ sent: number; pending: number }> {
-  const owner = await ensureOwner();
+export async function notifyPendingTasks(owner: Owner): Promise<{ sent: number; pending: number }> {
   const tasks = await listTasks(owner.user.id, { status: "suggested" });
 
   let sent = 0;
@@ -26,7 +25,7 @@ export async function notifyPendingTasks(): Promise<{ sent: number; pending: num
     lines.push("", "Approve with a deadline:");
     // Approving picks the Todoist deadline in one tap. "Pick a date" asks Dean
     // to reply with a date; "No deadline" approves without one.
-    const ok = await sendToDeanWithButtons(lines.join("\n"), [
+    const ok = await sendToUserWithButtons(owner.user.id, lines.join("\n"), [
       [
         { text: "📅 Today", callback_data: `task:today:${t.id}` },
         { text: "📅 Tomorrow", callback_data: `task:tmrw:${t.id}` },

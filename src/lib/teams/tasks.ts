@@ -4,10 +4,10 @@ import { callStructured } from "@/lib/ai/openai";
 import { normalizeTitle } from "@/lib/dedup";
 import {
   businessByKey,
-  ensureOwner,
   getLastSyncRun,
   insertTask,
   recordSyncRun,
+  type Owner,
 } from "@/lib/db/repo";
 import { getMyId, getValidAccessToken, listRecentTeamsMessages } from "@/lib/calendar/microsoft";
 
@@ -59,8 +59,7 @@ const SCHEMA = {
  * suggested tasks (which then flow to the Telegram approve buttons). Each
  * message is scanned once (sync_runs), and tasks dedupe on message + title.
  */
-export async function scanTeamsForTasks(now: Date = new Date()): Promise<{ scanned: number; created: number }> {
-  const owner = await ensureOwner();
+export async function scanTeamsForTasks(owner: Owner, now: Date = new Date()): Promise<{ scanned: number; created: number }> {
   const token = await getValidAccessToken(owner.user.id, "heya");
   if (!token) return { scanned: 0, created: 0 };
 

@@ -131,6 +131,13 @@ export async function getMe(): Promise<{ ok: boolean; result?: unknown; error?: 
   return call("getMe", {});
 }
 
+/** The bot's @username, for building t.me deep links. Null if unavailable. */
+export async function getBotUsername(): Promise<string | null> {
+  const res = await getMe();
+  const r = res.result as { username?: string } | undefined;
+  return res.ok && r?.username ? r.username : null;
+}
+
 /** Resolve a file_id to a downloadable file_path. */
 export async function getFilePath(fileId: string): Promise<string | null> {
   const res = await call("getFile", { file_id: fileId });

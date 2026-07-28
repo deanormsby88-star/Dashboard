@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireCron } from "@/lib/cron/auth";
+import { forEachUser } from "@/lib/cron/for-each-user";
 import { generateAndStoreBrief } from "@/lib/assistant/brief";
-import { ensureOwner, pruneOldSyncRuns } from "@/lib/db/repo";
-import { sendToDean } from "@/lib/telegram/notify";
+import { pruneOldSyncRuns } from "@/lib/db/repo";
+import { sendToUser } from "@/lib/telegram/notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,20 +20,15 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
-    // Background jobs still serve the single owner (Dean); looping over all
-    // users lands with per-user Telegram delivery (next unit).
-    const owner = await ensureOwner();
-    const brief = await generateAndStoreBrief(owner.user.id, "cron");
-    // Deliver to Telegram if the bot is connected (no-op otherwise).
-    const delivered = await sendToDean(brief.content);
+    // Generate and deliver each user's brief to their own Telegram chat.
+    const perUser = await forEachUser(async (owner) => {
+      const brief = await generateAndStoreBrief(owner.user.id, "cron");
+      const delivered = await sendToUser(owner.user.id, brief.content);
+      return { generatedFor: brief.generated_for, top3: brief.top3.length, telegram: delivered };
+    });
     // Housekeeping: keep the sync_runs KV store from growing without bound.
     await pruneOldSyncRuns().catch(() => {});
-    return NextResponse.json({
-      ok: true,
-      generatedFor: brief.generated_for,
-      top3: brief.top3.length,
-      telegram: delivered,
-    });
+    return NextResponse.json({ ok: true, users: perUser.length, results: perUser });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

@@ -8,6 +8,7 @@ export interface User {
   name: string | null;
   microsoft_oid?: string | null;
   setup_completed_at?: Date | null;
+  telegram_chat_id?: string | null;
 }
 
 export interface Business {

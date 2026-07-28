@@ -1,7 +1,8 @@
 import { businessDaysBetween } from "@/lib/dates";
 import { appendConversationMessage, ensureOwner, getLastSyncRun, listCalendarConnections, recordSyncRun } from "@/lib/db/repo";
 import { getAccountEmail, getValidAccessToken, latestInConversation, listSentMessages } from "@/lib/calendar/microsoft";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
+import type { Owner } from "@/lib/db/repo";
 
 const LOOKBACK_DAYS = 14;
 const WAIT_BUSINESS_DAYS = 3;
@@ -12,8 +13,7 @@ const COOLDOWN_HOURS = 48; // re-nudge at most every 2 days per thread
  * nudge him. "No reply" = the latest message in the conversation is still from
  * Dean. He can then say "chase them" and the agent drafts/sends the follow-up.
  */
-export async function notifyAwaitingReplies(now: Date = new Date()): Promise<{ sent: number; checked: number }> {
-  const owner = await ensureOwner();
+export async function notifyAwaitingReplies(owner: Owner, now: Date = new Date()): Promise<{ sent: number; checked: number }> {
   const conns = await listCalendarConnections(owner.user.id);
   const sinceIso = new Date(now.getTime() - LOOKBACK_DAYS * 86400_000).toISOString();
 
@@ -50,7 +50,7 @@ export async function notifyAwaitingReplies(now: Date = new Date()): Promise<{ s
       if (last && now.getTime() - last.getTime() < COOLDOWN_HOURS * 3600_000) continue;
 
       const msg = `⏳ No reply yet — “${m.subject}”\nSent to ${m.to.join(", ") || "?"} · ${waitDays} business days ago (${c.calendar})\nSay “chase them” and I’ll draft a nudge.`;
-      const ok = await sendToDean(msg);
+      const ok = await sendToUser(owner.user.id, msg);
       if (ok) {
         await recordSyncRun({ userId: owner.user.id, sourceSystem: key, stats: { subject: m.subject } });
         await appendConversationMessage({ userId: owner.user.id, channel: "telegram", role: "assistant", content: msg });

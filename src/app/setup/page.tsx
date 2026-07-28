@@ -25,6 +25,7 @@ export default async function SetupPage() {
         accountEmail={owner.user.email}
         name={owner.user.name}
         contexts={owner.businesses.map((b) => ({ key: b.key, name: b.name }))}
+        telegramLinked={Boolean(owner.user.telegram_chat_id)}
       />
     </div>
   );

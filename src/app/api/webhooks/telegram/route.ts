@@ -1,6 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getEnv } from "@/lib/env";
-import { ensureOwner, recordWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
+import {
+  ensureOwner,
+  getUserById,
+  getUserByTelegramChatId,
+  recordWebhookEvent,
+  setUserTelegramChat,
+  updateWebhookEvent,
+  type Owner,
+} from "@/lib/db/repo";
+import { verifyLinkCode } from "@/lib/telegram/link";
 import { runCommand } from "@/lib/assistant/commands";
 import { answerCallbackQuery, downloadFile, editMessageText, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
 import { transcriptionFilename, transcriptionMimeType } from "@/lib/telegram/audio";
@@ -26,6 +35,18 @@ export const maxDuration = 60;
 
 const ENDPOINT = "telegram";
 
+/** Resolve the DeanOS user for an incoming Telegram chat, or null if unlinked. */
+async function resolveTelegramUser(chatId: string): Promise<Owner | null> {
+  const byChat = await getUserByTelegramChatId(chatId).catch(() => null);
+  if (byChat) return getUserById(byChat.id);
+  // Legacy owner: the env-configured chat belongs to Dean, no linking needed.
+  const env = getEnv();
+  if (env.TELEGRAM_ALLOWED_CHAT_ID && String(chatId) === String(env.TELEGRAM_ALLOWED_CHAT_ID)) {
+    return ensureOwner();
+  }
+  return null;
+}
+
 /**
  * Telegram bot webhook. Telegram POSTs updates here and authenticates by
  * echoing our secret in X-Telegram-Bot-Api-Secret-Token. Only Dean's chat is
@@ -37,7 +58,8 @@ export async function POST(request: NextRequest) {
   const env = getEnv();
 
   // Bot not configured → accept-and-ignore so Telegram stops retrying.
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET || !env.TELEGRAM_ALLOWED_CHAT_ID) {
+  // (ALLOWED_CHAT_ID is optional now — it's only the legacy-owner fallback.)
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) {
     return NextResponse.json({ ok: true, ignored: "not configured" });
   }
   if (request.headers.get("x-telegram-bot-api-secret-token") !== env.TELEGRAM_WEBHOOK_SECRET) {
@@ -62,7 +84,7 @@ export async function POST(request: NextRequest) {
 
   // ── Button taps (Approve/Reject on a task card) ──────────────────────────
   if (update?.callback_query) {
-    return handleCallback(update.update_id, update.callback_query, env.TELEGRAM_ALLOWED_CHAT_ID);
+    return handleCallback(update.update_id, update.callback_query);
   }
 
   const chatId = update?.message?.chat?.id;
@@ -76,11 +98,6 @@ export async function POST(request: NextRequest) {
   if (!update?.update_id || chatId === undefined || (!text && !voice?.file_id)) {
     return NextResponse.json({ ok: true });
   }
-  if (String(chatId) !== String(env.TELEGRAM_ALLOWED_CHAT_ID)) {
-    // Someone else found the bot. Politely decline, once.
-    await sendMessage(String(chatId), "This is a private assistant.").catch(() => {});
-    return NextResponse.json({ ok: true });
-  }
 
   // Idempotency: one update_id processed once.
   const event = await recordWebhookEvent({
@@ -90,6 +107,37 @@ export async function POST(request: NextRequest) {
     rawBody: null,
   });
   if (event.duplicate) return NextResponse.json({ ok: true, duplicate: true });
+
+  // Account linking: `/start <code>` binds this chat to a DeanOS user.
+  if (text?.startsWith("/start")) {
+    const code = text.slice("/start".length).trim();
+    const linkedUserId = code ? verifyLinkCode(code) : null;
+    if (linkedUserId) {
+      await setUserTelegramChat(linkedUserId, String(chatId)).catch(() => {});
+      await sendMessage(String(chatId), "✅ Linked — your DeanOS assistant will message you here. Try “what’s on today”.");
+    } else {
+      const already = await resolveTelegramUser(String(chatId));
+      await sendMessage(
+        String(chatId),
+        already
+          ? "You’re already linked. Try “what’s on today” or send a voice note."
+          : "To connect your account, open DeanOS → Settings → Connect Telegram and tap the link there."
+      );
+    }
+    await updateWebhookEvent(event.id, "processed");
+    return NextResponse.json({ ok: true });
+  }
+
+  // Route the message to the linked user; decline unlinked chats.
+  const owner = await resolveTelegramUser(String(chatId));
+  if (!owner) {
+    await sendMessage(
+      String(chatId),
+      "This chat isn’t linked to a DeanOS account. Open DeanOS → Settings → Connect Telegram to link it."
+    ).catch(() => {});
+    await updateWebhookEvent(event.id, "processed");
+    return NextResponse.json({ ok: true });
+  }
 
   try {
     await sendChatAction(String(chatId), "typing");
@@ -128,7 +176,7 @@ export async function POST(request: NextRequest) {
       const deadline = await resolveDeadlineDate(messageText).catch(() => null);
       if (deadline) {
         await clearAwaitingDeadline().catch(() => {});
-        const res = await approveSuggestedTask(awaiting.taskId, deadline);
+        const res = await approveSuggestedTask(owner, awaiting.taskId, deadline);
         const reply = res.ok
           ? `✅ Approved with deadline ${deadline}: ${res.title ?? awaiting.title}`
           : `Couldn't set that deadline: ${res.error ?? "unknown error"}`;
@@ -145,9 +193,6 @@ export async function POST(request: NextRequest) {
       ? `[Replying to this earlier message:\n"${quoted}"]\n\n${messageText}`
       : messageText;
 
-    // Single shared bot → the owner (Dean) for now; per-user Telegram linking
-    // is the next unit.
-    const owner = await ensureOwner();
     const { reply } = await runCommand(finalText, "telegram", owner);
     // For voice notes, echo what was heard so Dean can confirm it understood
     // him — and so any mis-hear is obvious rather than silent.
@@ -165,12 +210,17 @@ export async function POST(request: NextRequest) {
 /** Handle an inline-button tap: approve/reject a task, then update the card. */
 async function handleCallback(
   updateId: number | undefined,
-  cb: { id: string; data?: string; message?: { message_id?: number; chat?: { id?: number | string }; text?: string } },
-  allowedChatId: string
+  cb: { id: string; data?: string; message?: { message_id?: number; chat?: { id?: number | string }; text?: string } }
 ): Promise<NextResponse> {
   const cbChat = cb.message?.chat?.id;
-  if (cbChat === undefined || String(cbChat) !== String(allowedChatId)) {
+  if (cbChat === undefined) {
     await answerCallbackQuery(cb.id).catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+  // Only a linked user's chat may act on buttons.
+  const owner = await resolveTelegramUser(String(cbChat));
+  if (!owner) {
+    await answerCallbackQuery(cb.id, "Link your DeanOS account first").catch(() => {});
     return NextResponse.json({ ok: true });
   }
 
@@ -239,7 +289,7 @@ async function handleCallback(
   }
 
   const result =
-    action === "reject" ? await rejectSuggestedTask(taskId) : await approveSuggestedTask(taskId, deadline);
+    action === "reject" ? await rejectSuggestedTask(owner, taskId) : await approveSuggestedTask(owner, taskId, deadline);
 
   const title = result.title ?? "task";
   let toast: string;

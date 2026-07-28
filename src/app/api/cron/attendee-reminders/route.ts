@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireCron } from "@/lib/cron/auth";
+import { forEachUser } from "@/lib/cron/for-each-user";
 import { offerAttendeeReminders } from "@/lib/teams/attendee-reminders";
 
 export const runtime = "nodejs";
@@ -11,8 +12,8 @@ export async function GET(request: NextRequest) {
   const denied = requireCron(request);
   if (denied) return denied;
   try {
-    const result = await offerAttendeeReminders();
-    return NextResponse.json({ ok: true, ...result });
+    const perUser = await forEachUser((owner) => offerAttendeeReminders(owner));
+    return NextResponse.json({ ok: true, users: perUser.length, results: perUser });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }

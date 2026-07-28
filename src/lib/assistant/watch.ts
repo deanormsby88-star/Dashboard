@@ -11,7 +11,8 @@ import {
   recordSyncRun,
 } from "@/lib/db/repo";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
+import type { Owner } from "@/lib/db/repo";
 import { isNoiseSignal } from "@/lib/assistant/noise";
 
 export const WATCH_PROMPT_VERSION = "1.0.0";
@@ -139,8 +140,7 @@ interface WatchResult {
  * let the model decide (selectively) whether to nudge, send it, and mark what
  * was raised so it isn't repeated. Designed to run hourly during work hours.
  */
-export async function runWatch(now: Date = new Date()): Promise<WatchResult> {
-  const owner = await ensureOwner();
+export async function runWatch(owner: Owner, now: Date = new Date()): Promise<WatchResult> {
   const all = await gatherSignals(owner.user.id, now);
 
   // Cooldown: drop signals already raised recently.
@@ -191,7 +191,7 @@ export async function runWatch(now: Date = new Date()): Promise<WatchResult> {
   if (!res.ok || !parsed) return { status: "api_failed", candidateCount: all.length };
   if (!parsed.raise || !parsed.message.trim()) return { status: "silent", candidateCount: all.length };
 
-  const ok = await sendToDean(parsed.message.trim());
+  const ok = await sendToUser(owner.user.id, parsed.message.trim());
   if (ok) {
     const raised = new Set(parsed.raised_ids);
     // Mark raised signals (fall back to all fresh if the model didn't echo ids).

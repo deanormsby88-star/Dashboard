@@ -10,7 +10,8 @@ import {
   listMeetings,
   recordSyncRun,
 } from "@/lib/db/repo";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
+import type { Owner } from "@/lib/db/repo";
 
 const RECENT_HOURS = 26;
 
@@ -25,8 +26,7 @@ Recap the key decisions and the next steps / who owes what, briefly. Return ONLY
  * (recap + next steps) and a reminder that its tasks are queued for approval.
  * Once per meeting.
  */
-export async function notifyMeetingFollowups(now: Date = new Date()): Promise<{ sent: number }> {
-  const owner = await ensureOwner();
+export async function notifyMeetingFollowups(owner: Owner, now: Date = new Date()): Promise<{ sent: number }> {
   const meetings = await listMeetings(owner.user.id, 15);
 
   let sent = 0;
@@ -61,7 +61,7 @@ ${commitments.map((c) => `- ${c.direction === "by_dean" ? "you owe" : "they owe"
     lines.push(`\nSay “send the follow-up” and I’ll email the attendees.`);
 
     const msg = lines.join("\n");
-    const ok = await sendToDean(msg);
+    const ok = await sendToUser(owner.user.id, msg);
     if (ok) {
       await recordSyncRun({ userId: owner.user.id, sourceSystem: key, stats: { title: m.title } });
       await appendConversationMessage({ userId: owner.user.id, channel: "telegram", role: "assistant", content: msg });

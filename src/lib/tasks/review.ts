@@ -1,20 +1,21 @@
 import {
-  ensureOwner,
   getTask,
   markTaskCreatedByDedupKey,
   setTaskStatus,
+  type Owner,
 } from "@/lib/db/repo";
 import { executeCreate } from "@/lib/todoist/execute";
 
 /**
- * Approve a suggested task → send it to Todoist. Guards against double-approve
- * (only acts while still 'suggested') so a repeat tap can't create duplicates.
+ * Approve a suggested task → send it to Todoist, scoped to the acting user.
+ * Guards against double-approve (only acts while still 'suggested') so a repeat
+ * tap can't create duplicates.
  */
 export async function approveSuggestedTask(
+  owner: Owner,
   taskId: string,
   deadlineDate?: string | null
 ): Promise<{ ok: boolean; title?: string; error?: string }> {
-  const owner = await ensureOwner();
   const uid = owner.user.id;
   const task = await getTask(uid, taskId);
   if (!task) return { ok: false, error: "Task not found." };
@@ -39,9 +40,11 @@ export async function approveSuggestedTask(
   return { ok: true, title: task.title };
 }
 
-/** Reject/dismiss a suggested task. */
-export async function rejectSuggestedTask(taskId: string): Promise<{ ok: boolean; title?: string; error?: string }> {
-  const owner = await ensureOwner();
+/** Reject/dismiss a suggested task, scoped to the acting user. */
+export async function rejectSuggestedTask(
+  owner: Owner,
+  taskId: string
+): Promise<{ ok: boolean; title?: string; error?: string }> {
   const task = await getTask(owner.user.id, taskId);
   if (!task) return { ok: false, error: "Task not found." };
   if (task.status !== "suggested") return { ok: false, title: task.title, error: `already ${task.status}` };

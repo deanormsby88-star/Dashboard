@@ -4,10 +4,11 @@ import {
   listCalendarEvents,
   recordSyncRun,
   type CalendarEventRow,
+  type Owner,
 } from "@/lib/db/repo";
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
 import { attendeeMotivations, buildMeetingPrep } from "@/lib/calendar/prep";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
 import { wazeLinkFor } from "@/lib/maps";
 
 /**
@@ -68,9 +69,9 @@ async function compose(userId: string, e: CalendarEventRow, now: Date, withPrep:
  * are marked done so no stale "in 30 min" arrives late). Best-effort per event.
  */
 export async function sendDueMeetingReminders(
+  owner: Owner,
   now: Date = new Date()
 ): Promise<{ sent: number; considered: number }> {
-  const owner = await ensureOwner();
   await ensureCalendarsFresh(owner.user.id).catch(() => {});
 
   const windowEnd = new Date(now.getTime() + MAX_LEAD_MIN * 60_000);
@@ -91,7 +92,7 @@ export async function sendDueMeetingReminders(
     // Send the most-urgent due tier (smallest window); the message's "in X min"
     // reflects reality. Mark every due tier done so an older tier won't re-fire.
     const sendTier = due.reduce((a, b) => (b.within < a.within ? b : a));
-    const ok = await sendToDean(await compose(owner.user.id, e, now, sendTier.prep));
+    const ok = await sendToUser(owner.user.id, await compose(owner.user.id, e, now, sendTier.prep));
     if (ok) {
       for (const t of due) {
         await recordSyncRun({ userId: owner.user.id, sourceSystem: reminderKey(e, t.name), stats: { title: e.title, tier: t.name } });

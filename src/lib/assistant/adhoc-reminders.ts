@@ -4,8 +4,9 @@ import {
   getLastSyncRun,
   listSyncRunsBySource,
   recordSyncRun,
+  type Owner,
 } from "@/lib/db/repo";
-import { sendToDean } from "@/lib/telegram/notify";
+import { sendToUser } from "@/lib/telegram/notify";
 import { messageTeammate } from "@/lib/teams/send";
 
 /**
@@ -21,6 +22,7 @@ const firedKey = (id: string) => `reminder:fired:${id}`;
 
 export interface PendingReminder {
   id: string;
+  userId?: string; // who scheduled it → who it's delivered to
   text: string;
   at: string; // UTC ISO
   recipientEmail?: string; // if set, reminder is sent to this teammate via Teams
@@ -42,6 +44,7 @@ function fmtLocal(iso: string): string {
 /** Schedule a reminder. `atIso` must be a valid future UTC timestamp. Pass a
  *  recipient to send it to a teammate on Teams instead of Dean on Telegram. */
 export async function createReminder(
+  owner: Owner,
   text: string,
   atIso: string,
   now: Date = new Date(),
@@ -52,13 +55,13 @@ export async function createReminder(
   if (at.getTime() <= now.getTime()) return { ok: false, error: "that time is in the past" };
   if (!text.trim()) return { ok: false, error: "nothing to remind about" };
 
-  const owner = await ensureOwner();
   const id = randomUUID();
   await recordSyncRun({
     userId: owner.user.id,
     sourceSystem: PENDING,
     stats: {
       id,
+      userId: owner.user.id,
       text: text.trim(),
       at: at.toISOString(),
       ...(recipient ? { recipientEmail: recipient.email, recipientName: recipient.name } : {}),
@@ -67,8 +70,8 @@ export async function createReminder(
   return { ok: true, id, when: fmtLocal(at.toISOString()) };
 }
 
-/** Upcoming reminders not yet fired or cancelled, soonest first. */
-export async function listUpcomingReminders(now: Date = new Date()): Promise<
+/** This user's upcoming reminders not yet fired or cancelled, soonest first. */
+export async function listUpcomingReminders(owner: Owner, now: Date = new Date()): Promise<
   Array<PendingReminder & { when: string }>
 > {
   const rows = await listSyncRunsBySource(PENDING);
@@ -78,6 +81,8 @@ export async function listUpcomingReminders(now: Date = new Date()): Promise<
     const s = r.stats as Partial<PendingReminder>;
     if (!s.id || !s.at || !s.text || seen.has(s.id)) continue;
     seen.add(s.id);
+    // Only this user's reminders (legacy rows without userId belong to the owner).
+    if (s.userId && s.userId !== owner.user.id) continue;
     if (new Date(s.at).getTime() <= now.getTime()) continue; // past → handled by fire loop
     if (await getLastSyncRun(firedKey(s.id))) continue; // already delivered/cancelled
     out.push({ id: s.id, text: s.text, at: s.at, when: fmtLocal(s.at) });
@@ -86,16 +91,19 @@ export async function listUpcomingReminders(now: Date = new Date()): Promise<
 }
 
 /** Cancel a scheduled reminder by id (marks it fired so it won't deliver). */
-export async function cancelReminder(id: string): Promise<boolean> {
-  const owner = await ensureOwner();
+export async function cancelReminder(owner: Owner, id: string): Promise<boolean> {
   if (await getLastSyncRun(firedKey(id))) return false;
   await recordSyncRun({ userId: owner.user.id, sourceSystem: firedKey(id), stats: { cancelled: true } });
   return true;
 }
 
-/** Deliver every due, unfired reminder via Telegram. Called by the cron. */
+/**
+ * Deliver every due, unfired reminder to whoever scheduled it. A single global
+ * pass (not per-user): each reminder carries its owning userId and is delivered
+ * to that user's Telegram (or to a teammate on Teams for delegated reminders).
+ */
 export async function fireDueReminders(now: Date = new Date()): Promise<{ fired: number; pending: number }> {
-  const owner = await ensureOwner();
+  const fallbackOwner = await ensureOwner();
   const rows = await listSyncRunsBySource(PENDING);
   const seen = new Set<string>();
   let fired = 0;
@@ -109,16 +117,17 @@ export async function fireDueReminders(now: Date = new Date()): Promise<{ fired:
       continue; // not yet due
     }
     if (await getLastSyncRun(firedKey(s.id))) continue; // already delivered/cancelled
+    const targetUserId = s.userId ?? fallbackOwner.user.id; // legacy rows → owner
     let ok: boolean;
     if (s.recipientEmail) {
       const first = (s.recipientName ?? "").split(" ")[0] || "there";
       const res = await messageTeammate(s.recipientEmail, `Hi ${first}, quick reminder: ${s.text}\n\nThanks, Dean`);
       ok = res.ok;
     } else {
-      ok = await sendToDean(`⏰ Reminder: ${s.text}`);
+      ok = await sendToUser(targetUserId, `⏰ Reminder: ${s.text}`);
     }
     if (ok) {
-      await recordSyncRun({ userId: owner.user.id, sourceSystem: firedKey(s.id), stats: { delivered: true } });
+      await recordSyncRun({ userId: targetUserId, sourceSystem: firedKey(s.id), stats: { delivered: true } });
       fired++;
     }
   }
