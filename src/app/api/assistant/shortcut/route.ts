@@ -89,7 +89,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { reply } = await runCommand(text, "telegram");
+  const { ensureOwner } = await import("@/lib/db/repo");
+  const owner = await ensureOwner();
+  const { reply } = await runCommand(text, "telegram", owner);
 
   // Mirror the confirmation into Telegram so the conversation lives there too.
   await sendToDean(reply).catch(() => {});

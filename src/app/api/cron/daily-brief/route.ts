@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireCron } from "@/lib/cron/auth";
 import { generateAndStoreBrief } from "@/lib/assistant/brief";
-import { pruneOldSyncRuns } from "@/lib/db/repo";
+import { ensureOwner, pruneOldSyncRuns } from "@/lib/db/repo";
 import { sendToDean } from "@/lib/telegram/notify";
 
 export const runtime = "nodejs";
@@ -19,7 +19,10 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
-    const brief = await generateAndStoreBrief("cron");
+    // Background jobs still serve the single owner (Dean); looping over all
+    // users lands with per-user Telegram delivery (next unit).
+    const owner = await ensureOwner();
+    const brief = await generateAndStoreBrief(owner.user.id, "cron");
     // Deliver to Telegram if the bot is connected (no-op otherwise).
     const delivered = await sendToDean(brief.content);
     // Housekeeping: keep the sync_runs KV store from growing without bound.

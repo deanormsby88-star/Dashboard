@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/require-session";
+import { requireUser } from "@/lib/auth/current-user";
 import { runCommand } from "@/lib/assistant/commands";
 
 export const runtime = "nodejs";
@@ -11,8 +11,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runCommand(parsed.data.message, "web");
+    const result = await runCommand(parsed.data.message, "web", owner);
     return NextResponse.json({ reply: result.reply });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

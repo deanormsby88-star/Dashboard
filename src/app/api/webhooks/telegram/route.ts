@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getEnv } from "@/lib/env";
-import { recordWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
+import { ensureOwner, recordWebhookEvent, updateWebhookEvent } from "@/lib/db/repo";
 import { runCommand } from "@/lib/assistant/commands";
 import { answerCallbackQuery, downloadFile, editMessageText, getFilePath, sendChatAction, sendMessage } from "@/lib/telegram/api";
 import { transcriptionFilename, transcriptionMimeType } from "@/lib/telegram/audio";
@@ -145,7 +145,10 @@ export async function POST(request: NextRequest) {
       ? `[Replying to this earlier message:\n"${quoted}"]\n\n${messageText}`
       : messageText;
 
-    const { reply } = await runCommand(finalText, "telegram");
+    // Single shared bot → the owner (Dean) for now; per-user Telegram linking
+    // is the next unit.
+    const owner = await ensureOwner();
+    const { reply } = await runCommand(finalText, "telegram", owner);
     // For voice notes, echo what was heard so Dean can confirm it understood
     // him — and so any mis-hear is obvious rather than silent.
     const out = fromVoice ? `🎤 “${messageText}”\n\n${reply}` : reply;

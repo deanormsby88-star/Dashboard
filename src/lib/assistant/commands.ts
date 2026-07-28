@@ -11,7 +11,7 @@ import { normalizeTitle } from "@/lib/dedup";
 import { createHash } from "node:crypto";
 import {
   businessByKey,
-  ensureOwner,
+  type Owner,
   getChangesSince,
   getLastSyncRun,
   getOrCreatePersonByName,
@@ -74,42 +74,43 @@ export function parseCommand(input: string): { cmd: string; args: string } {
 
 export async function runCommand(
   input: string,
-  channel: "telegram" | "web" = "web"
+  channel: "telegram" | "web",
+  owner: Owner
 ): Promise<AssistantReply> {
   const { cmd, args } = parseCommand(input);
   switch (cmd) {
     case "help":
       return { reply: helpText() };
     case "waiting":
-      return waiting();
+      return waiting(owner);
     case "commitments":
-      return commitments();
+      return commitments(owner);
     case "risks":
-      return risks();
+      return risks(owner);
     case "people":
-      return people(args);
+      return people(owner, args);
     case "slipping":
-      return slipping();
+      return slipping(owner);
     case "forgetting":
-      return forgetting();
+      return forgetting(owner);
     case "focus":
-      return focus(false);
+      return focus(owner, false);
     case "next":
-      return focus(true);
+      return focus(owner, true);
     case "brief":
-      return brief();
+      return brief(owner);
     case "sync":
-      return sync();
+      return sync(owner);
     case "review":
-      return review();
+      return review(owner);
     case "prep":
-      return prep(args);
+      return prep(owner, args);
     case "capture":
-      return capture(args, "capture");
+      return capture(owner, args, "capture");
     case "remember":
-      return capture(args, "remember");
+      return capture(owner, args, "remember");
     default:
-      return runAgent(channel, args);
+      return runAgent(channel, args, owner);
   }
 }
 
@@ -137,8 +138,7 @@ function helpText(): string {
 
 // ── Deterministic commands ───────────────────────────────────────────────────
 
-async function waiting(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function waiting(owner: Owner): Promise<AssistantReply> {
   const all = await listCommitments(owner.user.id, "to_dean");
   const open = all.filter((c) => c.status === "open");
   if (open.length === 0) return { reply: "Nobody owes you anything right now. Enjoy it." };
@@ -151,8 +151,7 @@ async function waiting(): Promise<AssistantReply> {
   return { reply: `WAITING ON OTHERS (${open.length})\n\n${lines.join("\n")}` };
 }
 
-async function commitments(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function commitments(owner: Owner): Promise<AssistantReply> {
   const all = await listCommitments(owner.user.id);
   const byDean = all.filter((c) => c.direction === "by_dean" && c.status === "open");
   const toDean = all.filter((c) => c.direction === "to_dean" && c.status === "open");
@@ -165,8 +164,7 @@ async function commitments(): Promise<AssistantReply> {
   };
 }
 
-async function risks(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function risks(owner: Owner): Promise<AssistantReply> {
   const all = (await listRisks(owner.user.id)).filter((r) => r.status === "open");
   if (all.length === 0) return { reply: "No open risks tracked." };
   const order = { high: 0, medium: 1, low: 2 } as Record<string, number>;
@@ -176,9 +174,8 @@ async function risks(): Promise<AssistantReply> {
   return { reply: `OPEN RISKS (${all.length})\n\n${lines.join("\n")}` };
 }
 
-async function people(args: string): Promise<AssistantReply> {
+async function people(owner: Owner, args: string): Promise<AssistantReply> {
   if (!args) return { reply: "Who? Try: people Lawrence" };
-  const owner = await ensureOwner();
   const bundle = await getPersonBundle(owner.user.id, args);
   if (!bundle.person && bundle.commitments.length === 0 && bundle.meetings.length === 0 && bundle.emails.length === 0) {
     return { reply: `Nothing on file yet for "${args}".` };
@@ -206,8 +203,7 @@ async function people(args: string): Promise<AssistantReply> {
   return { reply: parts.join("\n") };
 }
 
-async function slipping(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function slipping(owner: Owner): Promise<AssistantReply> {
   const now = new Date();
   const [toDean, suggested] = await Promise.all([listCommitments(owner.user.id, "to_dean"), listTasks(owner.user.id, { status: "suggested" })]);
   const aging = toDean
@@ -234,8 +230,7 @@ async function slipping(): Promise<AssistantReply> {
   return { reply: `SLIPPING\n\n${parts.join("\n\n")}` };
 }
 
-async function forgetting(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function forgetting(owner: Owner): Promise<AssistantReply> {
   const now = new Date();
   const [suggested, failed, risksAll] = await Promise.all([
     listTasks(owner.user.id, { status: "suggested" }),
@@ -259,8 +254,7 @@ async function forgetting(): Promise<AssistantReply> {
 
 // ── AI-powered commands ──────────────────────────────────────────────────────
 
-async function focus(single: boolean): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function focus(owner: Owner, single: boolean): Promise<AssistantReply> {
   const snapshot = await buildSnapshot(owner.user.id);
   const result = await runPrioritizer(snapshot);
   if (!result.ok) return { reply: `Couldn't prioritize right now: ${result.error}` };
@@ -276,13 +270,12 @@ async function focus(single: boolean): Promise<AssistantReply> {
   return { reply: `TOP 3\n\n${formatTop3(o)}${extra.join("")}` };
 }
 
-async function brief(): Promise<AssistantReply> {
-  const b = await generateDailyBrief();
+async function brief(owner: Owner): Promise<AssistantReply> {
+  const b = await generateDailyBrief(owner.user.id);
   return { reply: b.text };
 }
 
-async function sync(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function sync(owner: Owner): Promise<AssistantReply> {
   const since = await getLastSyncRun("assistant-sync");
   const changes = await getChangesSince(owner.user.id, since);
   const snapshot = await buildSnapshot(owner.user.id);
@@ -342,8 +335,7 @@ async function sync(): Promise<AssistantReply> {
   return { reply };
 }
 
-async function review(): Promise<AssistantReply> {
-  const owner = await ensureOwner();
+async function review(owner: Owner): Promise<AssistantReply> {
   const changes = await getChangesSince(owner.user.id, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const snapshot = await buildSnapshot(owner.user.id);
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
@@ -369,9 +361,8 @@ async function review(): Promise<AssistantReply> {
   return { reply: `WEEK IN REVIEW\n\n${result.rawText.trim()}` };
 }
 
-async function prep(args: string): Promise<AssistantReply> {
+async function prep(owner: Owner, args: string): Promise<AssistantReply> {
   if (!args) return { reply: "Prep for whom or what? Try: prep Lawrence — or: prep supplier call" };
-  const owner = await ensureOwner();
   const bundle = await getPersonBundle(owner.user.id, args);
   const context = {
     person: bundle.person
@@ -435,9 +426,8 @@ async function prep(args: string): Promise<AssistantReply> {
   };
 }
 
-async function capture(args: string, mode: "capture" | "remember"): Promise<AssistantReply> {
+async function capture(owner: Owner, args: string, mode: "capture" | "remember"): Promise<AssistantReply> {
   if (!args) return { reply: mode === "capture" ? "Capture what? Try: capture Chase printer quote by Friday" : "Remember what?" };
-  const owner = await ensureOwner();
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
   const today = new Date().toISOString().slice(0, 10);
   const result = await callStructured({

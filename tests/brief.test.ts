@@ -54,7 +54,7 @@ beforeEach(() => runPrioritizer.mockClear());
 
 describe("generateDailyBrief", () => {
   it("returns structured top3, chase, ignore list and recommendation", async () => {
-    const b = await generateDailyBrief(new Date("2026-07-13T06:00:00Z"));
+    const b = await generateDailyBrief("u1", new Date("2026-07-13T06:00:00Z"));
     expect(b.ok).toBe(true);
     expect(b.date).toBe("2026-07-13");
     expect(b.top3).toHaveLength(2);
@@ -64,7 +64,7 @@ describe("generateDailyBrief", () => {
   });
 
   it("composes the 4-section message (date, weather, calendar, tasks)", async () => {
-    const b = await generateDailyBrief(new Date("2026-07-13T06:00:00Z"));
+    const b = await generateDailyBrief("u1", new Date("2026-07-13T06:00:00Z"));
     expect(b.text).toContain("📋 DAILY BRIEF — Monday, 13 July 2026");
     expect(b.text).toContain("📅 Calendar (0)");
     expect(b.text).toContain("Nothing scheduled today.");
@@ -74,7 +74,7 @@ describe("generateDailyBrief", () => {
 
   it("falls back to escalations for chase when the prioritizer fails", async () => {
     runPrioritizer.mockResolvedValueOnce({ ok: false, error: "boom" } as never);
-    const b = await generateDailyBrief(new Date("2026-07-13T06:00:00Z"));
+    const b = await generateDailyBrief("u1", new Date("2026-07-13T06:00:00Z"));
     expect(b.ok).toBe(false);
     expect(b.top3).toEqual([]);
     // escalated waiting-on item still surfaces as something to chase (dashboard field)

@@ -51,16 +51,14 @@ export interface DailyBrief {
  * scheduled job. Composes both a human-readable text block and structured
  * fields for the dashboard tiles.
  */
-export async function generateDailyBrief(now: Date = new Date()): Promise<DailyBrief> {
-  const owner = await ensureOwner();
-  const snapshot = await buildSnapshot(owner.user.id, now);
+export async function generateDailyBrief(userId: string, now: Date = new Date()): Promise<DailyBrief> {
+  const snapshot = await buildSnapshot(userId, now);
   const result = await runPrioritizer(snapshot);
 
   // Today's meetings from the calendar (best-effort — brief still works if it fails).
   let meetings: CalendarEventRow[] = [];
   try {
-    const owner = await ensureOwner();
-    meetings = await getToday(owner.user.id);
+    meetings = await getToday(userId);
   } catch {
     /* no calendar / sync failed — omit the section */
   }
@@ -129,11 +127,10 @@ export async function generateDailyBrief(now: Date = new Date()): Promise<DailyB
 }
 
 /** Generate and persist a brief (used by the cron job and manual refresh). */
-export async function generateAndStoreBrief(source: "manual" | "cron", now: Date = new Date()): Promise<BriefRow> {
-  const owner = await ensureOwner();
-  const brief = await generateDailyBrief(now);
+export async function generateAndStoreBrief(userId: string, source: "manual" | "cron", now: Date = new Date()): Promise<BriefRow> {
+  const brief = await generateDailyBrief(userId, now);
   return insertBrief({
-    userId: owner.user.id,
+    userId,
     generatedFor: brief.date,
     content: brief.text,
     top3: brief.top3,

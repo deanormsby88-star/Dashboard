@@ -903,7 +903,7 @@ async function executeTool(
       return JSON.stringify({ ok, removed: ok ? existing.full_name : undefined });
     }
     case "get_brief": {
-      const b = await generateDailyBrief();
+      const b = await generateDailyBrief(owner.user.id);
       return JSON.stringify({
         brief: b.text,
         note: "Send this brief to Dean as-is — it is already formatted (date, weather, calendar, tasks). Do not reformat or add sections.",
@@ -1044,9 +1044,9 @@ async function executeTool(
  */
 export async function runAgent(
   channel: "telegram" | "web",
-  userText: string
+  userText: string,
+  owner: Owner
 ): Promise<{ reply: string }> {
-  const owner = await ensureOwner();
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
   const snapshot = await buildSnapshot(owner.user.id);
   const history = await getRecentConversation(owner.user.id, channel, 12);
