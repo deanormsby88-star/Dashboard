@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getEnv } from "@/lib/env";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
+import { clientIp, isRateLimited, recordFailure, recordSuccess } from "@/lib/auth/throttle";
 import { ensureOwner } from "@/lib/db/repo";
 
 export const runtime = "nodejs";
@@ -14,6 +15,14 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   const env = getEnv();
+  const ip = clientIp(request.headers);
+  if (isRateLimited(ip)) {
+    return NextResponse.json(
+      { error: "Too many attempts. Try again later." },
+      { status: 429 }
+    );
+  }
+
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
@@ -24,9 +33,11 @@ export async function POST(request: NextRequest) {
   const passwordMatches = verifyPassword(password, env.DEANOS_PASSWORD_HASH);
 
   if (!emailMatches || !passwordMatches) {
+    recordFailure(ip);
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }
 
+  recordSuccess(ip);
   await ensureOwner();
 
   const token = await createSessionToken(env.DEANOS_EMAIL.toLowerCase(), env.SESSION_SECRET);

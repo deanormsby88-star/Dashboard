@@ -3,6 +3,7 @@ import { getEnv } from "@/lib/env";
 import { transcribeAudio } from "@/lib/ai/openai";
 import { runCommand } from "@/lib/assistant/commands";
 import { sendToDean } from "@/lib/telegram/notify";
+import { verifySharedSecret } from "@/lib/webhooks/security";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
   }
   const provided =
     request.headers.get("x-deanos-secret") ?? request.nextUrl.searchParams.get("secret") ?? "";
-  if (provided !== secret) {
+  if (!verifySharedSecret(provided, secret)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

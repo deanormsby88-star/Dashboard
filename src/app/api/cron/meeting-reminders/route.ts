@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getEnv } from "@/lib/env";
+import { requireCron } from "@/lib/cron/auth";
 import { sendDueMeetingReminders } from "@/lib/calendar/reminders";
 
 export const runtime = "nodejs";
@@ -13,15 +13,8 @@ export const maxDuration = 60;
  * `?secret=` for manual runs.
  */
 export async function GET(request: NextRequest) {
-  const env = getEnv();
-  if (env.CRON_SECRET) {
-    const auth = request.headers.get("authorization");
-    const fromQuery = request.nextUrl.searchParams.get("secret");
-    const provided = auth?.replace(/^Bearer\s+/i, "") ?? fromQuery ?? "";
-    if (provided !== env.CRON_SECRET) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const denied = requireCron(request);
+  if (denied) return denied;
 
   try {
     const result = await sendDueMeetingReminders();

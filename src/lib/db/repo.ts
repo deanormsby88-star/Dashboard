@@ -1026,6 +1026,22 @@ export async function recordSyncRun(params: {
   );
 }
 
+/**
+ * Prune old ephemeral sync_runs rows. sync_runs doubles as a migration-free
+ * key/value store for one-shot dedup markers (reminder:*, tasknotify:*,
+ * teamsmsg:*, attoffer*:*, watch:*, taskdeadline:*), which otherwise grow
+ * forever. Anything older than `days` is safe to drop: the events those keys
+ * guard (meetings, emails, messages) are long past their lookback windows, so
+ * they can't be re-processed. Returns the number of rows removed.
+ */
+export async function pruneOldSyncRuns(days = 60): Promise<number> {
+  const res = await getPool().query(
+    `delete from sync_runs where started_at < now() - make_interval(days => $1)`,
+    [days]
+  );
+  return res.rowCount ?? 0;
+}
+
 /** Recent succeeded sync_runs for a source (stats returned parsed — jsonb). */
 export async function listSyncRunsBySource(
   sourceSystem: string,
