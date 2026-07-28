@@ -38,18 +38,35 @@ through the wizard) and `0009_telegram_per_user.sql` (adds `telegram_chat_id`).
 
 ## 3. Set the sign-up domain allow-list
 
-In Vercel env (Production):
+```
+ALLOWED_SIGNUP_DOMAINS=heya.team,ironpoint.io
+```
 
-```
-ALLOWED_SIGNUP_DOMAINS=heya.team,justimagineconsulting.co.za
-```
+**Set this on the PREVIEW scope first, not Production.** In Vercel, env vars can
+be scoped to Production / Preview / Development. During the preview test we set
+it on **Preview only**, so colleagues can sign in on the preview URL while
+Production (still the old single-user `main`) is untouched. It moves to
+Production scope at Step 5 (cutover).
 
 **Fail-closed:** if this is empty, nobody new can sign in. Existing users
-(Dean) are always allowed. Set this only when you're ready for colleagues.
+(Dean) are always allowed.
 
 ## 4. Test on a PREVIEW deploy first (the real gate)
 
-Deploy the branch as a Vercel preview with its own env, then:
+Prerequisites for the preview:
+- The preview points at the **live database** (Vercel previews inherit
+  `DATABASE_URL`). That's fine — the Step-2 migration is additive, and a
+  colleague signing in creates a real, isolated user row, which is exactly what
+  we want to prove. (If you'd rather keep the DB pristine, use a Supabase branch
+  DB and set its URL on the Preview scope instead.)
+- `ALLOWED_SIGNUP_DOMAINS=heya.team,ironpoint.io` set on the **Preview** scope.
+- `APP_URL` on the Preview scope = the preview URL.
+- The preview callback URL
+  `<preview-url>/api/auth/microsoft/callback` added to the Azure app
+  registration's redirect URIs (Microsoft rejects sign-in from unregistered
+  URLs).
+
+Then:
 
 1. **Dean regression** — sign in with Dean's Microsoft account. Confirm he
    lands on Today (not the wizard) and sees all his existing data. (His env-user
