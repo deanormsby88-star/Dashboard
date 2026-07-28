@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listPeopleWithCounts } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import EmptyState from "@/components/EmptyState";
 import ImportDirectoryButton from "@/components/ImportDirectoryButton";
 
@@ -7,7 +8,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "People — DeanOS" };
 
 export default async function PeoplePage() {
-  const people = await listPeopleWithCounts();
+  const owner = await pageUser();
+  const people = await listPeopleWithCounts(owner.user.id);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

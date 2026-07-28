@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/require-session";
+import { requireUser } from "@/lib/auth/current-user";
 import { deletePerson, getPerson, updatePerson } from "@/lib/db/repo";
 
 export const runtime = "nodejs";
@@ -17,10 +17,10 @@ const patchSchema = z.object({
 
 /** Edit a person's profile fields. */
 export async function PATCH(request: Request, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const person = await getPerson(params.id);
+  const person = await getPerson(owner.user.id, params.id);
   if (!person) return NextResponse.json({ error: "Person not found." }, { status: 404 });
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
@@ -28,7 +28,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   // Normalise empty strings to null so clearing a field wipes it.
   const norm = (v: string | null | undefined) => (v === undefined ? undefined : v && v.length ? v : null);
-  const updated = await updatePerson(params.id, {
+  const updated = await updatePerson(owner.user.id, params.id, {
     fullName: parsed.data.fullName,
     role: norm(parsed.data.role),
     organization: norm(parsed.data.organization),
@@ -41,10 +41,10 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
 /** Remove a person. Their commitments/history are kept (person_id set null). */
 export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const ok = await deletePerson(params.id);
+  const ok = await deletePerson(owner.user.id, params.id);
   if (!ok) return NextResponse.json({ error: "Person not found." }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

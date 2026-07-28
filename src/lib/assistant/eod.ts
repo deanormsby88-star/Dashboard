@@ -43,7 +43,7 @@ export async function sendEndOfDay(now: Date = new Date()): Promise<{ delivered:
   }
 
   // Who to chase (waiting on others, escalated).
-  const commitments = await listCommitments();
+  const commitments = await listCommitments(owner.user.id);
   const chase = commitments
     .filter((c) => c.direction === "to_dean" && c.status === "open")
     .map((c) => ({ c, days: businessDaysBetween(new Date(c.date_made ?? c.created_at), now) }))

@@ -26,10 +26,8 @@ export default async function TasksPage({
   searchParams: { status?: string };
 }) {
   const filter = (searchParams.status ?? "suggested") as TaskStatus | "all";
-  const [owner, tasks] = await Promise.all([
-    pageUser(),
-    listTasks(filter === "all" ? undefined : { status: filter as TaskStatus }),
-  ]);
+  const owner = await pageUser();
+  const tasks = await listTasks(owner.user.id, filter === "all" ? undefined : { status: filter as TaskStatus });
   const businessNameFor = (id: string | null) =>
     owner.businesses.find((b) => b.id === id)?.name ?? null;
 

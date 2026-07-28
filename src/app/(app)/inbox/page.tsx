@@ -14,10 +14,8 @@ export default async function InboxPage({
   searchParams: { view?: string };
 }) {
   const view = searchParams.view === "all" ? "all" : "open";
-  const [owner, emails] = await Promise.all([
-    pageUser(),
-    listEmails({ unresolvedOnly: view === "open", limit: 100 }),
-  ]);
+  const owner = await pageUser();
+  const emails = await listEmails(owner.user.id, { unresolvedOnly: view === "open", limit: 100 });
   const businessNameFor = (id: string | null) =>
     owner.businesses.find((b) => b.id === id)?.name ?? null;
 

@@ -567,7 +567,7 @@ async function executeTool(
       if (duplicate || !task) return JSON.stringify({ ok: false, error: "duplicate — already captured" });
       const sent = await executeCreate(task, business);
       if (!sent.ok) {
-        await setTaskStatus(task.id, "failed", sent.error);
+        await setTaskStatus(owner.user.id, task.id, "failed", sent.error);
         return JSON.stringify({ ok: false, error: `saved but Todoist failed: ${sent.error}` });
       }
       if (sent.created) {
@@ -577,7 +577,7 @@ async function executeTool(
           todoistTaskUrl: sent.created.todoistTaskUrl,
         });
       } else {
-        await setTaskStatus(task.id, "sent");
+        await setTaskStatus(owner.user.id, task.id, "sent");
       }
       return JSON.stringify({ ok: true, created: title, business: business?.name ?? "Inbox", due: args.due_date ?? null });
     }
@@ -642,7 +642,7 @@ async function executeTool(
       return JSON.stringify({ ok: true, remembered: str(args.note) });
     }
     case "get_person": {
-      const bundle = await getPersonBundle(str(args.name));
+      const bundle = await getPersonBundle(owner.user.id, str(args.name));
       return JSON.stringify({
         name: bundle.person?.full_name ?? args.name,
         role: bundle.person?.role ?? null,
@@ -658,10 +658,10 @@ async function executeTool(
       });
     }
     case "update_person": {
-      const existing = await findPersonByName(str(args.name));
+      const existing = await findPersonByName(owner.user.id, str(args.name));
       const person = existing ?? (await getOrCreatePersonByName(owner.user.id, str(args.name)));
       const opt = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
-      const updated = await updatePerson(person.id, {
+      const updated = await updatePerson(owner.user.id, person.id, {
         role: opt(args.role),
         organization: opt(args.organization),
         email: opt(args.email),
@@ -757,7 +757,7 @@ async function executeTool(
       return JSON.stringify({ ok, error: ok ? undefined : "not found or already sent" });
     }
     case "message_teammate": {
-      const person = await findPersonByName(str(args.person));
+      const person = await findPersonByName(owner.user.id, str(args.person));
       if (!person?.email) {
         return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
       }
@@ -769,7 +769,7 @@ async function executeTool(
       });
     }
     case "remind_teammate": {
-      const person = await findPersonByName(str(args.person));
+      const person = await findPersonByName(owner.user.id, str(args.person));
       if (!person?.email) {
         return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
       }
@@ -850,7 +850,7 @@ async function executeTool(
       });
     }
     case "find_emails": {
-      const emails = await listEmails({ unresolvedOnly: true, limit: 20 });
+      const emails = await listEmails(owner.user.id, { unresolvedOnly: true, limit: 20 });
       return JSON.stringify(
         emails.map((e) => ({
           email_id: e.id,
@@ -864,13 +864,13 @@ async function executeTool(
       );
     }
     case "resolve_email": {
-      const email = await getEmail(str(args.email_id));
+      const email = await getEmail(owner.user.id, str(args.email_id));
       if (!email) return JSON.stringify({ ok: false, error: "email not found — call find_emails for ids" });
-      await markEmailResolved(email.id, true);
+      await markEmailResolved(owner.user.id, email.id, true);
       return JSON.stringify({ ok: true, resolved: email.subject });
     }
     case "draft_email_reply": {
-      const email = await getEmail(str(args.email_id));
+      const email = await getEmail(owner.user.id, str(args.email_id));
       if (!email) return JSON.stringify({ ok: false, error: "email not found — call find_emails for ids" });
       const guidance = typeof args.guidance === "string" && args.guidance.trim() ? args.guidance.trim() : undefined;
       const draft = await draftReply(email, guidance);
@@ -897,9 +897,9 @@ async function executeTool(
       });
     }
     case "remove_person": {
-      const existing = await findPersonByName(str(args.name));
+      const existing = await findPersonByName(owner.user.id, str(args.name));
       if (!existing) return JSON.stringify({ ok: false, error: "no such person on file" });
-      const ok = await deletePerson(existing.id);
+      const ok = await deletePerson(owner.user.id, existing.id);
       return JSON.stringify({ ok, removed: ok ? existing.full_name : undefined });
     }
     case "get_brief": {
@@ -910,7 +910,7 @@ async function executeTool(
       });
     }
     case "find_tasks": {
-      const tasks = await listActionableTasks();
+      const tasks = await listActionableTasks(owner.user.id);
       return JSON.stringify(
         tasks.map((t) => ({
           id: t.id,
@@ -923,13 +923,13 @@ async function executeTool(
       );
     }
     case "update_task": {
-      const task = await getTask(str(args.id));
+      const task = await getTask(owner.user.id, str(args.id));
       if (!task) return JSON.stringify({ ok: false, error: "task not found" });
       const business = typeof args.business === "string" ? biz(args.business) : undefined;
       const dueRaw = args.due_date;
       const dueDate =
         dueRaw === "none" ? null : typeof dueRaw === "string" && dueRaw ? dueRaw : undefined;
-      const updated = await updateTaskFields(task.id, {
+      const updated = await updateTaskFields(owner.user.id, task.id, {
         title: typeof args.title === "string" && args.title ? args.title : undefined,
         priority: typeof args.priority === "number" ? args.priority : undefined,
         dueDate,
@@ -947,25 +947,25 @@ async function executeTool(
       return JSON.stringify({ ok: true, updated: updated?.title, priority: updated?.priority });
     }
     case "complete_task": {
-      const task = await getTask(str(args.id));
+      const task = await getTask(owner.user.id, str(args.id));
       if (!task) return JSON.stringify({ ok: false, error: "task not found" });
       if (task.status === "created" && task.todoist_task_id) {
         const done = await executeComplete(task.todoist_task_id);
         if (done.ok) await completeTaskByTodoistId(task.todoist_task_id);
         else return JSON.stringify({ ok: false, error: `Todoist: ${done.error}` });
       } else {
-        await setTaskStatus(task.id, "completed");
+        await setTaskStatus(owner.user.id, task.id, "completed");
       }
       return JSON.stringify({ ok: true, completed: task.title });
     }
     case "approve_task": {
-      const task = await getTask(str(args.id));
+      const task = await getTask(owner.user.id, str(args.id));
       if (!task) return JSON.stringify({ ok: false, error: "task not found" });
       const business = owner.businesses.find((b) => b.id === task.business_id) ?? null;
-      await setTaskStatus(task.id, "approved");
+      await setTaskStatus(owner.user.id, task.id, "approved");
       const sent = await executeCreate(task, business);
       if (!sent.ok) {
-        await setTaskStatus(task.id, "failed", sent.error);
+        await setTaskStatus(owner.user.id, task.id, "failed", sent.error);
         return JSON.stringify({ ok: false, error: sent.error });
       }
       if (sent.created) {
@@ -975,32 +975,32 @@ async function executeTool(
           todoistTaskUrl: sent.created.todoistTaskUrl,
         });
       } else {
-        await setTaskStatus(task.id, "sent");
+        await setTaskStatus(owner.user.id, task.id, "sent");
       }
       return JSON.stringify({ ok: true, approved: task.title });
     }
     case "reject_task": {
-      const task = await getTask(str(args.id));
+      const task = await getTask(owner.user.id, str(args.id));
       if (!task) return JSON.stringify({ ok: false, error: "task not found" });
-      await setTaskStatus(task.id, "rejected", "Rejected via chat.");
+      await setTaskStatus(owner.user.id, task.id, "rejected", "Rejected via chat.");
       return JSON.stringify({ ok: true, rejected: task.title });
     }
     case "find_commitments": {
-      const rows = await listOpenCommitmentsWithMeta();
+      const rows = await listOpenCommitmentsWithMeta(owner.user.id);
       return JSON.stringify(rows);
     }
     case "resolve_commitment": {
-      const c = await getCommitment(str(args.id));
+      const c = await getCommitment(owner.user.id, str(args.id));
       if (!c) return JSON.stringify({ ok: false, error: "commitment not found" });
       const status = (["done", "cancelled", "open"].includes(str(args.status)) ? args.status : "done") as
         | "done"
         | "cancelled"
         | "open";
-      await updateCommitment(c.id, { status });
+      await updateCommitment(owner.user.id, c.id, { status });
       if ((status === "done" || status === "cancelled") && c.linked_task_id) {
-        const task = await getTask(c.linked_task_id);
+        const task = await getTask(owner.user.id, c.linked_task_id);
         if (task?.status === "suggested" || task?.status === "approved") {
-          await setTaskStatus(task.id, "rejected", "Commitment resolved via chat.");
+          await setTaskStatus(owner.user.id, task.id, "rejected", "Commitment resolved via chat.");
         } else if (task?.status === "created" && task.todoist_task_id) {
           const done = await executeComplete(task.todoist_task_id);
           if (done.ok) await completeTaskByTodoistId(task.todoist_task_id);
@@ -1009,24 +1009,24 @@ async function executeTool(
       return JSON.stringify({ ok: true, commitment: c.text, status });
     }
     case "update_commitment": {
-      const c = await getCommitment(str(args.id));
+      const c = await getCommitment(owner.user.id, str(args.id));
       if (!c) return JSON.stringify({ ok: false, error: "commitment not found" });
-      await updateCommitment(c.id, {
+      await updateCommitment(owner.user.id, c.id, {
         text: typeof args.text === "string" && args.text ? args.text : undefined,
         personName: typeof args.person === "string" ? args.person : undefined,
       });
       return JSON.stringify({ ok: true });
     }
     case "find_risks": {
-      const rows = (await listRisks())
+      const rows = (await listRisks(owner.user.id))
         .filter((r) => r.status === "open")
         .map((r) => ({ id: r.id, description: r.description, severity: r.severity, status: r.status }));
       return JSON.stringify(rows);
     }
     case "update_risk": {
-      const r = await getRisk(str(args.id));
+      const r = await getRisk(owner.user.id, str(args.id));
       if (!r) return JSON.stringify({ ok: false, error: "risk not found" });
-      await updateRisk(r.id, {
+      await updateRisk(owner.user.id, r.id, {
         status: ["open", "mitigated", "closed"].includes(str(args.status)) ? (args.status as "open" | "mitigated" | "closed") : undefined,
         severity: ["low", "medium", "high"].includes(str(args.severity)) ? (args.severity as "low" | "medium" | "high") : undefined,
         description: typeof args.description === "string" && args.description ? args.description : undefined,
@@ -1048,7 +1048,7 @@ export async function runAgent(
 ): Promise<{ reply: string }> {
   const owner = await ensureOwner();
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
-  const snapshot = await buildSnapshot();
+  const snapshot = await buildSnapshot(owner.user.id);
   const history = await getRecentConversation(owner.user.id, channel, 12);
 
   const nowLocal = new Date().toLocaleString("en-ZA", {

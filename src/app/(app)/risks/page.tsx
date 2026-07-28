@@ -1,6 +1,7 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { listRisks } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import RiskCard, { type RiskView } from "@/components/RiskCard";
 import EmptyState from "@/components/EmptyState";
 
@@ -11,7 +12,8 @@ const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 } as Record<string, number>;
 
 export default async function RisksPage({ searchParams }: { searchParams: { show?: string } }) {
   const showAll = searchParams.show === "all";
-  const all = await listRisks();
+  const owner = await pageUser();
+  const all = await listRisks(owner.user.id);
   const visible = (showAll ? all : all.filter((r) => r.status === "open")).sort(
     (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]
   );

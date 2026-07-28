@@ -29,14 +29,14 @@ function otherAttendees(event: CalendarEventRow): string[] {
 }
 
 /** Resolve a calendar attendee (name or email) to a stored person. */
-async function resolveAttendee(attendee: string): Promise<Person | null> {
+async function resolveAttendee(userId: string, attendee: string): Promise<Person | null> {
   const a = attendee.trim();
   if (!a) return null;
   if (a.includes("@")) {
-    const byEmail = await findPersonByEmail(a).catch(() => null);
+    const byEmail = await findPersonByEmail(userId, a).catch(() => null);
     if (byEmail) return byEmail;
   }
-  return findPersonByName(a).catch(() => null);
+  return findPersonByName(userId, a).catch(() => null);
 }
 
 /**
@@ -45,10 +45,10 @@ async function resolveAttendee(attendee: string): Promise<Person | null> {
  * focused AI prep) so Dean always walks in knowing what drives the people in
  * the room. Returns null when no attendee has notes on file.
  */
-export async function attendeeMotivations(event: CalendarEventRow): Promise<string | null> {
+export async function attendeeMotivations(userId: string, event: CalendarEventRow): Promise<string | null> {
   const attendees = otherAttendees(event);
   if (attendees.length === 0) return null;
-  const people = await Promise.all(attendees.map((a) => resolveAttendee(a)));
+  const people = await Promise.all(attendees.map((a) => resolveAttendee(userId, a)));
   const seen = new Set<string>();
   const lines: string[] = [];
   for (const p of people) {
@@ -67,11 +67,11 @@ export async function attendeeMotivations(event: CalendarEventRow): Promise<stri
  * Returns null when there's genuinely nothing on file (caller falls back to a
  * plain nudge).
  */
-async function gatherContext(event: CalendarEventRow): Promise<{ text: string; known: boolean }> {
+async function gatherContext(userId: string, event: CalendarEventRow): Promise<{ text: string; known: boolean }> {
   const attendees = otherAttendees(event);
   if (attendees.length === 0) return { text: "(no attendees on file)", known: false };
 
-  const bundles = await Promise.all(attendees.map((a) => getPersonBundle(a).catch(() => null)));
+  const bundles = await Promise.all(attendees.map((a) => getPersonBundle(userId, a).catch(() => null)));
   let known = false;
   const blocks = attendees.map((a, i) => {
     const b = bundles[i];
@@ -112,8 +112,8 @@ Plain text, no markdown headers. Tight — a handful of lines. If the agenda is 
  * work with (no agenda and no attendee history → caller falls back to a plain
  * nudge).
  */
-export async function buildMeetingPrep(event: CalendarEventRow): Promise<string | null> {
-  const { text: context, known } = await gatherContext(event);
+export async function buildMeetingPrep(userId: string, event: CalendarEventRow): Promise<string | null> {
+  const { text: context, known } = await gatherContext(userId, event);
   const agenda = event.description?.trim();
   // Nothing to prep from at all.
   if (!known && !agenda) return null;

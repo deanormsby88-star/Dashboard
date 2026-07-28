@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/require-session";
+import { requireUser } from "@/lib/auth/current-user";
 import { getEmail, markEmailResolved, rejectSuggestedTasksForSource } from "@/lib/db/repo";
 
 export const runtime = "nodejs";
@@ -14,15 +14,15 @@ const bodySchema = z.object({ resolved: z.boolean().default(true) });
  * suggestions from follow-up emails will not resurface.
  */
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const email = await getEmail(params.id);
+  const email = await getEmail(owner.user.id, params.id);
   if (!email) return NextResponse.json({ error: "Email not found." }, { status: 404 });
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   const resolved = parsed.success ? parsed.data.resolved : true;
-  await markEmailResolved(email.id, resolved);
+  await markEmailResolved(owner.user.id, email.id, resolved);
 
   let rejectedTasks = 0;
   if (resolved) {

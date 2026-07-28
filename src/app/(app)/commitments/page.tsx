@@ -1,6 +1,7 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { listCommitments } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import { businessDaysBetween } from "@/lib/dates";
 import CommitmentCard, { type CommitmentView } from "@/components/CommitmentCard";
 import EmptyState from "@/components/EmptyState";
@@ -26,7 +27,8 @@ function toView(c: Awaited<ReturnType<typeof listCommitments>>[number], now: Dat
 export default async function CommitmentsPage({ searchParams }: { searchParams: { show?: string } }) {
   const showAll = searchParams.show === "all";
   const now = new Date();
-  const all = await listCommitments();
+  const owner = await pageUser();
+  const all = await listCommitments(owner.user.id);
   const visible = showAll ? all : all.filter((c) => c.status === "open");
   const byDean = visible.filter((c) => c.direction === "by_dean");
   const toDean = visible.filter((c) => c.direction === "to_dean");

@@ -27,7 +27,7 @@ Recap the key decisions and the next steps / who owes what, briefly. Return ONLY
  */
 export async function notifyMeetingFollowups(now: Date = new Date()): Promise<{ sent: number }> {
   const owner = await ensureOwner();
-  const meetings = await listMeetings(15);
+  const meetings = await listMeetings(owner.user.id, 15);
 
   let sent = 0;
   for (const m of meetings) {
@@ -37,8 +37,8 @@ export async function notifyMeetingFollowups(now: Date = new Date()): Promise<{ 
     if (await getLastSyncRun(key)) continue;
 
     const [attendees, commitments] = await Promise.all([
-      getMeetingAttendees(m.id),
-      listCommitmentsForMeeting(m.id),
+      getMeetingAttendees(owner.user.id, m.id),
+      listCommitmentsForMeeting(owner.user.id, m.id),
     ]);
     const people = attendees.map((a) => a.name || a.email).filter(Boolean);
 

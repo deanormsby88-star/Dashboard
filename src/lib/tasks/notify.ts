@@ -10,7 +10,7 @@ const PRIORITY_LABEL: Record<number, string> = { 4: "urgent", 3: "important", 2:
  */
 export async function notifyPendingTasks(): Promise<{ sent: number; pending: number }> {
   const owner = await ensureOwner();
-  const tasks = await listTasks({ status: "suggested" });
+  const tasks = await listTasks(owner.user.id, { status: "suggested" });
 
   let sent = 0;
   for (const t of tasks) {

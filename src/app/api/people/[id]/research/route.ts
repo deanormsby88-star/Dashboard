@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/require-session";
+import { requireUser } from "@/lib/auth/current-user";
 import { getPerson } from "@/lib/db/repo";
 import { personResearchQuery, research } from "@/lib/research";
 
@@ -11,10 +11,10 @@ export const maxDuration = 60;
  * (name, role, organisation) to web search — never internal notes.
  */
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const person = await getPerson(params.id);
+  const person = await getPerson(owner.user.id, params.id);
   if (!person) return NextResponse.json({ error: "Person not found." }, { status: 404 });
 
   const query = personResearchQuery(person.full_name, person.role, person.organization);

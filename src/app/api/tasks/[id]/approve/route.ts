@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSession } from "@/lib/auth/require-session";
-import { ensureOwner, getTask, markTaskCreatedByDedupKey, setTaskStatus } from "@/lib/db/repo";
+import { requireUser } from "@/lib/auth/current-user";
+import { getTask, markTaskCreatedByDedupKey, setTaskStatus } from "@/lib/db/repo";
 import { executeCreate } from "@/lib/todoist/execute";
 
 export const runtime = "nodejs";
@@ -11,10 +11,10 @@ export const runtime = "nodejs";
  * task ID), otherwise via the Zapier hook (status 'sent' until the callback).
  */
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const task = await getTask(params.id);
+  const task = await getTask(owner.user.id, params.id);
   if (!task) return NextResponse.json({ error: "Task not found." }, { status: 404 });
   if (!["suggested", "approved", "failed"].includes(task.status)) {
     return NextResponse.json(
@@ -23,14 +23,12 @@ export async function POST(_request: Request, { params }: { params: { id: string
     );
   }
 
-  await setTaskStatus(task.id, "approved");
-
-  const owner = await ensureOwner();
+  await setTaskStatus(owner.user.id, task.id, "approved");
   const business = owner.businesses.find((b) => b.id === task.business_id) ?? null;
   const result = await executeCreate(task, business);
 
   if (!result.ok) {
-    const updated = await setTaskStatus(task.id, "failed", result.error);
+    const updated = await setTaskStatus(owner.user.id, task.id, "failed", result.error);
     return NextResponse.json({ error: result.error, task: updated }, { status: 502 });
   }
 
@@ -43,6 +41,6 @@ export async function POST(_request: Request, { params }: { params: { id: string
     return NextResponse.json({ ok: true, task: updated });
   }
 
-  const updated = await setTaskStatus(task.id, "sent");
+  const updated = await setTaskStatus(owner.user.id, task.id, "sent");
   return NextResponse.json({ ok: true, task: updated });
 }

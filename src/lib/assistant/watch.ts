@@ -33,12 +33,12 @@ function daysAgo(d: Date | null | undefined, now: Date): number {
 }
 
 /** Everything that *might* warrant interrupting Dean, before judgement/dedup. */
-async function gatherSignals(now: Date): Promise<Signal[]> {
+async function gatherSignals(userId: string, now: Date): Promise<Signal[]> {
   const [commitments, risks, createdTasks, emails] = await Promise.all([
-    listCommitments(),
-    listRisks(),
-    listTasks({ status: "created" }),
-    listEmails({ unresolvedOnly: true, limit: 40 }),
+    listCommitments(userId),
+    listRisks(userId),
+    listTasks(userId, { status: "created" }),
+    listEmails(userId, { unresolvedOnly: true, limit: 40 }),
   ]);
 
   const signals: Signal[] = [];
@@ -141,7 +141,7 @@ interface WatchResult {
  */
 export async function runWatch(now: Date = new Date()): Promise<WatchResult> {
   const owner = await ensureOwner();
-  const all = await gatherSignals(now);
+  const all = await gatherSignals(owner.user.id, now);
 
   // Cooldown: drop signals already raised recently.
   const cutoff = now.getTime() - COOLDOWN_HOURS * 3600_000;

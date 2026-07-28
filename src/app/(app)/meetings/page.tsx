@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listMeetings } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import { StatusBadge } from "@/components/badges";
 import EmptyState from "@/components/EmptyState";
 import { formatDateTime } from "@/lib/format";
@@ -8,7 +9,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Meetings — DeanOS" };
 
 export default async function MeetingsPage() {
-  const meetings = await listMeetings();
+  const owner = await pageUser();
+  const meetings = await listMeetings(owner.user.id);
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

@@ -16,7 +16,7 @@ export async function POST() {
   if (session instanceof Response) return session;
 
   const owner = await ensureOwner();
-  const failed = await listTasks({ status: "failed" });
+  const failed = await listTasks(owner.user.id, { status: "failed" });
 
   let repushed = 0;
   let stillFailing = 0;
@@ -25,7 +25,7 @@ export async function POST() {
     const business = owner.businesses.find((b) => b.id === task.business_id) ?? null;
     const sent = await executeCreate(task, business);
     if (!sent.ok) {
-      await setTaskStatus(task.id, "failed", sent.error);
+      await setTaskStatus(owner.user.id, task.id, "failed", sent.error);
       stillFailing++;
       if (sent.error) errors.push(`${task.title}: ${sent.error}`);
       continue;
@@ -37,7 +37,7 @@ export async function POST() {
         todoistTaskUrl: sent.created.todoistTaskUrl,
       });
     } else {
-      await setTaskStatus(task.id, "sent");
+      await setTaskStatus(owner.user.id, task.id, "sent");
     }
     repushed++;
   }

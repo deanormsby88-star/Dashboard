@@ -138,7 +138,8 @@ function helpText(): string {
 // ── Deterministic commands ───────────────────────────────────────────────────
 
 async function waiting(): Promise<AssistantReply> {
-  const all = await listCommitments("to_dean");
+  const owner = await ensureOwner();
+  const all = await listCommitments(owner.user.id, "to_dean");
   const open = all.filter((c) => c.status === "open");
   if (open.length === 0) return { reply: "Nobody owes you anything right now. Enjoy it." };
   const now = new Date();
@@ -151,7 +152,8 @@ async function waiting(): Promise<AssistantReply> {
 }
 
 async function commitments(): Promise<AssistantReply> {
-  const all = await listCommitments();
+  const owner = await ensureOwner();
+  const all = await listCommitments(owner.user.id);
   const byDean = all.filter((c) => c.direction === "by_dean" && c.status === "open");
   const toDean = all.filter((c) => c.direction === "to_dean" && c.status === "open");
   const fmt = (list: typeof all) =>
@@ -164,7 +166,8 @@ async function commitments(): Promise<AssistantReply> {
 }
 
 async function risks(): Promise<AssistantReply> {
-  const all = (await listRisks()).filter((r) => r.status === "open");
+  const owner = await ensureOwner();
+  const all = (await listRisks(owner.user.id)).filter((r) => r.status === "open");
   if (all.length === 0) return { reply: "No open risks tracked." };
   const order = { high: 0, medium: 1, low: 2 } as Record<string, number>;
   const lines = [...all]
@@ -175,7 +178,8 @@ async function risks(): Promise<AssistantReply> {
 
 async function people(args: string): Promise<AssistantReply> {
   if (!args) return { reply: "Who? Try: people Lawrence" };
-  const bundle = await getPersonBundle(args);
+  const owner = await ensureOwner();
+  const bundle = await getPersonBundle(owner.user.id, args);
   if (!bundle.person && bundle.commitments.length === 0 && bundle.meetings.length === 0 && bundle.emails.length === 0) {
     return { reply: `Nothing on file yet for "${args}".` };
   }
@@ -203,8 +207,9 @@ async function people(args: string): Promise<AssistantReply> {
 }
 
 async function slipping(): Promise<AssistantReply> {
+  const owner = await ensureOwner();
   const now = new Date();
-  const [toDean, suggested] = await Promise.all([listCommitments("to_dean"), listTasks({ status: "suggested" })]);
+  const [toDean, suggested] = await Promise.all([listCommitments(owner.user.id, "to_dean"), listTasks(owner.user.id, { status: "suggested" })]);
   const aging = toDean
     .filter((c) => c.status === "open")
     .map((c) => ({ c, days: businessDaysBetween(new Date(c.date_made ?? c.created_at), now) }))
@@ -230,11 +235,12 @@ async function slipping(): Promise<AssistantReply> {
 }
 
 async function forgetting(): Promise<AssistantReply> {
+  const owner = await ensureOwner();
   const now = new Date();
   const [suggested, failed, risksAll] = await Promise.all([
-    listTasks({ status: "suggested" }),
-    listTasks({ status: "failed" }),
-    listRisks(),
+    listTasks(owner.user.id, { status: "suggested" }),
+    listTasks(owner.user.id, { status: "failed" }),
+    listRisks(owner.user.id),
   ]);
   const oldSuggestions = suggested.filter((t) => businessDaysBetween(new Date(t.created_at), now) >= 5);
   const oldRisks = risksAll.filter(
@@ -254,7 +260,8 @@ async function forgetting(): Promise<AssistantReply> {
 // ── AI-powered commands ──────────────────────────────────────────────────────
 
 async function focus(single: boolean): Promise<AssistantReply> {
-  const snapshot = await buildSnapshot();
+  const owner = await ensureOwner();
+  const snapshot = await buildSnapshot(owner.user.id);
   const result = await runPrioritizer(snapshot);
   if (!result.ok) return { reply: `Couldn't prioritize right now: ${result.error}` };
   const o = result.output;
@@ -277,8 +284,8 @@ async function brief(): Promise<AssistantReply> {
 async function sync(): Promise<AssistantReply> {
   const owner = await ensureOwner();
   const since = await getLastSyncRun("assistant-sync");
-  const changes = await getChangesSince(since);
-  const snapshot = await buildSnapshot();
+  const changes = await getChangesSince(owner.user.id, since);
+  const snapshot = await buildSnapshot(owner.user.id);
 
   const escalations = snapshot.waiting_on.filter((w) => w.needs_escalation);
   const hasChanges =
@@ -337,8 +344,8 @@ async function sync(): Promise<AssistantReply> {
 
 async function review(): Promise<AssistantReply> {
   const owner = await ensureOwner();
-  const changes = await getChangesSince(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
-  const snapshot = await buildSnapshot();
+  const changes = await getChangesSince(owner.user.id, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+  const snapshot = await buildSnapshot(owner.user.id);
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
   const result = await callText({
     model,
@@ -365,7 +372,7 @@ async function review(): Promise<AssistantReply> {
 async function prep(args: string): Promise<AssistantReply> {
   if (!args) return { reply: "Prep for whom or what? Try: prep Lawrence — or: prep supplier call" };
   const owner = await ensureOwner();
-  const bundle = await getPersonBundle(args);
+  const bundle = await getPersonBundle(owner.user.id, args);
   const context = {
     person: bundle.person
       ? { name: bundle.person.full_name, role: bundle.person.role, organization: bundle.person.organization }
@@ -484,7 +491,7 @@ async function capture(args: string, mode: "capture" | "remember"): Promise<Assi
     if (duplicate || !task) return { reply: "You already captured that one." };
     const sent = await executeCreate(task, business);
     if (!sent.ok) {
-      await setTaskStatus(task.id, "failed", sent.error);
+      await setTaskStatus(owner.user.id, task.id, "failed", sent.error);
       return { reply: `Saved the task but couldn't reach Todoist: ${sent.error}. It's under Tasks → Failed for retry.` };
     }
     if (sent.created) {
@@ -494,7 +501,7 @@ async function capture(args: string, mode: "capture" | "remember"): Promise<Assi
         todoistTaskUrl: sent.created.todoistTaskUrl,
       });
     } else {
-      await setTaskStatus(task.id, "sent");
+      await setTaskStatus(owner.user.id, task.id, "sent");
     }
     return {
       reply: `Task created in Todoist (${business?.name ?? "Inbox"}):\n- ${o.task.title}${o.task.due_date ? ` (due ${o.task.due_date})` : ""} [P${o.task.priority}]`,

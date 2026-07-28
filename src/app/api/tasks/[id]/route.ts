@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/require-session";
-import { ensureOwner, getTask, updateTaskFields } from "@/lib/db/repo";
+import { requireUser } from "@/lib/auth/current-user";
+import { getTask, updateTaskFields } from "@/lib/db/repo";
 
 export const runtime = "nodejs";
 
@@ -20,10 +20,10 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const task = await getTask(params.id);
+  const task = await getTask(owner.user.id, params.id);
   if (!task) return NextResponse.json({ error: "Task not found." }, { status: 404 });
   if (!["suggested", "approved", "failed"].includes(task.status)) {
     return NextResponse.json(
@@ -42,11 +42,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
   let businessId: string | null | undefined;
   if (parsed.data.business) {
-    const owner = await ensureOwner();
     businessId = owner.businesses.find((b) => b.key === parsed.data.business)?.id ?? null;
   }
 
-  const updated = await updateTaskFields(task.id, {
+  const updated = await updateTaskFields(owner.user.id, task.id, {
     title: parsed.data.title,
     description: parsed.data.description,
     priority: parsed.data.priority,

@@ -24,20 +24,21 @@ import { formatDate, formatDateTime } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function MeetingReviewPage({ params }: { params: { id: string } }) {
-  const meeting = await getMeeting(params.id);
+  const owner = await pageUser();
+  const meeting = await getMeeting(owner.user.id, params.id);
   if (!meeting) notFound();
 
-  const owner = await pageUser();
   const business = owner.businesses.find((b) => b.id === meeting.business_id) ?? null;
+  const uid = owner.user.id;
   const [attendees, tasks, commitments, decisions, risks, interactions, rawPayload] =
     await Promise.all([
-      getMeetingAttendees(meeting.id),
-      listTasks({ meetingId: meeting.id }),
-      listCommitmentsForMeeting(meeting.id),
-      listDecisionsForMeeting(meeting.id),
-      listRisksForMeeting(meeting.id),
-      listInteractionsForMeeting(meeting.id),
-      getSourceRecordPayload(meeting.user_id, meeting.source_system, meeting.source_record_id),
+      getMeetingAttendees(uid, meeting.id),
+      listTasks(uid, { meetingId: meeting.id }),
+      listCommitmentsForMeeting(uid, meeting.id),
+      listDecisionsForMeeting(uid, meeting.id),
+      listRisksForMeeting(uid, meeting.id),
+      listInteractionsForMeeting(uid, meeting.id),
+      getSourceRecordPayload(uid, meeting.source_system, meeting.source_record_id),
     ]);
 
   const byDean = commitments.filter((c) => c.direction === "by_dean");

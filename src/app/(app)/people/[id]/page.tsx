@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { getPersonBundleById } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import { StatusBadge } from "@/components/badges";
 import NextActionButton from "@/components/NextActionButton";
 import PersonEditor from "@/components/PersonEditor";
@@ -11,7 +12,8 @@ import { formatDate, formatDateTime } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 export default async function PersonPage({ params }: { params: { id: string } }) {
-  const bundle = await getPersonBundleById(params.id);
+  const owner = await pageUser();
+  const bundle = await getPersonBundleById(owner.user.id, params.id);
   if (!bundle.person) notFound();
   const p = bundle.person;
 

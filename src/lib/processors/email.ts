@@ -66,18 +66,18 @@ export interface EmailProcessResult {
  * the Meeting Processor: fail closed, keep the raw response, allow retry.
  */
 export async function processEmail(emailId: string): Promise<EmailProcessResult> {
-  const email = await getEmail(emailId);
+  const owner = await ensureOwner();
+  const email = await getEmail(owner.user.id, emailId);
   if (!email) return { ok: false, error: `Email ${emailId} not found.` };
 
-  const owner = await ensureOwner();
-  await setEmailProcessing(email.id, "processing");
+  await setEmailProcessing(owner.user.id, email.id, "processing");
 
   // Consumer-platform login/security spam (Facebook et al.) is never actionable
   // — Dean's standing instruction. Force "ignore" so it can't become a task or
   // resurface in the watch loop, without spending a model call on it.
   if (isNoiseEmail(email.sender, email.subject, email.body_text)) {
     await clearSuggestedTasksForSource(owner.user.id, email.message_id);
-    await setEmailProcessing(email.id, "processed", {
+    await setEmailProcessing(owner.user.id, email.id, "processed", {
       classification: "ignore",
       confidence: 1,
       summary: "Consumer-platform login/security notification — auto-ignored (Dean never wants these raised).",
@@ -134,7 +134,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
       error,
       usage: result.usage,
     });
-    await setEmailProcessing(email.id, "failed", { error });
+    await setEmailProcessing(owner.user.id, email.id, "failed", { error });
     return { ok: false, error };
   }
 
@@ -152,7 +152,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
       error: parsed.error,
       usage: result.usage,
     });
-    await setEmailProcessing(email.id, "failed", { error: parsed.error });
+    await setEmailProcessing(owner.user.id, email.id, "failed", { error: parsed.error });
     return { ok: false, error: parsed.error };
   }
 
@@ -296,12 +296,12 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   for (const id of output.resolves_waiting_on_ids) {
     const item = openIds.get(id);
     if (!item) continue;
-    await markCommitmentDone(id);
+    await markCommitmentDone(owner.user.id, id);
     counts.resolvedWaitingOn++;
     if (item.linked_task_id) {
-      const task = await getTask(item.linked_task_id);
+      const task = await getTask(owner.user.id, item.linked_task_id);
       if (task?.status === "suggested" || task?.status === "approved") {
-        await setTaskStatus(task.id, "rejected", "Resolved by email reply — follow-up no longer needed.");
+        await setTaskStatus(owner.user.id, task.id, "rejected", "Resolved by email reply — follow-up no longer needed.");
       } else if (task?.status === "created" && task.todoist_task_id) {
         const sent = await executeComplete(task.todoist_task_id);
         if (sent.ok) await completeTaskByTodoistId(task.todoist_task_id);
@@ -309,7 +309,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
     }
   }
 
-  await setEmailProcessing(email.id, "processed", {
+  await setEmailProcessing(owner.user.id, email.id, "processed", {
     classification: output.classification,
     confidence: output.confidence,
     summary: output.summary,

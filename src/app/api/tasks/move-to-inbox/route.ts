@@ -19,7 +19,7 @@ export async function POST() {
   if (!inboxId) return NextResponse.json({ error: "Couldn't find the Todoist Inbox." }, { status: 502 });
 
   const owner = await ensureOwner();
-  const tasks = (await listTasks({ status: "created" })).filter((t) => t.todoist_task_id);
+  const tasks = (await listTasks(owner.user.id, { status: "created" })).filter((t) => t.todoist_task_id);
 
   let moved = 0;
   let failed = 0;

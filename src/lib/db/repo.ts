@@ -291,25 +291,31 @@ export async function replaceMeetingAttendees(
   }
 }
 
-export async function getMeeting(id: string): Promise<Meeting | null> {
-  const res = await getPool().query<Meeting>(`select * from meetings where id = $1`, [id]);
+export async function getMeeting(userId: string, id: string): Promise<Meeting | null> {
+  const res = await getPool().query<Meeting>(
+    `select * from meetings where id = $1 and user_id = $2`,
+    [id, userId]
+  );
   return res.rows[0] ?? null;
 }
 
-export async function listMeetings(limit = 100): Promise<Meeting[]> {
+export async function listMeetings(userId: string, limit = 100): Promise<Meeting[]> {
   const res = await getPool().query<Meeting>(
-    `select * from meetings order by coalesce(meeting_date, created_at) desc limit $1`,
-    [limit]
+    `select * from meetings where user_id = $1 order by coalesce(meeting_date, created_at) desc limit $2`,
+    [userId, limit]
   );
   return res.rows;
 }
 
 export async function getMeetingAttendees(
+  userId: string,
   meetingId: string
 ): Promise<Array<{ name: string | null; email: string | null }>> {
   const res = await getPool().query<{ name: string | null; email: string | null }>(
-    `select name, email from meeting_attendees where meeting_id = $1`,
-    [meetingId]
+    `select a.name, a.email from meeting_attendees a
+     join meetings m on m.id = a.meeting_id
+     where a.meeting_id = $1 and m.user_id = $2`,
+    [meetingId, userId]
   );
   return res.rows;
 }
@@ -412,25 +418,31 @@ export async function insertTask(params: {
   return { task: res.rows[0], duplicate: false };
 }
 
-export async function getTask(id: string): Promise<Task | null> {
-  const res = await getPool().query<Task>(`select * from tasks where id = $1`, [id]);
+export async function getTask(userId: string, id: string): Promise<Task | null> {
+  const res = await getPool().query<Task>(
+    `select * from tasks where id = $1 and user_id = $2`,
+    [id, userId]
+  );
   return res.rows[0] ?? null;
 }
 
-export async function listTasks(filter?: { status?: TaskStatus; meetingId?: string }): Promise<Task[]> {
-  const clauses: string[] = [];
-  const values: unknown[] = [];
+export async function listTasks(
+  userId: string,
+  filter?: { status?: TaskStatus; meetingId?: string }
+): Promise<Task[]> {
+  const values: unknown[] = [userId];
+  const extra: string[] = [];
   if (filter?.status) {
     values.push(filter.status);
-    clauses.push(`status = $${values.length}`);
+    extra.push(`status = $${values.length}`);
   }
   if (filter?.meetingId) {
     values.push(filter.meetingId);
-    clauses.push(`meeting_id = $${values.length}`);
+    extra.push(`meeting_id = $${values.length}`);
   }
-  const where = clauses.length ? `where ${clauses.join(" and ")}` : "";
+  const more = extra.length ? ` and ${extra.join(" and ")}` : "";
   const res = await getPool().query<Task>(
-    `select * from tasks ${where} order by created_at desc limit 200`,
+    `select * from tasks where user_id = $1${more} order by created_at desc limit 200`,
     values
   );
   return res.rows;
@@ -497,6 +509,7 @@ export async function clearSuggestedTasksForSource(
 }
 
 export async function updateTaskFields(
+  userId: string,
   id: string,
   fields: {
     title?: string;
@@ -508,7 +521,7 @@ export async function updateTaskFields(
   }
 ): Promise<Task | null> {
   const sets: string[] = [];
-  const values: unknown[] = [id];
+  const values: unknown[] = [id, userId];
   const push = (sql: string, v: unknown) => {
     values.push(v);
     sets.push(`${sql} = $${values.length}`);
@@ -519,22 +532,24 @@ export async function updateTaskFields(
   if (fields.dueDate !== undefined) push("due_date", fields.dueDate);
   if (fields.labels !== undefined) push("labels", fields.labels);
   if (fields.businessId !== undefined) push("business_id", fields.businessId);
-  if (sets.length === 0) return getTask(id);
+  if (sets.length === 0) return getTask(userId, id);
   const res = await getPool().query<Task>(
-    `update tasks set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    `update tasks set ${sets.join(", ")}, updated_at = now() where id = $1 and user_id = $2 returning *`,
     values
   );
   return res.rows[0] ?? null;
 }
 
 export async function setTaskStatus(
+  userId: string,
   id: string,
   status: TaskStatus,
   error?: string | null
 ): Promise<Task | null> {
   const res = await getPool().query<Task>(
-    `update tasks set status = $2, status_error = $3, updated_at = now() where id = $1 returning *`,
-    [id, status, error ?? null]
+    `update tasks set status = $2, status_error = $3, updated_at = now()
+     where id = $1 and user_id = $4 returning *`,
+    [id, status, error ?? null, userId]
   );
   return res.rows[0] ?? null;
 }
@@ -625,38 +640,42 @@ export async function insertCommitment(params: {
   return { duplicate: res.rows.length === 0 };
 }
 
-export async function listCommitmentsForMeeting(meetingId: string): Promise<Commitment[]> {
+export async function listCommitmentsForMeeting(userId: string, meetingId: string): Promise<Commitment[]> {
   const res = await getPool().query<Commitment>(
-    `select * from commitments where meeting_id = $1 order by direction, created_at`,
-    [meetingId]
+    `select * from commitments where meeting_id = $1 and user_id = $2 order by direction, created_at`,
+    [meetingId, userId]
   );
   return res.rows;
 }
 
-export async function listDecisionsForMeeting(meetingId: string): Promise<Decision[]> {
+export async function listDecisionsForMeeting(userId: string, meetingId: string): Promise<Decision[]> {
   const res = await getPool().query<Decision>(
-    `select * from decisions where meeting_id = $1 order by created_at`,
-    [meetingId]
+    `select * from decisions where meeting_id = $1 and user_id = $2 order by created_at`,
+    [meetingId, userId]
   );
   return res.rows;
 }
 
-export async function listRisksForMeeting(meetingId: string): Promise<Risk[]> {
+export async function listRisksForMeeting(userId: string, meetingId: string): Promise<Risk[]> {
   const res = await getPool().query<Risk>(
-    `select * from risks where meeting_id = $1 order by created_at`,
-    [meetingId]
+    `select * from risks where meeting_id = $1 and user_id = $2 order by created_at`,
+    [meetingId, userId]
   );
   return res.rows;
 }
 
-export async function listCommitments(direction?: Commitment["direction"]): Promise<Commitment[]> {
+export async function listCommitments(
+  userId: string,
+  direction?: Commitment["direction"]
+): Promise<Commitment[]> {
   const res = direction
     ? await getPool().query<Commitment>(
-        `select * from commitments where direction = $1 order by created_at desc limit 200`,
-        [direction]
+        `select * from commitments where user_id = $1 and direction = $2 order by created_at desc limit 200`,
+        [userId, direction]
       )
     : await getPool().query<Commitment>(
-        `select * from commitments order by created_at desc limit 200`
+        `select * from commitments where user_id = $1 order by created_at desc limit 200`,
+        [userId]
       );
   return res.rows;
 }
@@ -691,10 +710,10 @@ export async function insertDecision(params: {
   );
 }
 
-export async function listDecisions(limit = 100): Promise<Decision[]> {
+export async function listDecisions(userId: string, limit = 100): Promise<Decision[]> {
   const res = await getPool().query<Decision>(
-    `select * from decisions order by created_at desc limit $1`,
-    [limit]
+    `select * from decisions where user_id = $1 order by created_at desc limit $2`,
+    [userId, limit]
   );
   return res.rows;
 }
@@ -729,9 +748,10 @@ export async function insertRisk(params: {
   );
 }
 
-export async function listRisks(): Promise<Risk[]> {
+export async function listRisks(userId: string): Promise<Risk[]> {
   const res = await getPool().query<Risk>(
-    `select * from risks order by created_at desc limit 200`
+    `select * from risks where user_id = $1 order by created_at desc limit 200`,
+    [userId]
   );
   return res.rows;
 }
@@ -759,11 +779,12 @@ export async function getOrCreatePersonByName(userId: string, fullName: string):
 }
 
 export async function updatePerson(
+  userId: string,
   id: string,
   fields: { fullName?: string; role?: string | null; organization?: string | null; email?: string | null; phone?: string | null; notes?: string | null }
 ): Promise<Person | null> {
   const sets: string[] = [];
-  const values: unknown[] = [id];
+  const values: unknown[] = [id, userId];
   const push = (col: string, v: unknown) => {
     values.push(v);
     sets.push(`${col} = $${values.length}`);
@@ -774,35 +795,39 @@ export async function updatePerson(
   if (fields.email !== undefined) push("email", fields.email);
   if (fields.phone !== undefined) push("phone", fields.phone);
   if (fields.notes !== undefined) push("notes", fields.notes);
-  if (sets.length === 0) return getPerson(id);
+  if (sets.length === 0) return getPerson(userId, id);
   const res = await getPool().query<Person>(
-    `update people set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    `update people set ${sets.join(", ")}, updated_at = now() where id = $1 and user_id = $2 returning *`,
     values
   );
   return res.rows[0] ?? null;
 }
 
-export async function deletePerson(id: string): Promise<boolean> {
-  const res = await getPool().query(`delete from people where id = $1`, [id]);
+export async function deletePerson(userId: string, id: string): Promise<boolean> {
+  const res = await getPool().query(`delete from people where id = $1 and user_id = $2`, [id, userId]);
   return (res.rowCount ?? 0) > 0;
 }
 
-export async function listPeople(): Promise<Person[]> {
+export async function listPeople(userId: string): Promise<Person[]> {
   const res = await getPool().query<Person>(
-    `select * from people order by full_name asc limit 500`
+    `select * from people where user_id = $1 order by full_name asc limit 500`,
+    [userId]
   );
   return res.rows.filter((p) => !isRemovedPerson(p));
 }
 
-export async function getPerson(id: string): Promise<Person | null> {
-  const res = await getPool().query<Person>(`select * from people where id = $1`, [id]);
+export async function getPerson(userId: string, id: string): Promise<Person | null> {
+  const res = await getPool().query<Person>(
+    `select * from people where id = $1 and user_id = $2`,
+    [id, userId]
+  );
   return res.rows[0] ?? null;
 }
 
 /** People with lightweight counts for the directory. */
-export async function listPeopleWithCounts(): Promise<
-  Array<Person & { open_to_dean: number; open_by_dean: number; last_activity: Date | null }>
-> {
+export async function listPeopleWithCounts(
+  userId: string
+): Promise<Array<Person & { open_to_dean: number; open_by_dean: number; last_activity: Date | null }>> {
   const res = await getPool().query(
     `select p.*,
        (select count(*) from commitments c where c.person_id = p.id and c.direction='to_dean' and c.status='open')::int as open_to_dean,
@@ -811,36 +836,40 @@ export async function listPeopleWithCounts(): Promise<
          coalesce((select max(occurred_at) from interactions i where i.person_id = p.id), 'epoch'),
          coalesce((select max(created_at) from commitments c where c.person_id = p.id), 'epoch')
        ) as last_activity
-     from people p order by last_activity desc nulls last, p.full_name asc limit 500`
+     from people p where p.user_id = $1 order by last_activity desc nulls last, p.full_name asc limit 500`,
+    [userId]
   );
   return res.rows.filter((p) => !isRemovedPerson(p as { full_name?: string | null; email?: string | null })) as never;
 }
 
 /** Full relationship bundle for one person by id (profile page). */
-export async function getPersonBundleById(id: string): Promise<PersonBundle & { person: Person | null }> {
-  const person = await getPerson(id);
+export async function getPersonBundleById(
+  userId: string,
+  id: string
+): Promise<PersonBundle & { person: Person | null }> {
+  const person = await getPerson(userId, id);
   if (!person) return { person: null, interactions: [], commitments: [], meetings: [], emails: [] };
   const db = getPool();
   const like = `%${person.full_name}%`;
   const [interactions, commitments, meetings, emails] = await Promise.all([
     db.query<Interaction>(
-      `select * from interactions where person_id = $1 or person_name ilike $2 order by occurred_at desc limit 40`,
-      [person.id, like]
+      `select * from interactions where user_id = $3 and (person_id = $1 or person_name ilike $2) order by occurred_at desc limit 40`,
+      [person.id, like, userId]
     ),
     db.query<Commitment>(
-      `select * from commitments where person_id = $1 or person_name ilike $2 order by created_at desc limit 60`,
-      [person.id, like]
+      `select * from commitments where user_id = $3 and (person_id = $1 or person_name ilike $2) order by created_at desc limit 60`,
+      [person.id, like, userId]
     ),
     db.query<{ title: string; meeting_date: Date | null; summary: string | null }>(
       `select distinct m.title, m.meeting_date, m.summary
        from meetings m join meeting_attendees a on a.meeting_id = m.id
-       where a.name ilike $1 or a.email ilike $1
+       where m.user_id = $2 and (a.name ilike $1 or a.email ilike $1)
        order by m.meeting_date desc nulls last limit 20`,
-      [like]
+      [like, userId]
     ),
     db.query<{ subject: string; summary: string | null; email_date: Date | null }>(
-      `select subject, summary, email_date from emails where sender ilike $1 order by coalesce(email_date, created_at) desc limit 20`,
-      [like]
+      `select subject, summary, email_date from emails where user_id = $2 and sender ilike $1 order by coalesce(email_date, created_at) desc limit 20`,
+      [like, userId]
     ),
   ]);
   return {
@@ -886,10 +915,10 @@ export async function insertInteraction(params: {
   );
 }
 
-export async function listInteractionsForMeeting(meetingId: string): Promise<Interaction[]> {
+export async function listInteractionsForMeeting(userId: string, meetingId: string): Promise<Interaction[]> {
   const res = await getPool().query<Interaction>(
-    `select * from interactions where meeting_id = $1 order by created_at desc`,
-    [meetingId]
+    `select * from interactions where meeting_id = $1 and user_id = $2 order by created_at desc`,
+    [meetingId, userId]
   );
   return res.rows;
 }
@@ -942,26 +971,30 @@ export async function upsertEmail(params: {
   return { email: row, created: row.inserted };
 }
 
-export async function getEmail(id: string): Promise<Email | null> {
-  const res = await getPool().query<Email>(`select * from emails where id = $1`, [id]);
+export async function getEmail(userId: string, id: string): Promise<Email | null> {
+  const res = await getPool().query<Email>(
+    `select * from emails where id = $1 and user_id = $2`,
+    [id, userId]
+  );
   return res.rows[0] ?? null;
 }
 
-export async function listEmails(filter?: {
-  unresolvedOnly?: boolean;
-  limit?: number;
-}): Promise<Email[]> {
-  const where = filter?.unresolvedOnly
-    ? `where resolved = false and (classification is null or classification not in ('ignore','reference'))`
+export async function listEmails(
+  userId: string,
+  filter?: { unresolvedOnly?: boolean; limit?: number }
+): Promise<Email[]> {
+  const extra = filter?.unresolvedOnly
+    ? ` and resolved = false and (classification is null or classification not in ('ignore','reference'))`
     : "";
   const res = await getPool().query<Email>(
-    `select * from emails ${where} order by coalesce(email_date, created_at) desc limit $1`,
-    [filter?.limit ?? 100]
+    `select * from emails where user_id = $2${extra} order by coalesce(email_date, created_at) desc limit $1`,
+    [filter?.limit ?? 100, userId]
   );
   return res.rows;
 }
 
 export async function setEmailProcessing(
+  userId: string,
   id: string,
   status: Email["processing_status"],
   fields?: {
@@ -983,7 +1016,7 @@ export async function setEmailProcessing(
        suggested_task_id = coalesce($7, suggested_task_id),
        resolved = coalesce($8, resolved),
        updated_at = now()
-     where id = $1`,
+     where id = $1 and user_id = $9`,
     [
       id,
       status,
@@ -993,15 +1026,16 @@ export async function setEmailProcessing(
       fields?.summary ?? null,
       fields?.suggestedTaskId ?? null,
       fields?.resolved ?? null,
+      userId,
     ]
   );
 }
 
-export async function markEmailResolved(id: string, resolved: boolean): Promise<void> {
-  await getPool().query(`update emails set resolved = $2, updated_at = now() where id = $1`, [
-    id,
-    resolved,
-  ]);
+export async function markEmailResolved(userId: string, id: string, resolved: boolean): Promise<void> {
+  await getPool().query(
+    `update emails set resolved = $2, updated_at = now() where id = $1 and user_id = $3`,
+    [id, resolved, userId]
+  );
 }
 
 /** Open waiting-on commitments, given to the Email Processor for resolution matching. */
@@ -1022,20 +1056,24 @@ export async function listOpenWaitingOn(
   return res.rows;
 }
 
-export async function markCommitmentDone(id: string): Promise<Commitment | null> {
+export async function markCommitmentDone(userId: string, id: string): Promise<Commitment | null> {
   const res = await getPool().query<Commitment>(
-    `update commitments set status = 'done', updated_at = now() where id = $1 returning *`,
-    [id]
+    `update commitments set status = 'done', updated_at = now() where id = $1 and user_id = $2 returning *`,
+    [id, userId]
   );
   return res.rows[0] ?? null;
 }
 
-export async function getCommitment(id: string): Promise<Commitment | null> {
-  const res = await getPool().query<Commitment>(`select * from commitments where id = $1`, [id]);
+export async function getCommitment(userId: string, id: string): Promise<Commitment | null> {
+  const res = await getPool().query<Commitment>(
+    `select * from commitments where id = $1 and user_id = $2`,
+    [id, userId]
+  );
   return res.rows[0] ?? null;
 }
 
 export async function updateCommitment(
+  userId: string,
   id: string,
   fields: {
     text?: string;
@@ -1045,7 +1083,7 @@ export async function updateCommitment(
   }
 ): Promise<Commitment | null> {
   const sets: string[] = [];
-  const values: unknown[] = [id];
+  const values: unknown[] = [id, userId];
   const push = (sql: string, v: unknown) => {
     values.push(v);
     sets.push(`${sql} = $${values.length}`);
@@ -1054,20 +1092,24 @@ export async function updateCommitment(
   if (fields.personName !== undefined) push("person_name", fields.personName);
   if (fields.dueDate !== undefined) push("due_date", fields.dueDate);
   if (fields.status !== undefined) push("status", fields.status);
-  if (sets.length === 0) return getCommitment(id);
+  if (sets.length === 0) return getCommitment(userId, id);
   const res = await getPool().query<Commitment>(
-    `update commitments set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    `update commitments set ${sets.join(", ")}, updated_at = now() where id = $1 and user_id = $2 returning *`,
     values
   );
   return res.rows[0] ?? null;
 }
 
-export async function getRisk(id: string): Promise<Risk | null> {
-  const res = await getPool().query<Risk>(`select * from risks where id = $1`, [id]);
+export async function getRisk(userId: string, id: string): Promise<Risk | null> {
+  const res = await getPool().query<Risk>(
+    `select * from risks where id = $1 and user_id = $2`,
+    [id, userId]
+  );
   return res.rows[0] ?? null;
 }
 
 export async function updateRisk(
+  userId: string,
   id: string,
   fields: {
     description?: string;
@@ -1076,7 +1118,7 @@ export async function updateRisk(
   }
 ): Promise<Risk | null> {
   const sets: string[] = [];
-  const values: unknown[] = [id];
+  const values: unknown[] = [id, userId];
   const push = (sql: string, v: unknown) => {
     values.push(v);
     sets.push(`${sql} = $${values.length}`);
@@ -1084,9 +1126,9 @@ export async function updateRisk(
   if (fields.description !== undefined) push("description", fields.description);
   if (fields.severity !== undefined) push("severity", fields.severity);
   if (fields.status !== undefined) push("status", fields.status);
-  if (sets.length === 0) return getRisk(id);
+  if (sets.length === 0) return getRisk(userId, id);
   const res = await getPool().query<Risk>(
-    `update risks set ${sets.join(", ")}, updated_at = now() where id = $1 returning *`,
+    `update risks set ${sets.join(", ")}, updated_at = now() where id = $1 and user_id = $2 returning *`,
     values
   );
   return res.rows[0] ?? null;
@@ -1094,10 +1136,11 @@ export async function updateRisk(
 
 // ── Assistant support ────────────────────────────────────────────────────────
 
-export async function countUnresolvedEmails(): Promise<number> {
+export async function countUnresolvedEmails(userId: string): Promise<number> {
   const res = await getPool().query<{ n: number }>(
     `select count(*)::int as n from emails
-     where resolved = false and (classification is null or classification not in ('ignore','reference'))`
+     where user_id = $1 and resolved = false and (classification is null or classification not in ('ignore','reference'))`,
+    [userId]
   );
   return res.rows[0].n;
 }
@@ -1163,29 +1206,29 @@ export interface RecentChanges {
   meetingsProcessed: Array<{ title: string }>;
 }
 
-export async function getChangesSince(since: Date | null): Promise<RecentChanges> {
+export async function getChangesSince(userId: string, since: Date | null): Promise<RecentChanges> {
   const db = getPool();
   const cutoff = since ?? new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const [tasks, opened, closed, risks, meetings] = await Promise.all([
     db.query<{ title: string; status: string }>(
-      `select title, status from tasks where created_at > $1 order by created_at desc limit 30`,
-      [cutoff]
+      `select title, status from tasks where user_id = $2 and created_at > $1 order by created_at desc limit 30`,
+      [cutoff, userId]
     ),
     db.query<{ text: string; direction: string; person_name: string | null }>(
-      `select text, direction, person_name from commitments where created_at > $1 order by created_at desc limit 30`,
-      [cutoff]
+      `select text, direction, person_name from commitments where user_id = $2 and created_at > $1 order by created_at desc limit 30`,
+      [cutoff, userId]
     ),
     db.query<{ text: string; person_name: string | null }>(
-      `select text, person_name from commitments where status = 'done' and updated_at > $1 order by updated_at desc limit 30`,
-      [cutoff]
+      `select text, person_name from commitments where user_id = $2 and status = 'done' and updated_at > $1 order by updated_at desc limit 30`,
+      [cutoff, userId]
     ),
     db.query<{ description: string; severity: string }>(
-      `select description, severity from risks where created_at > $1 order by created_at desc limit 20`,
-      [cutoff]
+      `select description, severity from risks where user_id = $2 and created_at > $1 order by created_at desc limit 20`,
+      [cutoff, userId]
     ),
     db.query<{ title: string }>(
-      `select title from meetings where processing_status = 'processed' and updated_at > $1 order by updated_at desc limit 20`,
-      [cutoff]
+      `select title from meetings where user_id = $2 and processing_status = 'processed' and updated_at > $1 order by updated_at desc limit 20`,
+      [cutoff, userId]
     ),
   ]);
   return {
@@ -1197,19 +1240,19 @@ export async function getChangesSince(since: Date | null): Promise<RecentChanges
   };
 }
 
-export async function findPersonByName(name: string): Promise<Person | null> {
+export async function findPersonByName(userId: string, name: string): Promise<Person | null> {
   const res = await getPool().query<Person>(
-    `select * from people where full_name ilike $1 order by created_at limit 1`,
-    [`%${name}%`]
+    `select * from people where user_id = $2 and full_name ilike $1 order by created_at limit 1`,
+    [`%${name}%`, userId]
   );
   const row = res.rows[0] ?? null;
   return row && isRemovedPerson(row) ? null : row;
 }
 
-export async function findPersonByEmail(email: string): Promise<Person | null> {
+export async function findPersonByEmail(userId: string, email: string): Promise<Person | null> {
   const res = await getPool().query<Person>(
-    `select * from people where lower(email) = lower($1) limit 1`,
-    [email.trim()]
+    `select * from people where user_id = $2 and lower(email) = lower($1) limit 1`,
+    [email.trim(), userId]
   );
   const row = res.rows[0] ?? null;
   return row && isRemovedPerson(row) ? null : row;
@@ -1224,39 +1267,39 @@ export interface PersonBundle {
 }
 
 /** Everything DeanOS knows about a person, for `people` and `prep`. */
-export async function getPersonBundle(name: string): Promise<PersonBundle> {
+export async function getPersonBundle(userId: string, name: string): Promise<PersonBundle> {
   // A removed person surfaces nothing, even on an explicit lookup by name.
   if (isRemovedPerson({ full_name: name, email: name })) {
     return { person: null, interactions: [], commitments: [], meetings: [], emails: [] };
   }
   const db = getPool();
-  const person = await findPersonByName(name);
+  const person = await findPersonByName(userId, name);
   const like = `%${name}%`;
   const [interactions, commitments, meetings, emails] = await Promise.all([
     db.query<Interaction>(
       person
-        ? `select * from interactions where person_id = $1 or person_name ilike $2 order by occurred_at desc limit 20`
-        : `select * from interactions where person_name ilike $2 order by occurred_at desc limit 20`,
-      person ? [person.id, like] : [like]
+        ? `select * from interactions where user_id = $3 and (person_id = $1 or person_name ilike $2) order by occurred_at desc limit 20`
+        : `select * from interactions where user_id = $3 and person_name ilike $2 order by occurred_at desc limit 20`,
+      person ? [person.id, like, userId] : [null, like, userId]
     ),
     db.query<Commitment>(
       person
-        ? `select * from commitments where person_id = $1 or person_name ilike $2 order by created_at desc limit 30`
-        : `select * from commitments where person_name ilike $2 order by created_at desc limit 30`,
-      person ? [person.id, like] : [like]
+        ? `select * from commitments where user_id = $3 and (person_id = $1 or person_name ilike $2) order by created_at desc limit 30`
+        : `select * from commitments where user_id = $3 and person_name ilike $2 order by created_at desc limit 30`,
+      person ? [person.id, like, userId] : [null, like, userId]
     ),
     db.query<{ title: string; meeting_date: Date | null; summary: string | null }>(
       `select distinct m.title, m.meeting_date, m.summary
        from meetings m join meeting_attendees a on a.meeting_id = m.id
-       where a.name ilike $1 or a.email ilike $1 or m.title ilike $1
+       where m.user_id = $2 and (a.name ilike $1 or a.email ilike $1 or m.title ilike $1)
        order by m.meeting_date desc nulls last limit 10`,
-      [like]
+      [like, userId]
     ),
     db.query<{ subject: string; summary: string | null; email_date: Date | null }>(
       `select subject, summary, email_date from emails
-       where sender ilike $1 or subject ilike $1
+       where user_id = $2 and (sender ilike $1 or subject ilike $1)
        order by coalesce(email_date, created_at) desc limit 10`,
-      [like]
+      [like, userId]
     ),
   ]);
   return {
@@ -1310,10 +1353,11 @@ export async function insertBrief(params: {
   return res.rows[0];
 }
 
-export async function getLatestBrief(): Promise<BriefRow | null> {
+export async function getLatestBrief(userId: string): Promise<BriefRow | null> {
   const res = await getPool().query<BriefRow>(
     `select id, to_char(generated_for, 'YYYY-MM-DD') as generated_for, content, top3, ignore_today, chase, recommendation, source, created_at
-     from briefs order by created_at desc limit 1`
+     from briefs where user_id = $1 order by created_at desc limit 1`,
+    [userId]
   );
   return res.rows[0] ?? null;
 }
@@ -1487,25 +1531,27 @@ export async function listCalendarEvents(
 
 // ── Agent find helpers (id-bearing, for edit/resolve tools) ─────────────────
 
-export async function listActionableTasks(): Promise<
+export async function listActionableTasks(userId: string): Promise<
   Array<{ id: string; title: string; status: string; priority: number; due_date: string | null; business_id: string | null; todoist_task_id: string | null }>
 > {
   const res = await getPool().query(
     `select id, title, status, priority,
             to_char(due_date, 'YYYY-MM-DD') as due_date, business_id, todoist_task_id
      from tasks
-     where status in ('suggested','approved','sent','created')
-     order by created_at desc limit 100`
+     where user_id = $1 and status in ('suggested','approved','sent','created')
+     order by created_at desc limit 100`,
+    [userId]
   );
   return res.rows as never;
 }
 
-export async function listOpenCommitmentsWithMeta(): Promise<
+export async function listOpenCommitmentsWithMeta(userId: string): Promise<
   Array<{ id: string; text: string; direction: string; person_name: string | null; status: string; linked_task_id: string | null }>
 > {
   const res = await getPool().query(
     `select id, text, direction, person_name, status, linked_task_id
-     from commitments where status = 'open' order by created_at desc limit 100`
+     from commitments where user_id = $1 and status = 'open' order by created_at desc limit 100`,
+    [userId]
   );
   return res.rows as never;
 }
@@ -1620,7 +1666,7 @@ export async function getSyncStatus(): Promise<SyncStatusRow[]> {
   return res.rows;
 }
 
-export async function getCounts(): Promise<{
+export async function getCounts(userId: string): Promise<{
   suggestedTasks: number;
   failedMeetings: number;
   pendingMeetings: number;
@@ -1637,12 +1683,13 @@ export async function getCounts(): Promise<{
     open_risks: number;
   }>(
     `select
-       (select count(*) from tasks where status = 'suggested')::int as suggested_tasks,
-       (select count(*) from meetings where processing_status = 'failed')::int as failed_meetings,
-       (select count(*) from meetings where processing_status in ('pending','processing'))::int as pending_meetings,
-       (select count(*) from commitments where direction = 'by_dean' and status = 'open')::int as by_dean,
-       (select count(*) from commitments where direction = 'to_dean' and status = 'open')::int as to_dean,
-       (select count(*) from risks where status = 'open')::int as open_risks`
+       (select count(*) from tasks where user_id = $1 and status = 'suggested')::int as suggested_tasks,
+       (select count(*) from meetings where user_id = $1 and processing_status = 'failed')::int as failed_meetings,
+       (select count(*) from meetings where user_id = $1 and processing_status in ('pending','processing'))::int as pending_meetings,
+       (select count(*) from commitments where user_id = $1 and direction = 'by_dean' and status = 'open')::int as by_dean,
+       (select count(*) from commitments where user_id = $1 and direction = 'to_dean' and status = 'open')::int as to_dean,
+       (select count(*) from risks where user_id = $1 and status = 'open')::int as open_risks`,
+    [userId]
   );
   const r = res.rows[0];
   return {

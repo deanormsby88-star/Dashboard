@@ -23,12 +23,12 @@ export default async function TodayPage() {
   const now = new Date();
   const owner = await pageUser();
   const [counts, meetings, syncStatus, brief, commitments, risks, todaysEvents] = await Promise.all([
-    getCounts(),
-    listMeetings(4),
+    getCounts(owner.user.id),
+    listMeetings(owner.user.id, 4),
     getSyncStatus(),
-    getLatestBrief(),
-    listCommitments(),
-    listRisks(),
+    getLatestBrief(owner.user.id),
+    listCommitments(owner.user.id),
+    listRisks(owner.user.id),
     getToday(owner.user.id).catch(() => []),
   ]);
   const calendarConnected = (await listCalendarConnections(owner.user.id)).length > 0;

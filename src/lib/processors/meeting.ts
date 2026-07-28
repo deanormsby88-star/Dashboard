@@ -58,13 +58,13 @@ export interface ProcessResult {
  * clears prior *suggested* extractions first, so retries never double-insert.
  */
 export async function processMeeting(meetingId: string): Promise<ProcessResult> {
-  const meeting = await getMeeting(meetingId);
+  const owner = await ensureOwner();
+  const meeting = await getMeeting(owner.user.id, meetingId);
   if (!meeting) return { ok: false, error: `Meeting ${meetingId} not found.` };
 
-  const owner = await ensureOwner();
   await setMeetingProcessing(meeting.id, "processing");
 
-  const attendees = await getMeetingAttendees(meeting.id);
+  const attendees = await getMeetingAttendees(owner.user.id, meeting.id);
   const payload = await getMeetingActionItems(meeting.user_id, meeting.source_system, meeting.source_record_id);
 
   const input: MeetingProcessorInput = {

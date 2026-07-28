@@ -22,14 +22,14 @@ export interface StateSnapshot {
   unresolved_inbox_items: number;
 }
 
-export async function buildSnapshot(now: Date = new Date()): Promise<StateSnapshot> {
+export async function buildSnapshot(userId: string, now: Date = new Date()): Promise<StateSnapshot> {
   const [suggested, created, commitments, risks, meetings, inboxCount] = await Promise.all([
-    listTasks({ status: "suggested" }),
-    listTasks({ status: "created" }),
-    listCommitments(),
-    listRisks(),
-    listMeetings(5),
-    countUnresolvedEmails(),
+    listTasks(userId, { status: "suggested" }),
+    listTasks(userId, { status: "created" }),
+    listCommitments(userId),
+    listRisks(userId),
+    listMeetings(userId, 5),
+    countUnresolvedEmails(userId),
   ]);
 
   const openWaiting = commitments.filter((c) => c.direction === "to_dean" && c.status === "open");

@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import { requireSession } from "@/lib/auth/require-session";
-import { businessByKey, ensureOwner, insertTask, markTaskCreatedByDedupKey, setTaskStatus } from "@/lib/db/repo";
+import { requireUser } from "@/lib/auth/current-user";
+import { businessByKey, insertTask, markTaskCreatedByDedupKey, setTaskStatus } from "@/lib/db/repo";
 import { normalizeTitle } from "@/lib/dedup";
 import { executeCreate } from "@/lib/todoist/execute";
 
@@ -32,8 +32,8 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
   }
   const body = parsed.data;
 
-  const owner = await ensureOwner();
   const business = businessByKey(owner, body.business);
   const dedupKey =
     body.dedup_key ??
@@ -78,7 +77,7 @@ export async function POST(request: NextRequest) {
 
   const result = await executeCreate(task, business);
   if (!result.ok) {
-    const failed = await setTaskStatus(task.id, "failed", result.error);
+    const failed = await setTaskStatus(owner.user.id, task.id, "failed", result.error);
     return NextResponse.json({ error: result.error, task: failed }, { status: 502 });
   }
   if (result.created) {
@@ -89,6 +88,6 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json({ ok: true, task: created });
   }
-  const sent = await setTaskStatus(task.id, "sent");
+  const sent = await setTaskStatus(owner.user.id, task.id, "sent");
   return NextResponse.json({ ok: true, task: sent });
 }

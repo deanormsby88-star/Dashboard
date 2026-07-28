@@ -52,7 +52,8 @@ export interface DailyBrief {
  * fields for the dashboard tiles.
  */
 export async function generateDailyBrief(now: Date = new Date()): Promise<DailyBrief> {
-  const snapshot = await buildSnapshot(now);
+  const owner = await ensureOwner();
+  const snapshot = await buildSnapshot(owner.user.id, now);
   const result = await runPrioritizer(snapshot);
 
   // Today's meetings from the calendar (best-effort — brief still works if it fails).

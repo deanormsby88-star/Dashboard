@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
-import { requireSession } from "@/lib/auth/require-session";
+import { requireUser } from "@/lib/auth/current-user";
 import {
   completeTaskByTodoistId,
   getCommitment,
@@ -30,10 +30,10 @@ const patchSchema = z.object({
  * completed there.
  */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const commitment = await getCommitment(params.id);
+  const commitment = await getCommitment(owner.user.id, params.id);
   if (!commitment) return NextResponse.json({ error: "Commitment not found." }, { status: 404 });
 
   const parsed = patchSchema.safeParse(await request.json().catch(() => null));
@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
   const data = parsed.data;
 
-  const updated = await updateCommitment(commitment.id, {
+  const updated = await updateCommitment(owner.user.id, commitment.id, {
     text: data.text,
     personName: data.person,
     dueDate: data.due_date,
@@ -55,9 +55,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   // On resolution, deal with the linked follow-up task.
   const resolving = data.status === "done" || data.status === "cancelled";
   if (resolving && commitment.linked_task_id) {
-    const task = await getTask(commitment.linked_task_id);
+    const task = await getTask(owner.user.id, commitment.linked_task_id);
     if (task?.status === "suggested" || task?.status === "approved") {
-      await setTaskStatus(task.id, "rejected", "Commitment resolved in DeanOS — follow-up no longer needed.");
+      await setTaskStatus(owner.user.id, task.id, "rejected", "Commitment resolved in DeanOS — follow-up no longer needed.");
     } else if (task?.status === "created" && task.todoist_task_id) {
       const done = await executeComplete(task.todoist_task_id);
       if (done.ok) await completeTaskByTodoistId(task.todoist_task_id);

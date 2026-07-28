@@ -41,7 +41,7 @@ const NEVER_REMIND_EMAILS = new Set(["lisaw@heya.team"]);
 const NEVER_REMIND_NAME = /\blisa\s+wainbergas\b|^\s*lisa\s*$/i;
 
 /** Resolve a meeting's attendees to Heya teammates we can message on Teams. */
-async function resolveTeammates(attendees: string[]): Promise<OfferAttendee[]> {
+async function resolveTeammates(userId: string, attendees: string[]): Promise<OfferAttendee[]> {
   const out: OfferAttendee[] = [];
   const seen = new Set<string>();
   for (const a of attendees) {
@@ -51,7 +51,7 @@ async function resolveTeammates(attendees: string[]): Promise<OfferAttendee[]> {
     if (/@/.test(a)) {
       email = a.trim();
     } else {
-      const person = await findPersonByName(a).catch(() => null);
+      const person = await findPersonByName(userId, a).catch(() => null);
       if (person?.email) {
         email = person.email;
         name = person.full_name;
@@ -80,7 +80,7 @@ export async function offerAttendeeReminders(now: Date = new Date()): Promise<{ 
     const dedupKey = `attoffered:${e.calendar}:${e.source_uid}:${new Date(e.starts_at).toISOString()}`;
     if (await getLastSyncRun(dedupKey)) continue;
 
-    const teammates = await resolveTeammates(e.attendees);
+    const teammates = await resolveTeammates(owner.user.id, e.attendees);
     // Mark offered regardless, so we don't re-scan this meeting each tick.
     await recordSyncRun({ userId: owner.user.id, sourceSystem: dedupKey, stats: { title: e.title } });
     if (teammates.length === 0) continue;

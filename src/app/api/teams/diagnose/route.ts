@@ -26,7 +26,7 @@ export async function GET() {
   out.myId = myId ? "ok" : "FAILED (basic Graph read)";
 
   // Resolve a real teammate by email (tests User.ReadBasic.All / Teams scope).
-  const people = await listPeople();
+  const people = await listPeople(owner.user.id);
   const teammate = people.find((p) => p.email && /@heya\.team$/i.test(p.email)) ?? null;
   const testEmail = teammate?.email ?? getEnv().DEANOS_EMAIL;
   const resolved = await resolveTeamsUser(token, testEmail);

@@ -39,7 +39,7 @@ function reminderKey(e: CalendarEventRow, tier: string): string {
   return `reminder:${e.calendar}:${e.source_uid}:${new Date(e.starts_at).toISOString()}:${tier}`;
 }
 
-async function compose(e: CalendarEventRow, now: Date, withPrep: boolean): Promise<string> {
+async function compose(userId: string, e: CalendarEventRow, now: Date, withPrep: boolean): Promise<string> {
   const minsAway = Math.max(0, Math.round((new Date(e.starts_at).getTime() - now.getTime()) / 60_000));
   const lines = [`⏰ In ${minsAway} min · ${fmtTime(e.starts_at)} — ${e.title}`];
   if (e.location) {
@@ -53,9 +53,9 @@ async function compose(e: CalendarEventRow, now: Date, withPrep: boolean): Promi
   // 5-min nudge stays a quick heads-up. Always lead the prep with what matters
   // to each attendee (their saved motivations), so Dean gets that every meeting.
   if (withPrep) {
-    const motiv = await attendeeMotivations(e).catch(() => null);
+    const motiv = await attendeeMotivations(userId, e).catch(() => null);
     if (motiv) lines.push(`\n💡 What matters to them:\n${motiv}`);
-    const prep = await buildMeetingPrep(e).catch(() => null);
+    const prep = await buildMeetingPrep(userId, e).catch(() => null);
     if (prep) lines.push(`\n📝 Prep:\n${prep}`);
   }
   return lines.join("\n");
@@ -91,7 +91,7 @@ export async function sendDueMeetingReminders(
     // Send the most-urgent due tier (smallest window); the message's "in X min"
     // reflects reality. Mark every due tier done so an older tier won't re-fire.
     const sendTier = due.reduce((a, b) => (b.within < a.within ? b : a));
-    const ok = await sendToDean(await compose(e, now, sendTier.prep));
+    const ok = await sendToDean(await compose(owner.user.id, e, now, sendTier.prep));
     if (ok) {
       for (const t of due) {
         await recordSyncRun({ userId: owner.user.id, sourceSystem: reminderKey(e, t.name), stats: { title: e.title, tier: t.name } });

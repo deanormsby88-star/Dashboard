@@ -19,7 +19,7 @@ export async function POST() {
   let updated = 0;
   for (const entry of HEYA_DIRECTORY) {
     const person = await getOrCreatePersonByName(owner.user.id, entry.fullName);
-    await updatePerson(person.id, {
+    await updatePerson(owner.user.id, person.id, {
       role: entry.role,
       organization: "Heya",
       email: entry.email,

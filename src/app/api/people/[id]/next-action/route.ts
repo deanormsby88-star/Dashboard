@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getEnv } from "@/lib/env";
-import { requireSession } from "@/lib/auth/require-session";
+import { requireUser } from "@/lib/auth/current-user";
 import { callText } from "@/lib/ai/openai";
-import { ensureOwner, getPersonBundleById, insertAiRun } from "@/lib/db/repo";
+import { getPersonBundleById, insertAiRun } from "@/lib/db/repo";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,10 +13,10 @@ export const maxDuration = 60;
  * time a profile is viewed.
  */
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
-  const session = await requireSession();
-  if (session instanceof Response) return session;
+  const owner = await requireUser();
+  if (owner instanceof Response) return owner;
 
-  const bundle = await getPersonBundleById(params.id);
+  const bundle = await getPersonBundleById(owner.user.id, params.id);
   if (!bundle.person) return NextResponse.json({ error: "Person not found." }, { status: 404 });
 
   const context = {
@@ -30,7 +30,6 @@ export async function POST(_request: Request, { params }: { params: { id: string
     notes: bundle.interactions.map((i) => i.summary),
   };
 
-  const owner = await ensureOwner();
   const model = getEnv().OPENAI_MODEL_PRIORITIZER;
   const result = await callText({
     model,

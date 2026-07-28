@@ -14,16 +14,17 @@ export async function approveSuggestedTask(
   taskId: string,
   deadlineDate?: string | null
 ): Promise<{ ok: boolean; title?: string; error?: string }> {
-  const task = await getTask(taskId);
+  const owner = await ensureOwner();
+  const uid = owner.user.id;
+  const task = await getTask(uid, taskId);
   if (!task) return { ok: false, error: "Task not found." };
   if (task.status !== "suggested") return { ok: false, title: task.title, error: `already ${task.status}` };
 
-  const owner = await ensureOwner();
   const business = owner.businesses.find((b) => b.id === task.business_id) ?? null;
-  await setTaskStatus(task.id, "approved");
+  await setTaskStatus(uid, task.id, "approved");
   const sent = await executeCreate(task, business, deadlineDate);
   if (!sent.ok) {
-    await setTaskStatus(task.id, "failed", sent.error);
+    await setTaskStatus(uid, task.id, "failed", sent.error);
     return { ok: false, title: task.title, error: sent.error };
   }
   if (sent.created) {
@@ -33,16 +34,17 @@ export async function approveSuggestedTask(
       todoistTaskUrl: sent.created.todoistTaskUrl,
     });
   } else {
-    await setTaskStatus(task.id, "sent");
+    await setTaskStatus(uid, task.id, "sent");
   }
   return { ok: true, title: task.title };
 }
 
 /** Reject/dismiss a suggested task. */
 export async function rejectSuggestedTask(taskId: string): Promise<{ ok: boolean; title?: string; error?: string }> {
-  const task = await getTask(taskId);
+  const owner = await ensureOwner();
+  const task = await getTask(owner.user.id, taskId);
   if (!task) return { ok: false, error: "Task not found." };
   if (task.status !== "suggested") return { ok: false, title: task.title, error: `already ${task.status}` };
-  await setTaskStatus(task.id, "rejected", "Rejected via Telegram.");
+  await setTaskStatus(owner.user.id, task.id, "rejected", "Rejected via Telegram.");
   return { ok: true, title: task.title };
 }
