@@ -18,27 +18,46 @@ export function isGraphConfigured(): boolean {
   return Boolean(env.MS_CLIENT_ID && env.MS_CLIENT_SECRET);
 }
 
-// ── OAuth state (signed, carries which calendar is being connected) ─────────
+// ── OAuth state (signed; carries the intent) ────────────────────────────────
+// Two intents share one redirect URI:
+//   - "login":   sign in with Microsoft (create/resolve the user, set session).
+//   - "connect": an already-logged-in user connects a specific calendar; the
+//                state binds the initiating userId so the callback attributes
+//                tokens to the right person.
 
-export function signState(calendar: BusinessKey): string {
-  const body = `${calendar}.${Date.now()}`;
+export type OAuthState =
+  | { intent: "login" }
+  | { intent: "connect"; calendar: BusinessKey; userId: string };
+
+export function signState(payload: OAuthState): string {
+  const body = `${JSON.stringify(payload)}.${Date.now()}`;
   const sig = createHmac("sha256", getEnv().SESSION_SECRET).update(body).digest("base64url");
   return `${Buffer.from(body).toString("base64url")}.${sig}`;
 }
 
-export function verifyState(state: string): BusinessKey | null {
+export function verifyState(state: string): OAuthState | null {
   const [b64, sig] = state.split(".");
   if (!b64 || !sig) return null;
   const body = Buffer.from(b64, "base64url").toString("utf8");
   const expected = createHmac("sha256", getEnv().SESSION_SECRET).update(body).digest("base64url");
   if (sig !== expected) return null;
-  const [calendar, ts] = body.split(".");
-  if (Date.now() - Number(ts) > 15 * 60 * 1000) return null; // 15-min window
-  if (!["heya", "jic", "personal"].includes(calendar)) return null;
-  return calendar as BusinessKey;
+  const lastDot = body.lastIndexOf(".");
+  const json = body.slice(0, lastDot);
+  const ts = Number(body.slice(lastDot + 1));
+  if (!Number.isFinite(ts) || Date.now() - ts > 15 * 60 * 1000) return null; // 15-min window
+  try {
+    const parsed = JSON.parse(json) as OAuthState;
+    if (parsed.intent === "login") return parsed;
+    if (parsed.intent === "connect" && typeof parsed.calendar === "string" && typeof parsed.userId === "string") {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
-export function authorizeUrl(calendar: BusinessKey): string {
+function buildAuthorizeUrl(state: OAuthState): string {
   const env = getEnv();
   const params = new URLSearchParams({
     client_id: env.MS_CLIENT_ID!,
@@ -46,10 +65,20 @@ export function authorizeUrl(calendar: BusinessKey): string {
     redirect_uri: redirectUri(),
     response_mode: "query",
     scope: SCOPE,
-    state: signState(calendar),
+    state: signState(state),
     prompt: "select_account",
   });
   return `${AUTH_BASE}/authorize?${params.toString()}`;
+}
+
+/** Consent URL for signing in with Microsoft (creates/resolves the user). */
+export function loginUrl(): string {
+  return buildAuthorizeUrl({ intent: "login" });
+}
+
+/** Consent URL for an existing user connecting a specific calendar. */
+export function authorizeUrl(calendar: BusinessKey, userId: string): string {
+  return buildAuthorizeUrl({ intent: "connect", calendar, userId });
 }
 
 interface TokenResponse {
@@ -120,6 +149,23 @@ export async function getAccountEmail(token: string): Promise<string | null> {
   if (!res.ok) return null;
   const me = (await res.json()) as { mail?: string; userPrincipalName?: string };
   return me.mail ?? me.userPrincipalName ?? null;
+}
+
+/** Full profile for sign-in: email, display name, and stable Microsoft id. */
+export async function getAccountProfile(
+  token: string
+): Promise<{ email: string; name: string | null; oid: string | null } | null> {
+  const res = await graphFetch(token, "/me?$select=id,displayName,mail,userPrincipalName");
+  if (!res.ok) return null;
+  const me = (await res.json()) as {
+    id?: string;
+    displayName?: string;
+    mail?: string;
+    userPrincipalName?: string;
+  };
+  const email = me.mail ?? me.userPrincipalName ?? null;
+  if (!email) return null;
+  return { email, name: me.displayName ?? null, oid: me.id ?? null };
 }
 
 export interface GraphEvent {

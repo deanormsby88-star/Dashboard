@@ -1,7 +1,15 @@
+import { redirect } from "next/navigation";
 import NavLinks from "@/components/NavLinks";
 import LogoutButton from "@/components/LogoutButton";
+import { getSessionUser } from "@/lib/auth/current-user";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // First-run gate: require a session, and send users who haven't finished the
+  // setup wizard to /setup (which lives outside this route group, so no loop).
+  const owner = await getSessionUser();
+  if (!owner) redirect("/login");
+  if (!owner.user.setup_completed_at) redirect("/setup");
+
   return (
     <div className="min-h-screen md:flex md:gap-0 md:p-3">
       <aside

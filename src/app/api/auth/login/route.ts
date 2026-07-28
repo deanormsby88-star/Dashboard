@@ -38,9 +38,9 @@ export async function POST(request: NextRequest) {
   }
 
   recordSuccess(ip);
-  await ensureOwner();
+  const owner = await ensureOwner();
 
-  const token = await createSessionToken(env.DEANOS_EMAIL.toLowerCase(), env.SESSION_SECRET);
+  const token = await createSessionToken(owner.user.id, owner.user.email, env.SESSION_SECRET);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

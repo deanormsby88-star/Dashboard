@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
+import { pageUser } from "@/lib/auth/current-user";
 import {
-  ensureOwner,
   getMeeting,
   getMeetingAttendees,
   getSourceRecordPayload,
@@ -27,7 +27,7 @@ export default async function MeetingReviewPage({ params }: { params: { id: stri
   const meeting = await getMeeting(params.id);
   if (!meeting) notFound();
 
-  const owner = await ensureOwner();
+  const owner = await pageUser();
   const business = owner.businesses.find((b) => b.id === meeting.business_id) ?? null;
   const [attendees, tasks, commitments, decisions, risks, interactions, rawPayload] =
     await Promise.all([

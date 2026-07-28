@@ -1,4 +1,4 @@
-import { ensureOwner } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Businesses — DeanOS" };
@@ -10,7 +10,7 @@ const SCOPE: Record<string, string> = {
 };
 
 export default async function BusinessesPage() {
-  const owner = await ensureOwner();
+  const owner = await pageUser();
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

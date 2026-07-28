@@ -71,6 +71,104 @@ export function businessByKey(owner: Owner, key: string | null | undefined): Bus
   return owner.businesses.find((b) => b.key === key) ?? null;
 }
 
+// Default contexts seeded for a NEW user on first sign-in. Generic (unlike the
+// Dean-specific BUSINESS_SEED); they name their own in the setup wizard.
+export const DEFAULT_CONTEXT_SEED: Array<{ key: string; name: string }> = [
+  { key: "work", name: "Work" },
+  { key: "personal", name: "Personal" },
+];
+
+const USER_COLS = "id, email, name, microsoft_oid, setup_completed_at";
+
+async function loadBusinesses(userId: string, db: Queryable = getPool()): Promise<Business[]> {
+  const res = await db.query<Business>(
+    `select id, user_id, key, name, todoist_project_id from businesses where user_id = $1 order by created_at`,
+    [userId]
+  );
+  return res.rows;
+}
+
+/**
+ * Get-or-create a user by email (multi-user sign-in path). Matches an existing
+ * row by email — so the legacy env-seeded owner (Dean) keeps all his data on
+ * his first Microsoft sign-in — otherwise creates a new user and seeds the
+ * default Work/Personal contexts. Records the Microsoft object id and login time.
+ */
+export async function ensureUser(
+  params: { email: string; name?: string | null; microsoftOid?: string | null },
+  db: Queryable = getPool()
+): Promise<Owner> {
+  const email = params.email.trim().toLowerCase();
+  const res = await db.query<User>(
+    `insert into users (email, name, microsoft_oid, last_login_at)
+       values ($1, $2, $3, now())
+     on conflict (email) do update set
+       name = coalesce(excluded.name, users.name),
+       microsoft_oid = coalesce(excluded.microsoft_oid, users.microsoft_oid),
+       last_login_at = now()
+     returning ${USER_COLS}`,
+    [email, params.name ?? null, params.microsoftOid ?? null]
+  );
+  const user = res.rows[0];
+
+  // Seed default contexts only for a brand-new user (one with none yet), so an
+  // existing user's custom contexts are never overwritten.
+  let businesses = await loadBusinesses(user.id, db);
+  if (businesses.length === 0) {
+    for (const c of DEFAULT_CONTEXT_SEED) {
+      await db.query(
+        `insert into businesses (user_id, key, name, todoist_project_id)
+         values ($1, $2, $3, null)
+         on conflict (user_id, key) do nothing`,
+        [user.id, c.key, c.name]
+      );
+    }
+    businesses = await loadBusinesses(user.id, db);
+  }
+  return { user, businesses };
+}
+
+/** Load a user (+ contexts) by id — the session's identity. Null if missing. */
+export async function getUserById(userId: string, db: Queryable = getPool()): Promise<Owner | null> {
+  const res = await db.query<User>(`select ${USER_COLS} from users where id = $1`, [userId]);
+  const user = res.rows[0];
+  if (!user) return null;
+  return { user, businesses: await loadBusinesses(user.id, db) };
+}
+
+/** Look up an existing user by email (used to let existing users sign in even
+ *  when their domain isn't on the new-sign-up allow-list). Null if none. */
+export async function getUserByEmail(email: string, db: Queryable = getPool()): Promise<User | null> {
+  const res = await db.query<User>(`select ${USER_COLS} from users where lower(email) = lower($1)`, [
+    email.trim(),
+  ]);
+  return res.rows[0] ?? null;
+}
+
+/** Mark a user's first-run setup wizard complete. */
+export async function markSetupComplete(userId: string): Promise<void> {
+  await getPool().query(
+    `update users set setup_completed_at = coalesce(setup_completed_at, now()) where id = $1`,
+    [userId]
+  );
+}
+
+/** Create or rename a user-defined context (setup wizard). */
+export async function upsertBusinessContext(
+  userId: string,
+  key: string,
+  name: string,
+  todoistProjectId: string | null = null
+): Promise<void> {
+  await getPool().query(
+    `insert into businesses (user_id, key, name, todoist_project_id)
+     values ($1, $2, $3, $4)
+     on conflict (user_id, key) do update set name = excluded.name,
+       todoist_project_id = coalesce(excluded.todoist_project_id, businesses.todoist_project_id)`,
+    [userId, key, name, todoistProjectId]
+  );
+}
+
 // ── Webhook events ────────────────────────────────────────────────────────────
 
 export async function recordWebhookEvent(params: {

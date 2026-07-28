@@ -38,7 +38,7 @@ import type { Person } from "@/lib/types";
 
 /** Dean's own addresses, this email's mailbox first — lets the processor judge
  * whether an action is Dean's to perform vs. an FYI he was merely CC'd on. */
-function ownerAddressesFor(mailbox: "heya" | "jic" | "personal"): string[] {
+function ownerAddressesFor(mailbox: string): string[] {
   const all = Object.keys(MAILBOX_ADDRESSES);
   const primary = all.filter((a) => MAILBOX_ADDRESSES[a] === mailbox);
   const rest = all.filter((a) => MAILBOX_ADDRESSES[a] !== mailbox);

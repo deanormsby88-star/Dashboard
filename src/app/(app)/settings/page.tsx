@@ -1,5 +1,6 @@
 import { envStatus } from "@/lib/env";
-import { ensureOwner, listCalendarConnections, listWebhookEvents } from "@/lib/db/repo";
+import { listCalendarConnections, listWebhookEvents } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import { StatusBadge } from "@/components/badges";
 import JsonViewer from "@/components/JsonViewer";
 import RetryWebhookButton from "@/components/RetryWebhookButton";
@@ -19,7 +20,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
   const events = await listWebhookEvents(50);
   const appUrl = process.env.APP_URL ?? "https://<your-app>";
 
-  const owner = await ensureOwner();
+  const owner = await pageUser();
   const calendarConns = await listCalendarConnections(owner.user.id);
   const graphConfigured = status.MS_CLIENT_ID && status.MS_CLIENT_SECRET;
   const calendars: Array<{ key: "heya" | "jic"; name: string }> = [

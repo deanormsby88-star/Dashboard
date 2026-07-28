@@ -1,6 +1,7 @@
 import Link from "next/link";
 import clsx from "clsx";
-import { ensureOwner, listTasks } from "@/lib/db/repo";
+import { listTasks } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import type { TaskStatus } from "@/lib/types";
 import TaskReviewCard from "@/components/TaskReviewCard";
 import RepushFailedButton from "@/components/RepushFailedButton";
@@ -26,7 +27,7 @@ export default async function TasksPage({
 }) {
   const filter = (searchParams.status ?? "suggested") as TaskStatus | "all";
   const [owner, tasks] = await Promise.all([
-    ensureOwner(),
+    pageUser(),
     listTasks(filter === "all" ? undefined : { status: filter as TaskStatus }),
   ]);
   const businessNameFor = (id: string | null) =>

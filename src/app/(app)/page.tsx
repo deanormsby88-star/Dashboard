@@ -8,7 +8,8 @@ import {
   listRisks,
 } from "@/lib/db/repo";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
-import { ensureOwner, listCalendarConnections } from "@/lib/db/repo";
+import { listCalendarConnections } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import { getToday } from "@/lib/calendar/sync";
 import { SeverityBadge, StatusBadge } from "@/components/badges";
 import QuickCapture from "@/components/QuickCapture";
@@ -20,7 +21,7 @@ export const metadata = { title: "Today — DeanOS" };
 
 export default async function TodayPage() {
   const now = new Date();
-  const owner = await ensureOwner();
+  const owner = await pageUser();
   const [counts, meetings, syncStatus, brief, commitments, risks, todaysEvents] = await Promise.all([
     getCounts(),
     listMeetings(4),

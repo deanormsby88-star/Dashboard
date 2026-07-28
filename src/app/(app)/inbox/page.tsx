@@ -1,6 +1,7 @@
 import Link from "next/link";
 import clsx from "clsx";
-import { ensureOwner, listEmails } from "@/lib/db/repo";
+import { listEmails } from "@/lib/db/repo";
+import { pageUser } from "@/lib/auth/current-user";
 import EmailInboxCard from "@/components/EmailInboxCard";
 import EmptyState from "@/components/EmptyState";
 
@@ -14,7 +15,7 @@ export default async function InboxPage({
 }) {
   const view = searchParams.view === "all" ? "all" : "open";
   const [owner, emails] = await Promise.all([
-    ensureOwner(),
+    pageUser(),
     listEmails({ unresolvedOnly: view === "open", limit: 100 }),
   ]);
   const businessNameFor = (id: string | null) =>

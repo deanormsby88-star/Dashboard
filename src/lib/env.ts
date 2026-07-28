@@ -51,6 +51,11 @@ const envSchema = z.object({
   // Azure AD app; see docs. Optional until configured.
   MS_CLIENT_ID: z.string().min(1).optional(),
   MS_CLIENT_SECRET: z.string().min(1).optional(),
+
+  // Multi-user sign-up gate: comma-separated work email domains allowed to
+  // sign in with Microsoft (e.g. "heya.team,justimagineconsulting.co.za").
+  // Empty/unset means no one new can sign up (fail closed).
+  ALLOWED_SIGNUP_DOMAINS: z.string().default(""),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -69,6 +74,26 @@ export function getEnv(): Env {
     cached = parsed.data;
   }
   return cached;
+}
+
+/** Domains allowed to sign up, parsed from ALLOWED_SIGNUP_DOMAINS. */
+export function allowedSignupDomains(): string[] {
+  return getEnv()
+    .ALLOWED_SIGNUP_DOMAINS.split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** Pure domain-allow check (testable without env). Fails closed on empty list. */
+export function emailDomainAllowed(email: string, domains: string[]): boolean {
+  const domain = email.trim().toLowerCase().split("@")[1] ?? "";
+  if (!domain || domains.length === 0) return false;
+  return domains.includes(domain);
+}
+
+/** True when an email's domain is on the allow-list. Fails closed (empty list → false). */
+export function isAllowedSignupEmail(email: string): boolean {
+  return emailDomainAllowed(email, allowedSignupDomains());
 }
 
 /**

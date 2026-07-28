@@ -10,6 +10,7 @@ export const SESSION_COOKIE = "deanos_session";
 const DEFAULT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 interface SessionPayload {
+  userId: string;
   email: string;
   exp: number; // epoch ms
 }
@@ -45,11 +46,12 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
 }
 
 export async function createSessionToken(
+  userId: string,
   email: string,
   secret: string,
   ttlMs: number = DEFAULT_TTL_MS
 ): Promise<string> {
-  const payload: SessionPayload = { email, exp: Date.now() + ttlMs };
+  const payload: SessionPayload = { userId, email, exp: Date.now() + ttlMs };
   const body = toBase64Url(encoder.encode(JSON.stringify(payload)));
   const key = await hmacKey(secret);
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(body)));
@@ -76,6 +78,9 @@ export async function verifySessionToken(
   try {
     const payload = JSON.parse(new TextDecoder().decode(payloadBytes)) as SessionPayload;
     if (typeof payload.email !== "string" || typeof payload.exp !== "number") return null;
+    // Multi-user tokens must carry a userId; legacy email-only cookies are
+    // rejected so their holders re-authenticate under the new model.
+    if (typeof payload.userId !== "string" || !payload.userId) return null;
     if (payload.exp < Date.now()) return null;
     return payload;
   } catch {

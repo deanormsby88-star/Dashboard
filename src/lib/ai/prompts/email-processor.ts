@@ -26,7 +26,7 @@ export const PROMPT_VERSION = "1.3.0";
 // ── Input ────────────────────────────────────────────────────────────────────
 
 export const emailProcessorInputSchema = z.object({
-  mailbox: z.enum(["heya", "jic", "personal"]),
+  mailbox: z.string(),
   direction: z.enum(["inbound", "outbound"]),
   sender: z.string(),
   recipients: z.array(z.string()),

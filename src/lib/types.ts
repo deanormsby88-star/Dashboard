@@ -1,9 +1,13 @@
-export type BusinessKey = "heya" | "jic" | "personal";
+// User-defined context key. Free-form so each user can name their own work
+// contexts (e.g. "work", "personal"); legacy owner keeps heya/jic/personal.
+export type BusinessKey = string;
 
 export interface User {
   id: string;
   email: string;
   name: string | null;
+  microsoft_oid?: string | null;
+  setup_completed_at?: Date | null;
 }
 
 export interface Business {
