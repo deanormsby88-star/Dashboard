@@ -357,3 +357,19 @@ create table calendar_connections (
 );
 
 insert into schema_migrations (filename) values ('0001_init.sql'),('0002_emails.sql'),('0003_briefs.sql'),('0004_conversations.sql'),('0005_calendar.sql'),('0006_calendar_connections.sql') on conflict (filename) do nothing;
+
+-- ── Multi-user (0008 + 0009) — keep this fresh-install file in step with the
+-- migrations so a new database lands directly in the multi-tenant schema. ────
+alter table users add column if not exists microsoft_oid     text;
+alter table users add column if not exists last_login_at      timestamptz;
+alter table users add column if not exists setup_completed_at timestamptz;
+alter table users add column if not exists telegram_chat_id   text;
+create unique index if not exists users_microsoft_oid_key
+  on users (microsoft_oid) where microsoft_oid is not null;
+create unique index if not exists users_telegram_chat_id_key
+  on users (telegram_chat_id) where telegram_chat_id is not null;
+alter table businesses drop constraint if exists businesses_key_check;
+alter table calendar_connections drop constraint if exists calendar_connections_calendar_check;
+insert into schema_migrations (filename) values
+  ('0008_multi_user.sql'),('0009_telegram_per_user.sql')
+  on conflict (filename) do nothing;
