@@ -1,8 +1,9 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { listTasks } from "@/lib/db/repo";
+import { listActiveTodoistTasks, type TodoistTask } from "@/lib/todoist/api";
 import { pageUser } from "@/lib/auth/current-user";
-import type { TaskStatus } from "@/lib/types";
+import type { Task, TaskStatus } from "@/lib/types";
 import TaskReviewCard from "@/components/TaskReviewCard";
 import RepushFailedButton from "@/components/RepushFailedButton";
 import MoveToInboxButton from "@/components/MoveToInboxButton";
@@ -27,7 +28,13 @@ export default async function TasksPage({
 }) {
   const filter = (searchParams.status ?? "suggested") as TaskStatus | "all";
   const owner = await pageUser();
-  const tasks = await listTasks(owner.user.id, filter === "all" ? undefined : { status: filter as TaskStatus });
+
+  // "In Todoist" reads LIVE from Todoist (the source of truth) so it reflects
+  // what's actually there — including tasks completed or added directly in
+  // Todoist. Other tabs are DeanOS workflow states before a task reaches it.
+  const live = filter === "created";
+  const liveTasks: TodoistTask[] = live ? await listActiveTodoistTasks().catch(() => []) : [];
+  const tasks: Task[] = live ? [] : await listTasks(owner.user.id, filter === "all" ? undefined : { status: filter as TaskStatus });
   const businessNameFor = (id: string | null) =>
     owner.businesses.find((b) => b.id === id)?.name ?? null;
 
@@ -64,7 +71,34 @@ export default async function TasksPage({
         ))}
       </div>
 
-      {tasks.length === 0 ? (
+      {live ? (
+        liveTasks.length === 0 ? (
+          <EmptyState title="No active tasks in Todoist" description="This reads live from your Todoist — nothing active there right now." />
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Live from Todoist — sorted by due date. This is the source of truth.
+            </p>
+            {[...liveTasks]
+              .sort((a, b) => (a.due?.date ?? "9999").localeCompare(b.due?.date ?? "9999") || b.priority - a.priority)
+              .map((t) => (
+                <div key={t.id} className="card flex items-start justify-between gap-4 p-4">
+                  <div>
+                    <p className="text-sm font-medium">{t.content}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {t.due?.date ? `Due ${t.due.date}` : "No due date"}
+                    </p>
+                  </div>
+                  {t.url && (
+                    <a href={t.url} target="_blank" rel="noopener noreferrer" className="btn-secondary !py-1.5 text-xs">
+                      Open
+                    </a>
+                  )}
+                </div>
+              ))}
+          </div>
+        )
+      ) : tasks.length === 0 ? (
         <EmptyState
           title="Nothing here"
           description={
