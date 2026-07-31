@@ -4,7 +4,7 @@ import { ensureOwner, insertBrief, type BriefRow, type CalendarEventRow } from "
 import { getToday } from "@/lib/calendar/sync";
 import { wazeLinkFor } from "@/lib/maps";
 import { getTodayWeather } from "@/lib/weather";
-import { listActiveTodoistTasks } from "@/lib/todoist/api";
+import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
 
 function fmtTime(d: Date): string {
@@ -70,7 +70,7 @@ export async function generateDailyBrief(userId: string, now: Date = new Date())
     today: [],
   };
   try {
-    const tasks = await listActiveTodoistTasks();
+    const tasks = await listTodoistTasksForUser(userId);
     dueTasks = bucketDueTasks(tasks, localToday(now));
   } catch {
     /* Todoist unavailable — omit the section */

@@ -1,7 +1,7 @@
 import { ensureOwner, listCommitments } from "@/lib/db/repo";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 import { getUpcoming } from "@/lib/calendar/sync";
-import { listActiveTodoistTasks } from "@/lib/todoist/api";
+import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
 import { wazeLinkFor } from "@/lib/maps";
 import { sendToUser } from "@/lib/telegram/notify";
@@ -36,7 +36,7 @@ export async function sendEndOfDay(owner: Owner, now: Date = new Date()): Promis
   // Still open in Todoist (due today or overdue).
   let openLines: string[] = [];
   try {
-    const { overdue, today } = bucketDueTasks(await listActiveTodoistTasks(), todayStr);
+    const { overdue, today } = bucketDueTasks(await listTodoistTasksForUser(owner.user.id), todayStr);
     openLines = [...overdue.map((t) => `- ${t.content} (overdue)`), ...today.map((t) => `- ${t.content}`)];
   } catch {
     /* todoist unavailable */

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { listTasks } from "@/lib/db/repo";
-import { listActiveTodoistTasks, type TodoistTask } from "@/lib/todoist/api";
+import { type TodoistTask } from "@/lib/todoist/api";
+import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { pageUser } from "@/lib/auth/current-user";
 import type { Task, TaskStatus } from "@/lib/types";
 import TaskReviewCard from "@/components/TaskReviewCard";
@@ -33,7 +34,7 @@ export default async function TasksPage({
   // what's actually there — including tasks completed or added directly in
   // Todoist. Other tabs are DeanOS workflow states before a task reaches it.
   const live = filter === "created";
-  const liveTasks: TodoistTask[] = live ? await listActiveTodoistTasks().catch(() => []) : [];
+  const liveTasks: TodoistTask[] = live ? await listTodoistTasksForUser(owner.user.id) : [];
   const tasks: Task[] = live ? [] : await listTasks(owner.user.id, filter === "all" ? undefined : { status: filter as TaskStatus });
   const businessNameFor = (id: string | null) =>
     owner.businesses.find((b) => b.id === id)?.name ?? null;

@@ -5,6 +5,7 @@ import {
   listRisks,
   listTasks,
 } from "@/lib/db/repo";
+import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 
 /**
@@ -23,9 +24,9 @@ export interface StateSnapshot {
 }
 
 export async function buildSnapshot(userId: string, now: Date = new Date()): Promise<StateSnapshot> {
-  const [suggested, created, commitments, risks, meetings, inboxCount] = await Promise.all([
+  const [suggested, todoist, commitments, risks, meetings, inboxCount] = await Promise.all([
     listTasks(userId, { status: "suggested" }),
-    listTasks(userId, { status: "created" }),
+    listTodoistTasksForUser(userId),
     listCommitments(userId),
     listRisks(userId),
     listMeetings(userId, 5),
@@ -42,10 +43,10 @@ export async function buildSnapshot(userId: string, now: Date = new Date()): Pro
       priority: t.priority,
       due_date: t.due_date ? String(t.due_date).slice(0, 10) : null,
     })),
-    open_tasks_in_todoist: created.slice(0, 30).map((t) => ({
-      title: t.title,
+    open_tasks_in_todoist: todoist.slice(0, 30).map((t) => ({
+      title: t.content,
       priority: t.priority,
-      due_date: t.due_date ? String(t.due_date).slice(0, 10) : null,
+      due_date: t.due?.date ?? null,
     })),
     waiting_on: openWaiting.map((c) => {
       const age = businessDaysBetween(new Date(c.date_made ?? c.created_at), now);

@@ -1,10 +1,10 @@
-import { listCalendarEvents, listCommitments, listPeopleWithCounts, listTasks } from "@/lib/db/repo";
+import { listCalendarEvents, listCommitments, listPeopleWithCounts } from "@/lib/db/repo";
 import { allowedSignupDomains, emailDomainAllowed } from "@/lib/env";
 import { getWeather, weatherLine } from "@/lib/display/weather";
-import { listActiveTodoistTasks } from "@/lib/todoist/api";
+import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { businessDaysStale } from "@/lib/accountability/staleness";
 import type { Owner } from "@/lib/db/repo";
-import type { Commitment, Task } from "@/lib/types";
+import type { Commitment } from "@/lib/types";
 
 const TZ = "Africa/Johannesburg";
 
@@ -16,10 +16,6 @@ function timeLabel(d: Date): string {
 }
 function dateLabel(now: Date): string {
   return now.toLocaleDateString("en-ZA", { timeZone: TZ, weekday: "short", day: "numeric", month: "short" });
-}
-function dueYMD(due: Date | string | null): string | null {
-  if (!due) return null;
-  return String(due).slice(0, 10);
 }
 /** "2026-08-05" → "5 Aug" (SAST); "" for no date. */
 function dueShort(date: string | undefined | null): string {
@@ -68,15 +64,12 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   const dayStart = new Date(`${today}T00:00:00+02:00`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 3600_000);
 
-  const [events, created, sent, suggested, commitments, people, weather, todoist] = await Promise.all([
+  const [events, commitments, people, weather, todoist] = await Promise.all([
     listCalendarEvents(owner.user.id, dayStart, dayEnd),
-    listTasks(owner.user.id, { status: "created" }),
-    listTasks(owner.user.id, { status: "sent" }),
-    listTasks(owner.user.id, { status: "suggested" }),
     listCommitments(owner.user.id),
     listPeopleWithCounts(owner.user.id),
     getWeather(opts.lat, opts.lon, opts.place),
-    listActiveTodoistTasks().catch(() => []),
+    listTodoistTasksForUser(owner.user.id),
   ]);
 
   // ── Today's schedule ──
@@ -89,14 +82,11 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
       ? "Nothing more today"
       : "No meetings today";
 
-  // ── Tasks due today (or overdue), across everything scheduled ──
-  const dueMap = new Map<string, Task>();
-  for (const t of [...created, ...sent, ...suggested]) {
-    const d = dueYMD(t.due_date);
-    if (d && d <= today) dueMap.set(t.id, t);
-  }
-  const due = [...dueMap.values()].sort((a, b) => (dueYMD(a.due_date)! < dueYMD(b.due_date)! ? -1 : b.priority - a.priority));
-  const taskLines = due.slice(0, 8).map((t) => `• ${t.title}`);
+  // ── Tasks due today (or overdue) — live from Todoist ──
+  const due = todoist
+    .filter((t) => t.due?.date && t.due.date <= today)
+    .sort((a, b) => (a.due!.date < b.due!.date ? -1 : b.priority - a.priority));
+  const taskLines = due.slice(0, 8).map((t) => `• ${t.content}`);
 
   // ── Open loops (accountability) ──
   const open = commitments.filter((c) => c.status === "open");

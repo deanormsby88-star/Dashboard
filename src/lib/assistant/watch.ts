@@ -7,9 +7,9 @@ import {
   listCommitments,
   listEmails,
   listRisks,
-  listTasks,
   recordSyncRun,
 } from "@/lib/db/repo";
+import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 import { sendToUser } from "@/lib/telegram/notify";
 import type { Owner } from "@/lib/db/repo";
@@ -38,7 +38,7 @@ async function gatherSignals(userId: string, now: Date): Promise<Signal[]> {
   const [commitments, risks, createdTasks, emails] = await Promise.all([
     listCommitments(userId),
     listRisks(userId),
-    listTasks(userId, { status: "created" }),
+    listTodoistTasksForUser(userId),
     listEmails(userId, { unresolvedOnly: true, limit: 40 }),
   ]);
 
@@ -80,13 +80,13 @@ async function gatherSignals(userId: string, now: Date): Promise<Signal[]> {
 
   const today = now.toISOString().slice(0, 10);
   for (const t of createdTasks) {
-    const due = t.due_date ? String(t.due_date).slice(0, 10) : null;
+    const due = t.due?.date ?? null;
     if (due && due < today) {
       signals.push({
         key: `watch:task:${t.id}:${due}`,
         id: nextId(),
         kind: "overdue_task",
-        text: `Overdue task (due ${due}): "${t.title}".`,
+        text: `Overdue task (due ${due}): "${t.content}".`,
       });
     }
   }
