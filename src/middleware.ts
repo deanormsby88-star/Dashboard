@@ -14,6 +14,7 @@ const PUBLIC_PREFIXES = [
   "/api/webhooks/",
   "/api/cron/",
   "/api/assistant/shortcut", // secret-authenticated; the web /api/assistant stays gated
+  "/api/display", // device token-authenticated feed; /api/display/token self-guards with requireUser
 ];
 
 export async function middleware(request: NextRequest) {
