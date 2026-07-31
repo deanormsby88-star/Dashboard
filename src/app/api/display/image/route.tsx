@@ -7,34 +7,38 @@ import { buildDisplayData } from "@/lib/display/data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const INK = "#000000";
+const PAPER = "#ffffff";
+
 function size(v: string | null, fallback: number): number {
   const n = parseInt(v ?? "", 10);
   return Number.isFinite(n) ? Math.min(1280, Math.max(200, n)) : fallback;
 }
 
-function Section({ title, accent, count, lines, empty }: { title: string; accent: string; count: number; lines: string[]; empty: string }) {
+/** A bordered section — high contrast, no colour dependence. */
+function Section({ title, count, lines, empty }: { title: string; count: number; lines: string[]; empty: string }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", backgroundColor: "#111c33", borderRadius: 16, padding: 16, marginBottom: 14, borderLeft: `6px solid ${accent}` }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <div style={{ display: "flex", fontSize: 15, fontWeight: 700, letterSpacing: 1, color: accent }}>{title}</div>
-        <div style={{ display: "flex", fontSize: 15, color: "#7f93b0" }}>{String(count)}</div>
+    <div style={{ display: "flex", flexDirection: "column", border: `3px solid ${INK}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `2px solid ${INK}`, paddingBottom: 6, marginBottom: 8 }}>
+        <div style={{ display: "flex", fontSize: 17, fontWeight: 800, letterSpacing: 2 }}>{title}</div>
+        <div style={{ display: "flex", fontSize: 17, fontWeight: 800 }}>{String(count)}</div>
       </div>
       {lines.length ? (
         lines.map((l, i) => (
-          <div key={i} style={{ display: "flex", fontSize: 19, color: "#e5edf7", marginBottom: 4 }}>{l}</div>
+          <div key={i} style={{ display: "flex", fontSize: 20, fontWeight: 500, marginBottom: 5 }}>{l}</div>
         ))
       ) : (
-        <div style={{ display: "flex", fontSize: 18, color: "#64748b" }}>{empty}</div>
+        <div style={{ display: "flex", fontSize: 18, fontWeight: 500, fontStyle: "italic" }}>{empty}</div>
       )}
     </div>
   );
 }
 
-function Stat({ label, n, color }: { label: string; n: number; color: string }) {
+function Stat({ label, n, last }: { label: string; n: number; last?: boolean }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, backgroundColor: "#111c33", borderRadius: 16, padding: 12, marginRight: 10 }}>
-      <div style={{ display: "flex", fontSize: 40, fontWeight: 800, color }}>{String(n)}</div>
-      <div style={{ display: "flex", fontSize: 13, color: "#9fb2cc", textAlign: "center" }}>{label}</div>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, border: `3px solid ${INK}`, borderRadius: 10, paddingTop: 10, paddingBottom: 10, marginRight: last ? 0 : 10 }}>
+      <div style={{ display: "flex", fontSize: 44, fontWeight: 800, lineHeight: 1 }}>{String(n)}</div>
+      <div style={{ display: "flex", fontSize: 13, fontWeight: 700, letterSpacing: 1, marginTop: 4, textTransform: "uppercase" }}>{label}</div>
     </div>
   );
 }
@@ -57,22 +61,23 @@ export async function GET(request: NextRequest) {
 
   return new ImageResponse(
     (
-      <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: "#0b1220", padding: 26, fontFamily: "sans-serif" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 18 }}>
-          <div style={{ display: "flex", fontSize: 30, fontWeight: 800, color: "#ffffff" }}>DeanOS</div>
+      <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", backgroundColor: PAPER, color: INK, padding: 24, fontFamily: "sans-serif" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>DeanOS</div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-            <div style={{ display: "flex", fontSize: 18, color: "#c3d0e6" }}>{d.date}</div>
-            <div style={{ display: "flex", fontSize: 13, color: "#64748b" }}>Updated {d.updated}</div>
+            <div style={{ display: "flex", fontSize: 19, fontWeight: 700 }}>{d.date}</div>
+            <div style={{ display: "flex", fontSize: 13, fontWeight: 500 }}>Updated {d.updated}</div>
           </div>
         </div>
+        <div style={{ display: "flex", height: 4, backgroundColor: INK, marginTop: 8, marginBottom: 14 }} />
 
-        <Section title="TODAY" accent="#3b82f6" count={d.meetings_today} lines={schedule.slice(0, 4)} empty="Nothing scheduled" />
-        <Section title="DUE TODAY" accent="#22c55e" count={d.tasks_due_today} lines={tasks.slice(0, 3)} empty="Nothing due" />
+        <Section title="TODAY" count={d.meetings_today} lines={schedule.slice(0, 4)} empty="Nothing scheduled" />
+        <Section title="DUE TODAY" count={d.tasks_due_today} lines={tasks.slice(0, 3)} empty="Nothing due" />
 
         <div style={{ display: "flex", marginTop: "auto" }}>
-          <Stat label="You owe" n={d.you_owe} color="#f87171" />
-          <Stat label="Team owes you" n={d.team_owes_you} color="#fbbf24" />
-          <Stat label="Clients owe you" n={d.others_owe_you} color="#38bdf8" />
+          <Stat label="You owe" n={d.you_owe} />
+          <Stat label="Team owes you" n={d.team_owes_you} />
+          <Stat label="Clients owe you" n={d.others_owe_you} last />
         </div>
       </div>
     ),
