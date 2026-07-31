@@ -259,10 +259,16 @@ async function handleCallback(
     return handleAttendeeReminderCallback(cb, attMatch[1] as "go" | "skip", attMatch[2], String(cbChat));
   }
 
-  // Accountability (open-loop) buttons: chase via Teams/email, snooze, done.
-  const loopMatch = /^loop:(teams|email|snooze|done):(.+)$/.exec(cb.data ?? "");
+  // Accountability + relationship buttons: chase via Teams/email, snooze, done, dismiss.
+  const loopMatch = /^loop:(teams|email|snooze|done|dismiss):(.+)$/.exec(cb.data ?? "");
   if (loopMatch) {
-    return handleLoopCallback(owner, cb, loopMatch[1] as "teams" | "email" | "snooze" | "done", loopMatch[2], String(cbChat));
+    return handleLoopCallback(
+      owner,
+      cb,
+      loopMatch[1] as "teams" | "email" | "snooze" | "done" | "dismiss",
+      loopMatch[2],
+      String(cbChat)
+    );
   }
 
   const match = /^task:(approve|reject|today|tmrw|date):(.+)$/.exec(cb.data ?? "");
@@ -325,7 +331,7 @@ async function handleCallback(
 async function handleLoopCallback(
   owner: Owner,
   cb: { id: string; message?: { message_id?: number; text?: string } },
-  action: "teams" | "email" | "snooze" | "done",
+  action: "teams" | "email" | "snooze" | "done" | "dismiss",
   id: string,
   chatId: string
 ): Promise<NextResponse> {
@@ -337,6 +343,11 @@ async function handleLoopCallback(
     await recordSyncRun({ userId: owner.user.id, sourceSystem: `loopsnooze:${id}`, stats: {} }).catch(() => {});
     toast = "Snoozed 2 days";
     newText = `😴 Snoozed · ${original.split("\n")[0]}`;
+  } else if (action === "dismiss") {
+    // Relationship nudge parked — id is the person id.
+    await recordSyncRun({ userId: owner.user.id, sourceSystem: `relsnooze:${id}`, stats: {} }).catch(() => {});
+    toast = "Okay — parked";
+    newText = `💤 Parked · ${original.split("\n")[0]}`;
   } else if (action === "done") {
     const done = await markCommitmentDone(owner.user.id, id).catch(() => null);
     toast = done ? "Marked done" : "Couldn't find it";

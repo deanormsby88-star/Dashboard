@@ -51,6 +51,32 @@ Outstanding for: ${businessDaysStale} business day(s)`,
   return res.ok ? res.rawText?.trim() ?? null : null;
 }
 
+const CHECKIN_SYSTEM = `You draft a very short, warm check-in from Dean Ormsby to someone he hasn't spoken to in a while — just reconnecting, no agenda.
+
+${DEAN_VOICE}
+
+Rules:
+- 1–2 sentences, friendly and genuine, never salesy or needy.
+- You may lightly reference what you know about them, but never anything private or sensitive.
+- No subject line, no signature. Return ONLY the message text.`;
+
+/** Draft a warm reconnect note for a contact who's gone quiet. */
+export async function draftCheckIn(
+  personName: string,
+  weeksQuiet: number,
+  about: string | null
+): Promise<string | null> {
+  const res = await callText({
+    model: getEnv().OPENAI_MODEL_PRIORITIZER,
+    system: CHECKIN_SYSTEM,
+    user: `Recipient: ${personName}
+It has been about ${weeksQuiet} week(s) since you were last in touch.
+What you know about them (context only, keep it light): ${about?.slice(0, 300) || "(nothing on file)"}`,
+    maxOutputTokens: 200,
+  });
+  return res.ok ? res.rawText?.trim() ?? null : null;
+}
+
 /** Stage a drafted chase and return its short id (embedded in button data). */
 export async function stagePendingChase(owner: Owner, p: Omit<PendingChase, "id">): Promise<string> {
   const id = randomUUID().slice(0, 8);
