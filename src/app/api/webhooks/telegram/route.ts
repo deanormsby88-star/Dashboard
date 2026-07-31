@@ -4,6 +4,8 @@ import {
   ensureOwner,
   getUserById,
   getUserByTelegramChatId,
+  markCommitmentDone,
+  recordSyncRun,
   recordWebhookEvent,
   setUserTelegramChat,
   updateWebhookEvent,
@@ -22,11 +24,12 @@ import {
   resolveDeadlineDate,
   setAwaitingDeadline,
 } from "@/lib/tasks/deadline";
-import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
+import { getPendingEmail, markPendingDone, stagePendingEmail } from "@/lib/email/pending";
 import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calendar/microsoft";
 import { signedEmailBody } from "@/lib/email/signature";
 import { getPendingTeams, markPendingTeamsDone } from "@/lib/teams/pending";
-import { messageTeammate } from "@/lib/teams/send";
+import { messageTeammate, messageTeammateForUser } from "@/lib/teams/send";
+import { getPendingChase, markChaseDone } from "@/lib/accountability/chase";
 import { getPendingOffer, markOfferDone, sendAttendeeReminders } from "@/lib/teams/attendee-reminders";
 
 export const runtime = "nodejs";
@@ -256,6 +259,12 @@ async function handleCallback(
     return handleAttendeeReminderCallback(cb, attMatch[1] as "go" | "skip", attMatch[2], String(cbChat));
   }
 
+  // Accountability (open-loop) buttons: chase via Teams/email, snooze, done.
+  const loopMatch = /^loop:(teams|email|snooze|done):(.+)$/.exec(cb.data ?? "");
+  if (loopMatch) {
+    return handleLoopCallback(owner, cb, loopMatch[1] as "teams" | "email" | "snooze" | "done", loopMatch[2], String(cbChat));
+  }
+
   const match = /^task:(approve|reject|today|tmrw|date):(.+)$/.exec(cb.data ?? "");
   if (!match) {
     await answerCallbackQuery(cb.id, "Unknown action").catch(() => {});
@@ -308,6 +317,61 @@ async function handleCallback(
   await answerCallbackQuery(cb.id, toast).catch(() => {});
   if (cb.message?.message_id !== undefined) {
     await editMessageText(String(cbChat), cb.message.message_id, newText).catch(() => {});
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/** Chase / snooze / close an open loop from its Telegram nudge. */
+async function handleLoopCallback(
+  owner: Owner,
+  cb: { id: string; message?: { message_id?: number; text?: string } },
+  action: "teams" | "email" | "snooze" | "done",
+  id: string,
+  chatId: string
+): Promise<NextResponse> {
+  const original = cb.message?.text ?? "Open loop";
+  let toast: string;
+  let newText: string;
+
+  if (action === "snooze") {
+    await recordSyncRun({ userId: owner.user.id, sourceSystem: `loopsnooze:${id}`, stats: {} }).catch(() => {});
+    toast = "Snoozed 2 days";
+    newText = `😴 Snoozed · ${original.split("\n")[0]}`;
+  } else if (action === "done") {
+    const done = await markCommitmentDone(owner.user.id, id).catch(() => null);
+    toast = done ? "Marked done" : "Couldn't find it";
+    newText = done ? `✅ Done · ${original.split("\n")[0]}` : original;
+  } else {
+    // teams | email — send the already-drafted chase (shown in the nudge).
+    const chase = await getPendingChase(id);
+    if (!chase) {
+      await answerCallbackQuery(cb.id, "This draft has expired or was already handled").catch(() => {});
+      return NextResponse.json({ ok: true });
+    }
+    if (action === "teams") {
+      const res = await messageTeammateForUser(owner.user.id, chase.personEmail, chase.draft);
+      await markChaseDone(owner, id);
+      toast = res.ok ? "Sent via Teams" : res.error ?? "Teams send failed";
+      newText = res.ok
+        ? `📤 Chased ${chase.personName} on Teams · ${original.split("\n")[0]}`
+        : `${original}\n\n⚠️ ${res.error ?? "Teams send failed"}`;
+    } else {
+      await stagePendingEmail({
+        kind: "new",
+        mailbox: chase.businessKey,
+        to: [chase.personEmail],
+        subject: chase.subject,
+        body: chase.draft,
+      });
+      await markChaseDone(owner, id);
+      toast = "Draft email ready — approve to send";
+      newText = `✉️ Email draft ready for ${chase.personName} · ${original.split("\n")[0]}`;
+    }
+  }
+
+  await answerCallbackQuery(cb.id, toast).catch(() => {});
+  if (cb.message?.message_id !== undefined) {
+    await editMessageText(chatId, cb.message.message_id, newText).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

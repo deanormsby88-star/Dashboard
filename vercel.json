@@ -47,6 +47,14 @@
     {
       "path": "/api/cron/attendee-reminders",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/open-loops",
+      "schedule": "0 5,11 * * 1-5"
+    },
+    {
+      "path": "/api/cron/loops-digest",
+      "schedule": "0 5 * * 1"
     }
   ]
 }
