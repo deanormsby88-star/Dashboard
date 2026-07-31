@@ -37,6 +37,8 @@ export interface DisplayData {
   team_owes_you: number;
   others_owe_you: number;
   open_loops: number;
+  /** One ready-made, laid-out block — bind a single text widget to this. */
+  display: string;
 }
 
 export async function buildDisplayData(owner: Owner, now: Date = new Date()): Promise<DisplayData> {
@@ -91,6 +93,20 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date()): Pr
   const teamOwes = waiting.filter(isTeam).length;
   const othersOwe = waiting.length - teamOwes;
 
+  // One pre-formatted block so a single text widget shows the whole panel.
+  const display = [
+    `DeanOS · ${dateLabel(now)} · ${timeLabel(now)}`,
+    ``,
+    `📅 TODAY (${sorted.length})`,
+    ...(scheduleLines.length ? scheduleLines.slice(0, 5) : ["Nothing scheduled"]),
+    ``,
+    `✅ DUE TODAY (${due.length})`,
+    ...(taskLines.length ? taskLines.slice(0, 5) : ["Nothing due"]),
+    ``,
+    `⏳ OPEN LOOPS (${open.length})`,
+    `You owe ${youOwe} · Team owes you ${teamOwes} · Clients ${othersOwe}`,
+  ].join("\n");
+
   return {
     updated: timeLabel(now),
     date: dateLabel(now),
@@ -104,5 +120,6 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date()): Pr
     team_owes_you: teamOwes,
     others_owe_you: othersOwe,
     open_loops: open.length,
+    display,
   };
 }
