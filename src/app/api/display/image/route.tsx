@@ -28,7 +28,7 @@ function Section({ title, count, lines, empty, grow }: { title: string; count: n
           <div key={i} style={{ display: "flex", fontSize: 21, fontWeight: 500, marginBottom: 5 }}>{l}</div>
         ))
       ) : (
-        <div style={{ display: "flex", fontSize: 18, fontWeight: 500, fontStyle: "italic" }}>{empty}</div>
+        <div style={{ display: "flex", fontSize: 18, fontWeight: 500 }}>{empty}</div>
       )}
     </div>
   );
@@ -77,12 +77,12 @@ export async function GET(request: NextRequest) {
         {/* Two-column body for the landscape screen */}
         <div style={{ display: "flex", flex: 1 }}>
           {/* Left: schedule + tasks */}
-          <div style={{ display: "flex", flexDirection: "column", flex: 1.7, marginRight: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", flex: 3, marginRight: 16 }}>
             <Section title="TODAY" count={d.meetings_today} lines={schedule.slice(0, 5)} empty="Nothing scheduled" grow />
             <Section title="DUE TODAY" count={d.tasks_due_today} lines={tasks.slice(0, 4)} empty="Nothing due" />
           </div>
           {/* Right: stat tiles */}
-          <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          <div style={{ display: "flex", flexDirection: "column", flex: 2 }}>
             <Stat label="You owe" n={d.you_owe} />
             <Stat label="Team owes you" n={d.team_owes_you} />
             <Stat label="Clients owe you" n={d.others_owe_you} last />
