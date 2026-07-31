@@ -1,6 +1,7 @@
-import { getLatestBrief, listCalendarEvents, listCommitments, listPeopleWithCounts, listTasks } from "@/lib/db/repo";
+import { listCalendarEvents, listCommitments, listPeopleWithCounts, listTasks } from "@/lib/db/repo";
 import { allowedSignupDomains, emailDomainAllowed } from "@/lib/env";
 import { getWeather, weatherLine } from "@/lib/display/weather";
+import { listActiveTodoistTasks } from "@/lib/todoist/api";
 import { businessDaysStale } from "@/lib/accountability/staleness";
 import type { Owner } from "@/lib/db/repo";
 import type { Commitment, Task } from "@/lib/types";
@@ -19,6 +20,13 @@ function dateLabel(now: Date): string {
 function dueYMD(due: Date | string | null): string | null {
   if (!due) return null;
   return String(due).slice(0, 10);
+}
+/** "2026-08-05" → "5 Aug" (SAST); "" for no date. */
+function dueShort(date: string | undefined | null): string {
+  if (!date) return "";
+  const d = new Date(`${date.slice(0, 10)}T12:00:00+02:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short" });
 }
 
 /**
@@ -42,7 +50,8 @@ export interface DisplayData {
   weather: string; // "Partly cloudy · 14° · H 24° L 11°" (empty if unavailable)
   weather_place: string;
   weather_now: string; // "14°" (empty if unavailable)
-  priorities: string; // multiline "1. …" from today's brief
+  all_tasks: string; // multiline "content · 5 Aug" — every active Todoist task
+  all_tasks_total: number;
   chase: string; // multiline "Person — item (Nd)" — stalest owed-to-you
   /** One ready-made, laid-out block — bind a single text widget to this. */
   display: string;
@@ -59,7 +68,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   const dayStart = new Date(`${today}T00:00:00+02:00`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 3600_000);
 
-  const [events, created, sent, suggested, commitments, people, weather, brief] = await Promise.all([
+  const [events, created, sent, suggested, commitments, people, weather, todoist] = await Promise.all([
     listCalendarEvents(owner.user.id, dayStart, dayEnd),
     listTasks(owner.user.id, { status: "created" }),
     listTasks(owner.user.id, { status: "sent" }),
@@ -67,7 +76,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     listCommitments(owner.user.id),
     listPeopleWithCounts(owner.user.id),
     getWeather(opts.lat, opts.lon, opts.place),
-    getLatestBrief(owner.user.id),
+    listActiveTodoistTasks().catch(() => []),
   ]);
 
   // ── Today's schedule ──
@@ -110,12 +119,15 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
 
   const weatherStr = weatherLine(weather);
 
-  // ── Today's priorities (from the morning brief; fall back to top tasks) ──
-  const briefFresh = brief && brief.generated_for === today && brief.top3.length > 0;
-  const priorityTitles = briefFresh
-    ? brief!.top3.slice(0, 3).map((t) => t.title)
-    : [...created, ...sent].sort((a, b) => b.priority - a.priority).slice(0, 3).map((t) => t.title);
-  const priorityLines = priorityTitles.map((t, i) => `${i + 1}. ${t}`);
+  // ── All Todoist tasks with due dates (dated first, soonest → latest) ──
+  const FAR = "9999-12-31";
+  const todoistSorted = todoist
+    .slice()
+    .sort((a, b) => (a.due?.date ?? FAR).localeCompare(b.due?.date ?? FAR) || b.priority - a.priority);
+  const todoistLines = todoistSorted.map((t) => {
+    const due = dueShort(t.due?.date);
+    return due ? `${t.content} · ${due}` : t.content;
+  });
 
   // ── Needs chasing: stalest things owed to Dean, by name ──
   const chaseLines = waiting
@@ -132,8 +144,8 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     `📅 TODAY (${sorted.length})`,
     ...(scheduleLines.length ? scheduleLines.slice(0, 4) : ["Nothing scheduled"]),
     ``,
-    `🎯 FOCUS TODAY`,
-    ...(priorityLines.length ? priorityLines : ["—"]),
+    `✅ TASKS (${todoistLines.length})`,
+    ...(todoistLines.length ? todoistLines.slice(0, 10) : ["No tasks"]),
     ``,
     `📨 CHASE`,
     ...(chaseLines.length ? chaseLines : ["Nobody owes you anything"]),
@@ -155,7 +167,8 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     weather: weatherStr,
     weather_place: weather?.place ?? "",
     weather_now: weather ? `${weather.now}°` : "",
-    priorities: priorityLines.join("\n"),
+    all_tasks: todoistLines.join("\n"),
+    all_tasks_total: todoistLines.length,
     chase: chaseLines.join("\n"),
     display,
   };

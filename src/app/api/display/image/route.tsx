@@ -36,19 +36,19 @@ function Section({ title, count, lines, empty, grow }: { title: string; count: n
 function InfoCard({ title, lines, empty, dark, last }: { title: string; lines: string[]; empty: string; dark?: boolean; last?: boolean }) {
   const fg = dark ? PAPER : INK;
   return (
-    <div style={{ display: "flex", flex: 1, flexDirection: "column", ...(dark ? { backgroundColor: INK, color: PAPER } : { border: `3px solid ${INK}` }), borderRadius: 10, padding: 14, marginBottom: last ? 0 : 12 }}>
-      <div style={{ display: "flex", fontSize: 16, fontWeight: 800, letterSpacing: 2, borderBottom: `2px solid ${fg}`, paddingBottom: 6, marginBottom: 8 }}>{title}</div>
+    <div style={{ display: "flex", flexDirection: "column", ...(dark ? { backgroundColor: INK, color: PAPER } : { border: `3px solid ${INK}` }), borderRadius: 10, paddingLeft: 14, paddingRight: 14, paddingTop: 12, paddingBottom: 12, marginBottom: last ? 0 : 12 }}>
+      <div style={{ display: "flex", fontSize: 15, fontWeight: 800, letterSpacing: 2, borderBottom: `2px solid ${fg}`, paddingBottom: 6, marginBottom: 8 }}>{title}</div>
       {lines.length ? (
-        lines.map((l, i) => <div key={i} style={{ display: "flex", fontSize: 18, fontWeight: 500, marginBottom: 5 }}>{l}</div>)
+        lines.map((l, i) => <div key={i} style={{ display: "flex", fontSize: 16, fontWeight: 500, lineHeight: 1.3, marginBottom: 6 }}>{l}</div>)
       ) : (
-        <div style={{ display: "flex", fontSize: 16, fontWeight: 500 }}>{empty}</div>
+        <div style={{ display: "flex", fontSize: 15, fontWeight: 500 }}>{empty}</div>
       )}
     </div>
   );
 }
 
-/** Trim a line so it fits the narrow right column. */
-function clip(s: string, n = 34): string {
+/** Trim a line so it fits the narrow right column on one row (no wrap). */
+function clip(s: string, n = 26): string {
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
@@ -73,10 +73,18 @@ export async function GET(request: NextRequest) {
       : {};
 
   const d = await buildDisplayData(owner, new Date(), opts);
-  const schedule = d.schedule === "No meetings today" ? [] : d.schedule.split("\n");
-  const tasks = d.tasks === "Nothing due today" ? [] : d.tasks.split("\n").map((t) => t.replace(/^•\s*/, ""));
-  const priorities = d.priorities ? d.priorities.split("\n").map((l) => clip(l)) : [];
-  const chase = d.chase ? d.chase.split("\n").map((l) => clip(l)) : [];
+  const schedule = d.schedule === "No meetings today" ? [] : d.schedule.split("\n").map((l) => clip(l, 30));
+  const chase = d.chase ? d.chase.split("\n").map((l) => clip(l, 30)) : [];
+
+  // All Todoist tasks with due dates — cap to what fits the panel height, and
+  // note how many more there are so the list never runs off the bottom edge.
+  const MAX_ROWS = 10;
+  const allTasks = (d.all_tasks ? d.all_tasks.split("\n") : []).map((l) => clip(l, 44));
+  let taskLines = allTasks;
+  if (allTasks.length > MAX_ROWS) {
+    taskLines = allTasks.slice(0, MAX_ROWS - 1);
+    taskLines.push(`+ ${allTasks.length - (MAX_ROWS - 1)} more`);
+  }
 
   return new ImageResponse(
     (
@@ -100,15 +108,14 @@ export async function GET(request: NextRequest) {
           <div style={{ display: "flex", height: 4, backgroundColor: INK, marginTop: 8, marginBottom: 14 }} />
         )}
 
-        {/* Two-column body */}
+        {/* Two-column body: schedule + chase on the left, task list on the right */}
         <div style={{ display: "flex", flex: 1 }}>
-          <div style={{ display: "flex", flexDirection: "column", flex: 3, marginRight: 16 }}>
-            <Section title="TODAY" count={d.meetings_today} lines={schedule.slice(0, 5)} empty="Nothing scheduled" grow />
-            <Section title="DUE TODAY" count={d.tasks_due_today} lines={tasks.slice(0, 4)} empty="Nothing due" />
+          <div style={{ display: "flex", flexDirection: "column", flex: 2, marginRight: 16 }}>
+            <Section title="TODAY" count={d.meetings_today} lines={schedule.slice(0, 4)} empty="Nothing scheduled" />
+            <InfoCard title="CHASE" lines={chase} empty="Nobody owes you" dark last />
           </div>
-          <div style={{ display: "flex", flexDirection: "column", flex: 2 }}>
-            <InfoCard title="FOCUS TODAY" lines={priorities} empty="No priorities set" dark />
-            <InfoCard title="CHASE" lines={chase} empty="Nobody owes you" last />
+          <div style={{ display: "flex", flexDirection: "column", flex: 3 }}>
+            <InfoCard title={`TASKS (${d.all_tasks_total})`} lines={taskLines} empty="No tasks in Todoist" last />
           </div>
         </div>
       </div>
