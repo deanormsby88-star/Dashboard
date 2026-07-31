@@ -1,6 +1,7 @@
-import { listCalendarEvents, listCommitments, listPeopleWithCounts, listTasks } from "@/lib/db/repo";
+import { getLatestBrief, listCalendarEvents, listCommitments, listPeopleWithCounts, listTasks } from "@/lib/db/repo";
 import { allowedSignupDomains, emailDomainAllowed } from "@/lib/env";
 import { getWeather, weatherLine } from "@/lib/display/weather";
+import { businessDaysStale } from "@/lib/accountability/staleness";
 import type { Owner } from "@/lib/db/repo";
 import type { Commitment, Task } from "@/lib/types";
 
@@ -41,6 +42,8 @@ export interface DisplayData {
   weather: string; // "Partly cloudy · 14° · H 24° L 11°" (empty if unavailable)
   weather_place: string;
   weather_now: string; // "14°" (empty if unavailable)
+  priorities: string; // multiline "1. …" from today's brief
+  chase: string; // multiline "Person — item (Nd)" — stalest owed-to-you
   /** One ready-made, laid-out block — bind a single text widget to this. */
   display: string;
 }
@@ -56,7 +59,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   const dayStart = new Date(`${today}T00:00:00+02:00`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 3600_000);
 
-  const [events, created, sent, suggested, commitments, people, weather] = await Promise.all([
+  const [events, created, sent, suggested, commitments, people, weather, brief] = await Promise.all([
     listCalendarEvents(owner.user.id, dayStart, dayEnd),
     listTasks(owner.user.id, { status: "created" }),
     listTasks(owner.user.id, { status: "sent" }),
@@ -64,6 +67,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     listCommitments(owner.user.id),
     listPeopleWithCounts(owner.user.id),
     getWeather(opts.lat, opts.lon, opts.place),
+    getLatestBrief(owner.user.id),
   ]);
 
   // ── Today's schedule ──
@@ -106,19 +110,33 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
 
   const weatherStr = weatherLine(weather);
 
+  // ── Today's priorities (from the morning brief; fall back to top tasks) ──
+  const briefFresh = brief && brief.generated_for === today && brief.top3.length > 0;
+  const priorityTitles = briefFresh
+    ? brief!.top3.slice(0, 3).map((t) => t.title)
+    : [...created, ...sent].sort((a, b) => b.priority - a.priority).slice(0, 3).map((t) => t.title);
+  const priorityLines = priorityTitles.map((t, i) => `${i + 1}. ${t}`);
+
+  // ── Needs chasing: stalest things owed to Dean, by name ──
+  const chaseLines = waiting
+    .map((c) => ({ c, age: businessDaysStale(c, now) }))
+    .sort((a, b) => b.age - a.age)
+    .slice(0, 3)
+    .map(({ c, age }) => `${c.person_name ?? "Someone"} — ${c.text} (${age}d)`);
+
   // One pre-formatted block so a single text widget shows the whole panel.
   const display = [
     `DeanOS · ${dateLabel(now)} · ${timeLabel(now)}`,
     ...(weatherStr ? [`${weather!.place}: ${weatherStr}`] : []),
     ``,
     `📅 TODAY (${sorted.length})`,
-    ...(scheduleLines.length ? scheduleLines.slice(0, 5) : ["Nothing scheduled"]),
+    ...(scheduleLines.length ? scheduleLines.slice(0, 4) : ["Nothing scheduled"]),
     ``,
-    `✅ DUE TODAY (${due.length})`,
-    ...(taskLines.length ? taskLines.slice(0, 5) : ["Nothing due"]),
+    `🎯 FOCUS TODAY`,
+    ...(priorityLines.length ? priorityLines : ["—"]),
     ``,
-    `⏳ OPEN LOOPS (${open.length})`,
-    `You owe ${youOwe} · Team owes you ${teamOwes} · Clients ${othersOwe}`,
+    `📨 CHASE`,
+    ...(chaseLines.length ? chaseLines : ["Nobody owes you anything"]),
   ].join("\n");
 
   return {
@@ -137,6 +155,8 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     weather: weatherStr,
     weather_place: weather?.place ?? "",
     weather_now: weather ? `${weather.now}°` : "",
+    priorities: priorityLines.join("\n"),
+    chase: chaseLines.join("\n"),
     display,
   };
 }

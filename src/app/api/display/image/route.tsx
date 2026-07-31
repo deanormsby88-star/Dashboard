@@ -32,14 +32,24 @@ function Section({ title, count, lines, empty, grow }: { title: string; count: n
   );
 }
 
-/** A dark (inverted) stat tile: big white number, white label. */
-function Stat({ label, n, last }: { label: string; n: number; last?: boolean }) {
+/** A titled list card; `dark` inverts it (white-on-black) for contrast. */
+function InfoCard({ title, lines, empty, dark, last }: { title: string; lines: string[]; empty: string; dark?: boolean; last?: boolean }) {
+  const fg = dark ? PAPER : INK;
   return (
-    <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between", backgroundColor: INK, color: PAPER, borderRadius: 10, paddingLeft: 18, paddingRight: 18, marginBottom: last ? 0 : 12 }}>
-      <div style={{ display: "flex", fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{String(n)}</div>
-      <div style={{ display: "flex", fontSize: 15, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", textAlign: "right", maxWidth: 130 }}>{label}</div>
+    <div style={{ display: "flex", flex: 1, flexDirection: "column", ...(dark ? { backgroundColor: INK, color: PAPER } : { border: `3px solid ${INK}` }), borderRadius: 10, padding: 14, marginBottom: last ? 0 : 12 }}>
+      <div style={{ display: "flex", fontSize: 16, fontWeight: 800, letterSpacing: 2, borderBottom: `2px solid ${fg}`, paddingBottom: 6, marginBottom: 8 }}>{title}</div>
+      {lines.length ? (
+        lines.map((l, i) => <div key={i} style={{ display: "flex", fontSize: 18, fontWeight: 500, marginBottom: 5 }}>{l}</div>)
+      ) : (
+        <div style={{ display: "flex", fontSize: 16, fontWeight: 500 }}>{empty}</div>
+      )}
     </div>
   );
+}
+
+/** Trim a line so it fits the narrow right column. */
+function clip(s: string, n = 34): string {
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
 export async function GET(request: NextRequest) {
@@ -65,6 +75,8 @@ export async function GET(request: NextRequest) {
   const d = await buildDisplayData(owner, new Date(), opts);
   const schedule = d.schedule === "No meetings today" ? [] : d.schedule.split("\n");
   const tasks = d.tasks === "Nothing due today" ? [] : d.tasks.split("\n").map((t) => t.replace(/^•\s*/, ""));
+  const priorities = d.priorities ? d.priorities.split("\n").map((l) => clip(l)) : [];
+  const chase = d.chase ? d.chase.split("\n").map((l) => clip(l)) : [];
 
   return new ImageResponse(
     (
@@ -95,9 +107,8 @@ export async function GET(request: NextRequest) {
             <Section title="DUE TODAY" count={d.tasks_due_today} lines={tasks.slice(0, 4)} empty="Nothing due" />
           </div>
           <div style={{ display: "flex", flexDirection: "column", flex: 2 }}>
-            <Stat label="You owe" n={d.you_owe} />
-            <Stat label="Team owes you" n={d.team_owes_you} />
-            <Stat label="Clients owe you" n={d.others_owe_you} last />
+            <InfoCard title="FOCUS TODAY" lines={priorities} empty="No priorities set" dark />
+            <InfoCard title="CHASE" lines={chase} empty="Nobody owes you" last />
           </div>
         </div>
       </div>
