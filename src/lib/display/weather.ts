@@ -43,7 +43,7 @@ export async function getWeather(
     `&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min` +
     `&timezone=Africa%2FJohannesburg&forecast_days=1`;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(4000) });
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000), cache: "no-store" });
     if (!res.ok) return null;
     const d = (await res.json()) as {
       current?: { temperature_2m?: number; weather_code?: number };

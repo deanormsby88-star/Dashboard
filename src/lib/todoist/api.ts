@@ -48,6 +48,9 @@ function toIsoDate(value: Date | string): string {
 async function todoistFetch(path: string, init: RequestInit): Promise<Response> {
   return fetch(`${BASE}${path}`, {
     ...init,
+    // Never let Next.js cache Todoist reads/writes — the app must always see
+    // the current Todoist state (otherwise e.g. the display shows stale tasks).
+    cache: "no-store",
     headers: {
       authorization: `Bearer ${getEnv().TODOIST_API_TOKEN}`,
       "content-type": "application/json",
