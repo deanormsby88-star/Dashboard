@@ -323,12 +323,13 @@ export interface SentMessage {
   subject: string;
   to: string[];
   sentIso: string;
+  preview: string;
 }
 
-/** Dean's recent sent mail (for awaiting-reply detection). */
+/** Dean's recent sent mail (for awaiting-reply and deadline detection). */
 export async function listSentMessages(token: string, sinceIso: string, top = 40): Promise<SentMessage[]> {
   const q = new URLSearchParams({
-    $select: "id,conversationId,subject,toRecipients,sentDateTime",
+    $select: "id,conversationId,subject,toRecipients,sentDateTime,bodyPreview",
     $orderby: "sentDateTime desc",
     $top: String(top),
     $filter: `sentDateTime ge ${sinceIso}`,
@@ -344,6 +345,7 @@ export async function listSentMessages(token: string, sinceIso: string, top = 40
       subject: (m.subject as string) || "(no subject)",
       to: to.map((r) => r.emailAddress?.name || r.emailAddress?.address || "").filter(Boolean),
       sentIso: (m.sentDateTime as string) ?? "",
+      preview: (m.bodyPreview as string) ?? "",
     };
   });
 }

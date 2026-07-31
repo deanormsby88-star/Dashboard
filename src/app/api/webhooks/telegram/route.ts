@@ -30,6 +30,8 @@ import { signedEmailBody } from "@/lib/email/signature";
 import { getPendingTeams, markPendingTeamsDone } from "@/lib/teams/pending";
 import { messageTeammate, messageTeammateForUser } from "@/lib/teams/send";
 import { getPendingChase, markChaseDone } from "@/lib/accountability/chase";
+import { getPendingDeadline, markDeadlineDone } from "@/lib/deadlines/scan";
+import { createReminder } from "@/lib/assistant/adhoc-reminders";
 import { getPendingOffer, markOfferDone, sendAttendeeReminders } from "@/lib/teams/attendee-reminders";
 
 export const runtime = "nodejs";
@@ -259,6 +261,12 @@ async function handleCallback(
     return handleAttendeeReminderCallback(cb, attMatch[1] as "go" | "skip", attMatch[2], String(cbChat));
   }
 
+  // Deadline reminder-ladder buttons.
+  const dlMatch = /^dl:(all|day|no):(.+)$/.exec(cb.data ?? "");
+  if (dlMatch) {
+    return handleDeadlineCallback(owner, cb, dlMatch[1] as "all" | "day" | "no", dlMatch[2], String(cbChat));
+  }
+
   // Accountability + relationship buttons: chase via Teams/email, snooze, done, dismiss.
   const loopMatch = /^loop:(teams|email|snooze|done|dismiss):(.+)$/.exec(cb.data ?? "");
   if (loopMatch) {
@@ -323,6 +331,53 @@ async function handleCallback(
   await answerCallbackQuery(cb.id, toast).catch(() => {});
   if (cb.message?.message_id !== undefined) {
     await editMessageText(String(cbChat), cb.message.message_id, newText).catch(() => {});
+  }
+  return NextResponse.json({ ok: true });
+}
+
+/** Set (or decline) the reminder ladder for a detected deadline. */
+async function handleDeadlineCallback(
+  owner: Owner,
+  cb: { id: string; message?: { message_id?: number; text?: string } },
+  action: "all" | "day" | "no",
+  id: string,
+  chatId: string
+): Promise<NextResponse> {
+  const pending = await getPendingDeadline(id);
+  if (!pending) {
+    await answerCallbackQuery(cb.id, "This suggestion has expired or was already handled").catch(() => {});
+    return NextResponse.json({ ok: true });
+  }
+
+  const original = cb.message?.text ?? "Deadline";
+  const firstLine = `“${pending.what}” — due ${pending.dueLabel}`;
+  let toast: string;
+  let newText: string;
+
+  if (action === "no") {
+    await markDeadlineDone(owner, id);
+    toast = "Ignored";
+    newText = `✖️ Ignored · ${firstLine}`;
+  } else {
+    const tierText: Record<string, string> = {
+      day_before: `Due tomorrow — ${pending.what} (${pending.dueLabel})`,
+      on_the_day: `Due today — ${pending.what} (${pending.dueLabel})`,
+      hour_before: `Due in 1 hour — ${pending.what} (${pending.dueLabel})`,
+    };
+    const wanted = action === "day" ? pending.rungs.filter((r) => r.tier === "on_the_day") : pending.rungs;
+    let set = 0;
+    for (const r of wanted) {
+      const res = await createReminder(owner, tierText[r.tier] ?? pending.what, r.atIso);
+      if (res.ok) set++;
+    }
+    await markDeadlineDone(owner, id);
+    toast = set ? `Set ${set} reminder${set === 1 ? "" : "s"}` : "Nothing left to set";
+    newText = `🔔 ${set} reminder${set === 1 ? "" : "s"} set · ${firstLine}`;
+  }
+
+  await answerCallbackQuery(cb.id, toast).catch(() => {});
+  if (cb.message?.message_id !== undefined) {
+    await editMessageText(chatId, cb.message.message_id, newText).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

@@ -59,6 +59,10 @@
     {
       "path": "/api/cron/stale-contacts",
       "schedule": "0 6 * * 2"
+    },
+    {
+      "path": "/api/cron/deadline-scan",
+      "schedule": "20 4-16 * * 1-5"
     }
   ]
 }
