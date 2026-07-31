@@ -18,7 +18,7 @@ function size(v: string | null, fallback: number): number {
 /** A bordered section — high contrast, no colour dependence. */
 function Section({ title, count, lines, empty, grow }: { title: string; count: number; lines: string[]; empty: string; grow?: boolean }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: grow ? 1 : undefined, border: `3px solid ${INK}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
+    <div style={{ ...(grow ? { flex: 1 } : {}), display: "flex", flexDirection: "column", border: `3px solid ${INK}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: `2px solid ${INK}`, paddingBottom: 6, marginBottom: 8 }}>
         <div style={{ display: "flex", fontSize: 18, fontWeight: 800, letterSpacing: 2 }}>{title}</div>
         <div style={{ display: "flex", fontSize: 18, fontWeight: 800 }}>{String(count)}</div>
