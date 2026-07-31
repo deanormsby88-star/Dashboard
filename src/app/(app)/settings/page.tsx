@@ -7,6 +7,7 @@ import RetryWebhookButton from "@/components/RetryWebhookButton";
 import ImportJicSignatureButton from "@/components/ImportJicSignatureButton";
 import TelegramSetup from "@/components/TelegramSetup";
 import ConnectTelegramButton from "@/components/ConnectTelegramButton";
+import DisplayApiCard from "@/components/DisplayApiCard";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -191,6 +192,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           </div>
           <TelegramSetup />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          External display
+        </h2>
+        <DisplayApiCard />
       </section>
 
       <section className="space-y-3">
