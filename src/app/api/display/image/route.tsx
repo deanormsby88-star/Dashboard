@@ -120,6 +120,6 @@ export async function GET(request: NextRequest) {
         </div>
       </div>
     ),
-    { width: w, height: h, headers: { "cache-control": "public, max-age=300" } }
+    { width: w, height: h, headers: { "cache-control": "no-store, max-age=0" } }
   );
 }

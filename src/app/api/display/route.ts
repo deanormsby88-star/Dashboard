@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
       : {};
 
   const data = await buildDisplayData(owner, new Date(), opts);
-  // Cache briefly at the edge so a polling panel can't hammer the DB.
+  // No caching — a display should always get the current state on each poll.
   return NextResponse.json(data, {
-    headers: { "cache-control": "public, max-age=60" },
+    headers: { "cache-control": "no-store, max-age=0" },
   });
 }
