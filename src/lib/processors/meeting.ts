@@ -241,7 +241,7 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
         description: `Waiting on ${w.person} — from meeting "${meeting.title}".`,
         priority: 2,
         dueDate: null,
-        labels: [],
+        labels: w.person ? [w.person] : [],
         origin: "waiting_on",
         confidence: w.confidence,
         ...src,

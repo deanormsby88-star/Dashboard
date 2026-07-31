@@ -73,6 +73,13 @@ describe("buildTodoistCreateBody", () => {
     expect(noBusiness).not.toHaveProperty("labels");
   });
 
+  it("tags an owed-to-you task with the person and the business", () => {
+    // waiting_on tasks carry the person as their first label.
+    const body = buildTodoistCreateBody(makeTask({ labels: ["Thabo Mokoena"] }), heya, "2026-08-14");
+    expect(body.labels).toEqual(["Thabo Mokoena", "Heya"]);
+    expect(body.deadline_date).toBe("2026-08-14");
+  });
+
   it("sets the Todoist Deadline field only when a deadline is supplied", () => {
     expect(buildTodoistCreateBody(makeTask(), heya)).not.toHaveProperty("deadline_date");
     const withDeadline = buildTodoistCreateBody(makeTask(), heya, "2026-08-15");

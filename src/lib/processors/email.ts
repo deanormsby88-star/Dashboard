@@ -229,7 +229,7 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
         description: buildTaskNote(`Waiting on ${w.person}.`, email),
         priority: 2,
         dueDate: null,
-        labels: [],
+        labels: w.person ? [w.person] : [],
         origin: "waiting_on",
         confidence: output.confidence,
         ...src,

@@ -95,7 +95,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "track_waiting_on",
-    description: "Record that Dean is waiting on someone for something. DeanOS chases it once it goes quiet — a teammate after ~2 business days, an external contact after ~4 — with a ready-to-send nudge.",
+    description: "Record that Dean is waiting on someone for something. Creates an 'owed to you' follow-up task Dean approves (with a deadline) like any other task, tagged with the person, AND chases it once it goes quiet — a teammate after ~2 business days, an external contact after ~4.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -104,6 +104,7 @@ const TOOLS: AgentTool[] = [
         text: { type: "string", description: "e.g. 'send the signed contract'." },
         person: { type: "string", description: "Who owes it." },
         business: { type: "string", enum: [...BUSINESS_ENUM] },
+        due_date: { type: "string", description: "Optional deadline they gave, as YYYY-MM-DD." },
       },
     },
   },
@@ -586,6 +587,29 @@ async function executeTool(
       const person = str(args.person);
       const text = str(args.text);
       const p = person ? await getOrCreatePersonByName(owner.user.id, person) : null;
+      const dueDate = typeof args.due_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(args.due_date) ? args.due_date : null;
+
+      // Same as a meeting/email waiting-on: a suggested "Follow up:" task that
+      // comes through the approve/deadline/reject card, tagged with the person.
+      const followUpTitle = `Follow up: ${text}`;
+      const { task } = await insertTask({
+        userId: owner.user.id,
+        businessId: business?.id ?? null,
+        meetingId: null,
+        title: followUpTitle,
+        description: person ? `Waiting on ${person}.` : "Waiting on someone.",
+        priority: 2,
+        dueDate,
+        labels: person ? [person] : [],
+        origin: "waiting_on",
+        confidence: null,
+        sourceSystem: "assistant",
+        sourceRecordId: null,
+        sourceUrl: null,
+        dedupKey: createHash("sha256").update(`agent-wait-task:${owner.user.id}:${normalizeTitle(followUpTitle)}:${person}`).digest("hex"),
+        aiRunId: null,
+      });
+
       await insertCommitment({
         userId: owner.user.id,
         businessId: business?.id ?? null,
@@ -595,15 +619,15 @@ async function executeTool(
         personName: person || null,
         personId: p?.id ?? null,
         dateMade: new Date(),
-        dueDate: null,
+        dueDate,
         confidence: null,
-        linkedTaskId: null,
+        linkedTaskId: task?.id ?? null,
         sourceSystem: "assistant",
         sourceRecordId: null,
         sourceUrl: null,
         dedupKey: createHash("sha256").update(`agent-wait:${owner.user.id}:${normalizeTitle(text)}:${person}`).digest("hex"),
       });
-      return JSON.stringify({ ok: true, waiting_on: `${person}: ${text}` });
+      return JSON.stringify({ ok: true, waiting_on: `${person}: ${text}`, task: task ? "queued for approval" : "already tracked" });
     }
     case "log_risk": {
       const business = biz(args.business);

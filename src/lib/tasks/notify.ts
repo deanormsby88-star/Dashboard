@@ -20,7 +20,11 @@ export async function notifyPendingTasks(owner: Owner): Promise<{ sent: number; 
     const meta = [business, PRIORITY_LABEL[t.priority] ?? "normal", t.due_date ? `due ${String(t.due_date).slice(0, 10)}` : null]
       .filter(Boolean)
       .join(" · ");
-    const lines = [`🆕 Task to approve`, `“${t.title}”`, meta];
+    // Owed-to-you items (waiting_on) carry the person as their first label.
+    const isWaiting = t.origin === "waiting_on";
+    const person = isWaiting ? t.labels[0] : undefined;
+    const header = isWaiting ? `🔁 Owed to you${person ? ` — ${person}` : ""}` : `🆕 Task to approve`;
+    const lines = [header, `“${t.title}”`, meta];
     if (t.description && t.description !== "Captured via chat.") lines.push(t.description);
     lines.push("", "Approve with a deadline:");
     // Approving picks the Todoist deadline in one tap. "Pick a date" asks Dean
