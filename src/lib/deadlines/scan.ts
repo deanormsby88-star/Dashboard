@@ -9,6 +9,7 @@ import {
   recordSyncRun,
 } from "@/lib/db/repo";
 import {
+  getMessageBody,
   getValidAccessToken,
   listInboxMessages,
   listRecentTeamsMessages,
@@ -27,6 +28,10 @@ interface MsgItem {
   source: string; // human label
   text: string;
   when: string; // ISO
+  kind: "inbox" | "sent" | "teams";
+  calendar?: "heya" | "jic"; // mailbox for full-body fetch (mail only)
+  rawId?: string; // Graph message id, for full-body fetch
+  subject?: string; // mail subject, prepended to the fetched body
 }
 
 interface ExtractedDeadline {
@@ -86,14 +91,14 @@ async function gatherMessages(owner: Owner, sinceIso: string): Promise<MsgItem[]
 
     try {
       for (const m of await listInboxMessages(token, sinceIso, { top: 25 })) {
-        items.push({ id: `inbox:${m.id}`, source: `Email (${box}) from ${m.from}`, when: m.receivedIso, text: `${m.subject}\n${m.preview}` });
+        items.push({ id: `inbox:${m.id}`, source: `Email (${box}) from ${m.from}`, when: m.receivedIso, text: `${m.subject}\n${m.preview}`, kind: "inbox", calendar: c.calendar, rawId: m.id, subject: m.subject });
       }
     } catch {
       /* mailbox unavailable — skip */
     }
     try {
       for (const m of await listSentMessages(token, sinceIso, 25)) {
-        items.push({ id: `sent:${m.id}`, source: `Your sent mail (${box}) to ${m.to.join(", ") || "?"}`, when: m.sentIso, text: `${m.subject}\n${m.preview}` });
+        items.push({ id: `sent:${m.id}`, source: `Your sent mail (${box}) to ${m.to.join(", ") || "?"}`, when: m.sentIso, text: `${m.subject}\n${m.preview}`, kind: "sent", calendar: c.calendar, rawId: m.id, subject: m.subject });
       }
     } catch {
       /* skip */
@@ -101,7 +106,7 @@ async function gatherMessages(owner: Owner, sinceIso: string): Promise<MsgItem[]
     if (c.calendar === "heya") {
       try {
         for (const m of await listRecentTeamsMessages(token, sinceIso, 15)) {
-          items.push({ id: `teams:${m.id}`, source: `Teams — from ${m.from}${m.chatTopic ? ` in “${m.chatTopic}”` : ""}`, when: m.createdIso, text: m.text });
+          items.push({ id: `teams:${m.id}`, source: `Teams — from ${m.from}${m.chatTopic ? ` in “${m.chatTopic}”` : ""}`, when: m.createdIso, text: m.text, kind: "teams" });
         }
       } catch {
         /* Teams not consented — skip */
@@ -111,13 +116,40 @@ async function gatherMessages(owner: Owner, sinceIso: string): Promise<MsgItem[]
   return items;
 }
 
+/**
+ * Replace mail items' preview text with their full body. Only called for the
+ * fresh batch, and grouped by mailbox so each token is resolved once — so this
+ * is bounded to the handful of new messages since the last scan.
+ */
+async function enrichMailBodies(owner: Owner, items: MsgItem[]): Promise<void> {
+  const mail = items.filter((it) => it.calendar && it.rawId);
+  const byBox = new Map<"heya" | "jic", MsgItem[]>();
+  for (const it of mail) {
+    const list = byBox.get(it.calendar!) ?? [];
+    list.push(it);
+    byBox.set(it.calendar!, list);
+  }
+  for (const [calendar, list] of byBox) {
+    const token = await getValidAccessToken(owner.user.id, calendar);
+    if (!token) continue;
+    for (const it of list) {
+      try {
+        const full = await getMessageBody(token, it.rawId!);
+        if (full?.body) it.text = `${it.subject ?? full.subject}\n${full.body}`;
+      } catch {
+        /* keep the preview if the full fetch fails */
+      }
+    }
+  }
+}
+
 /** Ask the model to pull concrete deadlines from a batch of messages. */
 async function extractDeadlines(batch: MsgItem[], now: Date): Promise<ExtractedDeadline[]> {
   const nowSast = now.toLocaleString("en-ZA", { timeZone: "Africa/Johannesburg", weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
   const user = `CURRENT DATE/TIME (South African time): ${nowSast}
 
 Messages:
-${batch.map((m) => `[${m.id}] ${m.source}\n${m.text}`).join("\n\n---\n\n")}`;
+${batch.map((m) => `[${m.id}] ${m.source}\n${m.text.slice(0, 4000)}`).join("\n\n---\n\n")}`;
 
   const res = await callStructured({
     model: getEnv().OPENAI_MODEL_EMAIL_PROCESSOR,
@@ -174,6 +206,9 @@ export async function scanDeadlines(owner: Owner, now: Date = new Date()): Promi
   }
   if (!fresh.length) return { suggested: 0, scanned: 0 };
   const batch = fresh.slice(0, MAX_MESSAGES);
+
+  // Read the full email bodies (not just previews) for airtight coverage.
+  await enrichMailBodies(owner, batch);
 
   const deadlines = await extractDeadlines(batch, now);
   for (const it of batch) {
