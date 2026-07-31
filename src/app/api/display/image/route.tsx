@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { type NextRequest } from "next/server";
 import { getUserById } from "@/lib/db/repo";
 import { verifyDisplayToken } from "@/lib/display/token";
-import { buildDisplayData } from "@/lib/display/data";
+import { buildDisplayData, type DisplayOptions } from "@/lib/display/data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ function size(v: string | null, fallback: number): number {
   return Number.isFinite(n) ? Math.min(1280, Math.max(200, n)) : fallback;
 }
 
-/** A bordered section — high contrast, no colour dependence. */
+/** A light bordered section (schedule / tasks). */
 function Section({ title, count, lines, empty, grow }: { title: string; count: number; lines: string[]; empty: string; grow?: boolean }) {
   return (
     <div style={{ ...(grow ? { flex: 1 } : {}), display: "flex", flexDirection: "column", border: `3px solid ${INK}`, borderRadius: 10, padding: 14, marginBottom: 12 }}>
@@ -24,9 +24,7 @@ function Section({ title, count, lines, empty, grow }: { title: string; count: n
         <div style={{ display: "flex", fontSize: 18, fontWeight: 800 }}>{String(count)}</div>
       </div>
       {lines.length ? (
-        lines.map((l, i) => (
-          <div key={i} style={{ display: "flex", fontSize: 21, fontWeight: 500, marginBottom: 5 }}>{l}</div>
-        ))
+        lines.map((l, i) => <div key={i} style={{ display: "flex", fontSize: 21, fontWeight: 500, marginBottom: 5 }}>{l}</div>)
       ) : (
         <div style={{ display: "flex", fontSize: 18, fontWeight: 500 }}>{empty}</div>
       )}
@@ -34,10 +32,10 @@ function Section({ title, count, lines, empty, grow }: { title: string; count: n
   );
 }
 
-/** A tall stat tile: big number left, label right. */
+/** A dark (inverted) stat tile: big white number, white label. */
 function Stat({ label, n, last }: { label: string; n: number; last?: boolean }) {
   return (
-    <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between", border: `3px solid ${INK}`, borderRadius: 10, paddingLeft: 18, paddingRight: 18, marginBottom: last ? 0 : 12 }}>
+    <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between", backgroundColor: INK, color: PAPER, borderRadius: 10, paddingLeft: 18, paddingRight: 18, marginBottom: last ? 0 : 12 }}>
       <div style={{ display: "flex", fontSize: 52, fontWeight: 800, lineHeight: 1 }}>{String(n)}</div>
       <div style={{ display: "flex", fontSize: 15, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", textAlign: "right", maxWidth: 130 }}>{label}</div>
     </div>
@@ -54,10 +52,17 @@ export async function GET(request: NextRequest) {
   const owner = await getUserById(userId).catch(() => null);
   if (!owner) return new Response("unauthorized", { status: 401 });
 
-  // Default to a 800×480 landscape panel; override with ?w=&h=.
   const w = size(url.searchParams.get("w"), 800);
   const h = size(url.searchParams.get("h"), 480);
-  const d = await buildDisplayData(owner);
+
+  const lat = parseFloat(url.searchParams.get("lat") ?? "");
+  const lon = parseFloat(url.searchParams.get("lon") ?? "");
+  const opts: DisplayOptions =
+    Number.isFinite(lat) && Number.isFinite(lon)
+      ? { lat, lon, place: url.searchParams.get("place") ?? undefined }
+      : {};
+
+  const d = await buildDisplayData(owner, new Date(), opts);
   const schedule = d.schedule === "No meetings today" ? [] : d.schedule.split("\n");
   const tasks = d.tasks === "Nothing due today" ? [] : d.tasks.split("\n").map((t) => t.replace(/^•\s*/, ""));
 
@@ -72,16 +77,23 @@ export async function GET(request: NextRequest) {
             <div style={{ display: "flex", fontSize: 13, fontWeight: 500 }}>Updated {d.updated}</div>
           </div>
         </div>
-        <div style={{ display: "flex", height: 4, backgroundColor: INK, marginTop: 8, marginBottom: 14 }} />
 
-        {/* Two-column body for the landscape screen */}
+        {/* Weather bar (dark) — or a plain rule if weather is unavailable */}
+        {d.weather ? (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: INK, color: PAPER, borderRadius: 10, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, marginTop: 10, marginBottom: 12 }}>
+            <div style={{ display: "flex", fontSize: 19, fontWeight: 700 }}>{d.weather_place}</div>
+            <div style={{ display: "flex", fontSize: 19, fontWeight: 500 }}>{d.weather}</div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", height: 4, backgroundColor: INK, marginTop: 8, marginBottom: 14 }} />
+        )}
+
+        {/* Two-column body */}
         <div style={{ display: "flex", flex: 1 }}>
-          {/* Left: schedule + tasks */}
           <div style={{ display: "flex", flexDirection: "column", flex: 3, marginRight: 16 }}>
             <Section title="TODAY" count={d.meetings_today} lines={schedule.slice(0, 5)} empty="Nothing scheduled" grow />
             <Section title="DUE TODAY" count={d.tasks_due_today} lines={tasks.slice(0, 4)} empty="Nothing due" />
           </div>
-          {/* Right: stat tiles */}
           <div style={{ display: "flex", flexDirection: "column", flex: 2 }}>
             <Stat label="You owe" n={d.you_owe} />
             <Stat label="Team owes you" n={d.team_owes_you} />
@@ -90,6 +102,6 @@ export async function GET(request: NextRequest) {
         </div>
       </div>
     ),
-    { width: w, height: h, headers: { "cache-control": "public, max-age=60" } }
+    { width: w, height: h, headers: { "cache-control": "public, max-age=300" } }
   );
 }

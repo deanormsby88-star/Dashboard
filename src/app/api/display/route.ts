@@ -25,7 +25,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const data = await buildDisplayData(owner);
+  const lat = parseFloat(request.nextUrl.searchParams.get("lat") ?? "");
+  const lon = parseFloat(request.nextUrl.searchParams.get("lon") ?? "");
+  const opts =
+    Number.isFinite(lat) && Number.isFinite(lon)
+      ? { lat, lon, place: request.nextUrl.searchParams.get("place") ?? undefined }
+      : {};
+
+  const data = await buildDisplayData(owner, new Date(), opts);
   // Cache briefly at the edge so a polling panel can't hammer the DB.
   return NextResponse.json(data, {
     headers: { "cache-control": "public, max-age=60" },
