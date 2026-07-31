@@ -9,11 +9,17 @@ import type { Commitment } from "@/lib/types";
 export interface LoopThresholds {
   /** Business days before nudging on something YOU owe (by_dean). */
   owedByYouDays: number;
-  /** Business days before nudging on something owed TO you (to_dean). */
+  /** Business days before nudging on something owed TO you by an EXTERNAL contact. */
   owedToYouDays: number;
+  /** Business days before nudging on something a TEAMMATE owes you (chased faster). */
+  owedToYouByTeamDays: number;
 }
 
-export const ASSERTIVE_THRESHOLDS: LoopThresholds = { owedByYouDays: 2, owedToYouDays: 4 };
+export const ASSERTIVE_THRESHOLDS: LoopThresholds = {
+  owedByYouDays: 2,
+  owedToYouDays: 4,
+  owedToYouByTeamDays: 2,
+};
 
 /** Midnight (UTC day) for a date, so due-date comparisons are day-granular. */
 function startOfUTCDay(d: Date): number {
@@ -39,7 +45,8 @@ export function isDueOrOverdue(dueDate: Date | null, now: Date): boolean {
 export function loopNeedsNudge(
   c: Pick<Commitment, "status" | "direction" | "date_made" | "created_at" | "due_date">,
   now: Date,
-  thresholds: LoopThresholds = ASSERTIVE_THRESHOLDS
+  thresholds: LoopThresholds = ASSERTIVE_THRESHOLDS,
+  isTeammate = false
 ): boolean {
   if (c.status !== "open") return false;
   const stale = businessDaysStale(c, now);
@@ -48,6 +55,7 @@ export function loopNeedsNudge(
     if (isDueOrOverdue(c.due_date, now)) return true;
     return stale >= thresholds.owedByYouDays;
   }
-  // Something owed to you.
-  return stale >= thresholds.owedToYouDays;
+  // Something owed to you — chase your own team sooner than an external contact.
+  const threshold = isTeammate ? thresholds.owedToYouByTeamDays : thresholds.owedToYouDays;
+  return stale >= threshold;
 }

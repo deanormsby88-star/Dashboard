@@ -84,11 +84,19 @@ describe("loopNeedsNudge (Assertive)", () => {
     expect(loopNeedsNudge(commit({ direction: "by_dean", date_made: made }), now)).toBe(false);
   });
 
-  it("waits longer (4 business days) for things owed to you", () => {
+  it("waits longer (4 business days) for things an EXTERNAL contact owes you", () => {
     const made3 = new Date("2026-07-21T09:00:00Z"); // Tue → Fri = 3 days: not yet
     expect(loopNeedsNudge(commit({ direction: "to_dean", date_made: made3 }), now)).toBe(false);
     const made4 = new Date("2026-07-20T09:00:00Z"); // Mon → Fri = 4 days: nudge
     expect(loopNeedsNudge(commit({ direction: "to_dean", date_made: made4 }), now)).toBe(true);
+  });
+
+  it("chases your own team sooner (2 business days)", () => {
+    const made2 = new Date("2026-07-22T09:00:00Z"); // Wed → Fri = 2 days
+    // External contact at 2 days: not yet.
+    expect(loopNeedsNudge(commit({ direction: "to_dean", date_made: made2 }), now, undefined, false)).toBe(false);
+    // Teammate at 2 days: nudge.
+    expect(loopNeedsNudge(commit({ direction: "to_dean", date_made: made2 }), now, undefined, true)).toBe(true);
   });
 
   it("nudges an overdue you-owe even if only just made", () => {
@@ -99,10 +107,16 @@ describe("loopNeedsNudge (Assertive)", () => {
 
   it("uses the configured thresholds", () => {
     const made = new Date("2026-07-23T09:00:00Z"); // 1 business day
-    expect(loopNeedsNudge(commit({ direction: "by_dean", date_made: made }), now, { owedByYouDays: 1, owedToYouDays: 2 })).toBe(true);
+    expect(
+      loopNeedsNudge(commit({ direction: "by_dean", date_made: made }), now, {
+        owedByYouDays: 1,
+        owedToYouDays: 2,
+        owedToYouByTeamDays: 1,
+      })
+    ).toBe(true);
   });
 
-  it("ASSERTIVE_THRESHOLDS are 2 / 4", () => {
-    expect(ASSERTIVE_THRESHOLDS).toEqual({ owedByYouDays: 2, owedToYouDays: 4 });
+  it("ASSERTIVE_THRESHOLDS: owe 2, external 4, team 2", () => {
+    expect(ASSERTIVE_THRESHOLDS).toEqual({ owedByYouDays: 2, owedToYouDays: 4, owedToYouByTeamDays: 2 });
   });
 });

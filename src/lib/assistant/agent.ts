@@ -95,7 +95,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "track_waiting_on",
-    description: "Record that Dean is waiting on someone for something. DeanOS flags it after 3 quiet business days.",
+    description: "Record that Dean is waiting on someone for something. DeanOS chases it once it goes quiet — a teammate after ~2 business days, an external contact after ~4 — with a ready-to-send nudge.",
     parameters: {
       type: "object",
       additionalProperties: false,

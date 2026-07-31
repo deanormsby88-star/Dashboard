@@ -4,14 +4,24 @@ import {
   getLastSyncRun,
   getPerson,
   listCommitments,
+  listPeopleWithCounts,
   recordSyncRun,
 } from "@/lib/db/repo";
 import { sendToUser, sendToUserWithButtons } from "@/lib/telegram/notify";
+import { allowedSignupDomains, emailDomainAllowed } from "@/lib/env";
 import { businessDaysStale, loopNeedsNudge } from "@/lib/accountability/staleness";
 import { draftChase, stagePendingChase } from "@/lib/accountability/chase";
 import type { Owner } from "@/lib/db/repo";
 import type { Business, Commitment } from "@/lib/types";
 import type { InlineButton } from "@/lib/telegram/api";
+
+/** Org domains that mark a contact as one of Dean's own team (vs external). */
+function orgDomains(owner: Owner): string[] {
+  const own = owner.user.email.split("@")[1]?.toLowerCase();
+  const set = new Set(allowedSignupDomains());
+  if (own) set.add(own);
+  return [...set];
+}
 
 const COOLDOWN_HOURS = 48; // don't re-nudge the same loop within 2 days
 const SNOOZE_HOURS = 120; // "Snooze 2d" button parks a loop for ~5 days
@@ -42,17 +52,12 @@ function businessLabel(businesses: Business[], businessId: string | null): strin
  */
 export async function scanOpenLoops(owner: Owner, now: Date = new Date()): Promise<{ sent: number; scanned: number }> {
   const commitments = (await listCommitments(owner.user.id)).filter((c) => c.status === "open");
+  const domains = orgDomains(owner);
 
   let sent = 0;
   let scanned = 0;
   for (const c of commitments) {
-    if (!loopNeedsNudge(c, now)) continue;
-    scanned++;
-
-    if (within(await getLastSyncRun(`loopnudge:${c.id}`), now, COOLDOWN_HOURS)) continue;
-    if (within(await getLastSyncRun(`loopsnooze:${c.id}`), now, SNOOZE_HOURS)) continue;
-
-    // Resolve the person + a contact address, so a chase can be drafted/sent.
+    // Resolve the person + a contact address first — it decides teammate cadence.
     let email: string | null = null;
     let personName = c.person_name ?? "them";
     let person = c.person_id ? await getPerson(owner.user.id, c.person_id) : null;
@@ -61,6 +66,13 @@ export async function scanOpenLoops(owner: Owner, now: Date = new Date()): Promi
       email = person.email;
       personName = c.person_name ?? person.full_name ?? "them";
     }
+    const isTeammate = email ? emailDomainAllowed(email, domains) : false;
+
+    if (!loopNeedsNudge(c, now, undefined, isTeammate)) continue;
+    scanned++;
+
+    if (within(await getLastSyncRun(`loopnudge:${c.id}`), now, COOLDOWN_HOURS)) continue;
+    if (within(await getLastSyncRun(`loopsnooze:${c.id}`), now, SNOOZE_HOURS)) continue;
 
     const staleDays = businessDaysStale(c, now);
     const owe = c.direction === "by_dean";
@@ -71,9 +83,10 @@ export async function scanOpenLoops(owner: Owner, now: Date = new Date()): Promi
       ? personName !== "them"
         ? `To ${personName}`
         : ""
-      : `From ${personName}`;
+      : `From ${personName}${isTeammate ? " (your team)" : ""}`;
 
-    const lines = [owe ? `🔴 You owe: ${c.text}` : `🟠 Waiting on: ${c.text}`];
+    const waitingHead = isTeammate ? "🟠 Your team owes you" : "🟠 Waiting on";
+    const lines = [owe ? `🔴 You owe: ${c.text}` : `${waitingHead}: ${c.text}`];
     lines.push([whoBit, whenBit].filter(Boolean).join(" · ") + bizBit);
 
     const buttons: InlineButton[][] = [];
@@ -141,9 +154,27 @@ export async function openLoopsDigest(owner: Owner, now: Date = new Date()): Pro
   const owed = open.filter((c) => c.direction === "by_dean");
   const waiting = open.filter((c) => c.direction === "to_dean");
 
+  // Classify waiting-on items as "your team" vs external using each person's email.
+  const domains = orgDomains(owner);
+  const people = await listPeopleWithCounts(owner.user.id);
+  const emailById = new Map(people.map((p) => [p.id, p.email]));
+  const emailByName = new Map(
+    people.filter((p) => p.email).map((p) => [p.full_name.toLowerCase(), p.email])
+  );
+  const isTeam = (c: Commitment): boolean => {
+    const e =
+      (c.person_id && emailById.get(c.person_id)) ||
+      (c.person_name && emailByName.get(c.person_name.toLowerCase())) ||
+      null;
+    return e ? emailDomainAllowed(e, domains) : false;
+  };
+  const waitingTeam = waiting.filter(isTeam);
+  const waitingExternal = waiting.filter((c) => !isTeam(c));
+
   const sections = [
     digestSection("🔴 You owe", owed, now, owner.businesses),
-    digestSection("🟠 Waiting on others", waiting, now, owner.businesses),
+    digestSection("🟠 Your team owes you", waitingTeam, now, owner.businesses),
+    digestSection("🟠 Waiting on others", waitingExternal, now, owner.businesses),
   ].filter(Boolean);
 
   const msg = sections.length
