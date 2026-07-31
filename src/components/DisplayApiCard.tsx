@@ -7,7 +7,7 @@ import { useState } from "react";
  * (e.g. SenseCraft). Fetched on demand so the token isn't rendered until asked.
  */
 export default function DisplayApiCard() {
-  const [data, setData] = useState<{ url: string; url_no_token: string; header: { Authorization: string } } | null>(null);
+  const [data, setData] = useState<{ url: string; url_no_token: string; header: { Authorization: string }; image_url: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
@@ -50,7 +50,16 @@ export default function DisplayApiCard() {
         </button>
       ) : (
         <div className="mt-3 space-y-3">
-          <Field label="Simplest — API URL (token in the link)" value={data.url} onCopy={() => copy(data.url, "url")} copied={copied === "url"} />
+          <Field
+            label="🖼 Best-looking — rendered dashboard image (point an image widget here)"
+            value={data.image_url}
+            onCopy={() => copy(data.image_url, "img")}
+            copied={copied === "img"}
+          />
+          <a href={data.image_url} target="_blank" rel="noopener noreferrer" className="block text-xs text-sky-600 underline dark:text-sky-400">
+            Preview the image →
+          </a>
+          <Field label="Data feed — API URL (token in the link)" value={data.url} onCopy={() => copy(data.url, "url")} copied={copied === "url"} />
           <div className="rounded-xl bg-slate-50 p-3 dark:bg-white/5">
             <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Or, if the panel supports headers:</p>
             <Field label="API URL" value={data.url_no_token} onCopy={() => copy(data.url_no_token, "u2")} copied={copied === "u2"} />

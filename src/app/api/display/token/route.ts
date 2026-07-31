@@ -23,6 +23,9 @@ export async function GET() {
     // … or use the plain URL with an Authorization header instead:
     url_no_token: `${base}/api/display`,
     header: { Authorization: `Bearer ${token}` },
+    // A fully-rendered dashboard IMAGE — point an image widget at this (add
+    // &w=&h= to match your screen, e.g. &w=480&h=480):
+    image_url: `${base}/api/display/image?token=${token}`,
     token,
   });
 }
