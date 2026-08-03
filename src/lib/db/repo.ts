@@ -1450,6 +1450,55 @@ export async function listCalendarConnections(userId: string): Promise<CalendarC
   return res.rows;
 }
 
+// ── Apple Reminders (iCloud CalDAV) connection ───────────────────────────────
+
+export interface ReminderConnection {
+  user_id: string;
+  provider: string;
+  username: string;
+  app_password_enc: string;
+  list_url: string | null;
+  list_name: string | null;
+}
+
+/** Store (or replace) a user's Apple Reminders credentials. */
+export async function upsertReminderConnection(params: {
+  userId: string;
+  username: string;
+  appPasswordEnc: string;
+}): Promise<void> {
+  await getPool().query(
+    `insert into reminder_connections (user_id, provider, username, app_password_enc)
+     values ($1, 'apple', $2, $3)
+     on conflict (user_id) do update set
+       username = excluded.username,
+       app_password_enc = excluded.app_password_enc,
+       updated_at = now()`,
+    [params.userId, params.username, params.appPasswordEnc]
+  );
+}
+
+/** Save which single Reminders list DeanOS reads/writes for this user. */
+export async function setReminderList(userId: string, listUrl: string, listName: string): Promise<void> {
+  await getPool().query(
+    `update reminder_connections set list_url = $2, list_name = $3, updated_at = now() where user_id = $1`,
+    [userId, listUrl, listName]
+  );
+}
+
+export async function getReminderConnection(userId: string): Promise<ReminderConnection | null> {
+  const res = await getPool().query<ReminderConnection>(
+    `select user_id, provider, username, app_password_enc, list_url, list_name
+     from reminder_connections where user_id = $1`,
+    [userId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function deleteReminderConnection(userId: string): Promise<void> {
+  await getPool().query(`delete from reminder_connections where user_id = $1`, [userId]);
+}
+
 export async function updateCalendarTokens(params: {
   userId: string;
   calendar: BusinessKey;
