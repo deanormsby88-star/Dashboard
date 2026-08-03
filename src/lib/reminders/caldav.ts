@@ -103,7 +103,19 @@ export async function listReminderTodos(
   includeCompleted = false
 ): Promise<ReminderTodo[]> {
   const dav = await connect(username, password);
-  const objects = await dav.fetchCalendarObjects({ calendar: { url: listUrl } as never });
+  const objects = await dav.fetchCalendarObjects({
+    calendar: { url: listUrl } as never,
+    // tsdav defaults to a VEVENT filter — Reminders are VTODO, so ask for those
+    // explicitly, otherwise a Reminders list returns nothing.
+    filters: [
+      {
+        "comp-filter": {
+          _attributes: { name: "VCALENDAR" },
+          "comp-filter": { _attributes: { name: "VTODO" } },
+        },
+      },
+    ] as never,
+  });
   const todos = objects.flatMap((o) => parseVTodos(String(o.data ?? ""), o.url));
   return includeCompleted ? todos : todos.filter((t) => !t.completed);
 }
