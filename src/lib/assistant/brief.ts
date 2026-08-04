@@ -108,6 +108,8 @@ export async function generateDailyBrief(userId: string, now: Date = new Date())
   if (garmin) {
     const bits: string[] = [];
     if (garmin.sleepHours != null) bits.push(`slept ${garmin.sleepHours}h`);
+    if (garmin.bodyBattery != null) bits.push(`body battery ${garmin.bodyBattery}`);
+    if (garmin.stress != null) bits.push(`stress ${garmin.stress}`);
     if (garmin.restingHr != null) bits.push(`resting HR ${garmin.restingHr}`);
     if (garmin.steps != null) bits.push(`${garmin.steps.toLocaleString("en-ZA")} steps`);
     const last = garmin.activities[0];

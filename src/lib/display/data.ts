@@ -116,6 +116,8 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   const healthParts: string[] = [];
   if (garmin) {
     if (garmin.sleepHours != null) healthParts.push(`Sleep ${garmin.sleepHours}h`);
+    if (garmin.bodyBattery != null) healthParts.push(`Body ${garmin.bodyBattery}`);
+    if (garmin.stress != null) healthParts.push(`Stress ${garmin.stress}`);
     if (garmin.restingHr != null) healthParts.push(`RHR ${garmin.restingHr}`);
     if (garmin.steps != null) healthParts.push(`Steps ${garmin.steps.toLocaleString("en-ZA")}`);
   }
