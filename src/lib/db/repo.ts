@@ -1499,6 +1499,42 @@ export async function deleteReminderConnection(userId: string): Promise<void> {
   await getPool().query(`delete from reminder_connections where user_id = $1`, [userId]);
 }
 
+// ── Garmin Connect (unofficial) connection ───────────────────────────────────
+
+export interface GarminConnection {
+  user_id: string;
+  username: string;
+  password_enc: string;
+}
+
+export async function upsertGarminConnection(params: {
+  userId: string;
+  username: string;
+  passwordEnc: string;
+}): Promise<void> {
+  await getPool().query(
+    `insert into garmin_connections (user_id, username, password_enc)
+     values ($1, $2, $3)
+     on conflict (user_id) do update set
+       username = excluded.username,
+       password_enc = excluded.password_enc,
+       updated_at = now()`,
+    [params.userId, params.username, params.passwordEnc]
+  );
+}
+
+export async function getGarminConnection(userId: string): Promise<GarminConnection | null> {
+  const res = await getPool().query<GarminConnection>(
+    `select user_id, username, password_enc from garmin_connections where user_id = $1`,
+    [userId]
+  );
+  return res.rows[0] ?? null;
+}
+
+export async function deleteGarminConnection(userId: string): Promise<void> {
+  await getPool().query(`delete from garmin_connections where user_id = $1`, [userId]);
+}
+
 export async function updateCalendarTokens(params: {
   userId: string;
   calendar: BusinessKey;

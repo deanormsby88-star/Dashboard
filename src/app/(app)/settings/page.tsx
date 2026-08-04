@@ -1,5 +1,5 @@
 import { envStatus } from "@/lib/env";
-import { listCalendarConnections, listWebhookEvents } from "@/lib/db/repo";
+import { getGarminConnection, listCalendarConnections, listWebhookEvents } from "@/lib/db/repo";
 import { pageUser } from "@/lib/auth/current-user";
 import { StatusBadge } from "@/components/badges";
 import JsonViewer from "@/components/JsonViewer";
@@ -8,6 +8,7 @@ import ImportJicSignatureButton from "@/components/ImportJicSignatureButton";
 import TelegramSetup from "@/components/TelegramSetup";
 import ConnectTelegramButton from "@/components/ConnectTelegramButton";
 import DisplayApiCard from "@/components/DisplayApiCard";
+import ConnectGarminCard from "@/components/ConnectGarminCard";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
 
   const owner = await pageUser();
   const calendarConns = await listCalendarConnections(owner.user.id);
+  const garminConn = await getGarminConnection(owner.user.id).catch(() => null);
   const graphConfigured = status.MS_CLIENT_ID && status.MS_CLIENT_SECRET;
   const calendars: Array<{ key: "heya" | "jic"; name: string }> = [
     { key: "heya", name: "Heya Outlook" },
@@ -192,6 +194,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           </div>
           <TelegramSetup />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          Health — Garmin
+        </h2>
+        <ConnectGarminCard connected={Boolean(garminConn)} username={garminConn?.username ?? null} />
       </section>
 
       <section className="space-y-3">
