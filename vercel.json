@@ -67,6 +67,10 @@
     {
       "path": "/api/cron/garmin-sync",
       "schedule": "30 3,9,15 * * *"
+    },
+    {
+      "path": "/api/cron/zoho-sync",
+      "schedule": "*/15 4-16 * * 1-5"
     }
   ]
 }

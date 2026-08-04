@@ -24,6 +24,14 @@ const envSchema = z.object({
   // entirely (no per-task Zapier cost, synchronous task IDs).
   TODOIST_API_TOKEN: z.string().min(1).optional(),
 
+  // Zoho Connect (Heya's shared task boards). App-global self-client OAuth —
+  // one org-level connection, not per-user. All optional so the app boots
+  // without Zoho configured.
+  ZOHO_CLIENT_ID: z.string().min(1).optional(),
+  ZOHO_CLIENT_SECRET: z.string().min(1).optional(),
+  ZOHO_REFRESH_TOKEN: z.string().min(1).optional(),
+  ZOHO_SCOPE_ID: z.string().min(1).optional(),
+
   APP_URL: z.string().url().default("http://localhost:3000"),
   SESSION_SECRET: z
     .string()
@@ -109,6 +117,10 @@ export function envStatus(): Record<string, boolean> {
     "ZAPIER_TODOIST_UPDATE_HOOK_URL",
     "ZAPIER_TODOIST_COMPLETE_HOOK_URL",
     "TODOIST_API_TOKEN",
+    "ZOHO_CLIENT_ID",
+    "ZOHO_CLIENT_SECRET",
+    "ZOHO_REFRESH_TOKEN",
+    "ZOHO_SCOPE_ID",
     "APP_URL",
     "SESSION_SECRET",
     "DEANOS_EMAIL",

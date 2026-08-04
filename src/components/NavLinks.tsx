@@ -13,6 +13,7 @@ import {
   Settings,
   Sun,
   Users,
+  Users2,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/", label: "Today", icon: Sun },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
+  { href: "/team", label: "Team", icon: Users2 },
   { href: "/meetings", label: "Meetings", icon: Calendar },
   { href: "/people", label: "People", icon: Users },
   { href: "/commitments", label: "Commitments", icon: Handshake },
