@@ -1,6 +1,7 @@
 import { listCalendarEvents, listCommitments, listPeopleWithCounts } from "@/lib/db/repo";
 import { allowedSignupDomains, emailDomainAllowed } from "@/lib/env";
 import { getWeather, weatherLine } from "@/lib/display/weather";
+import { getCachedGarminSnapshot } from "@/lib/garmin/sync";
 import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { businessDaysStale } from "@/lib/accountability/staleness";
 import type { Owner } from "@/lib/db/repo";
@@ -48,6 +49,7 @@ export interface DisplayData {
   weather_now: string; // "14°" (empty if unavailable)
   all_tasks: string; // multiline "content · 5 Aug" — every active Todoist task
   all_tasks_total: number;
+  health: string; // "Sleep 7.1h · RHR 79 · Steps 4,400" (empty if no Garmin)
   chase: string; // multiline "Person — item (Nd)" — stalest owed-to-you
   /** One ready-made, laid-out block — bind a single text widget to this. */
   display: string;
@@ -64,12 +66,13 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   const dayStart = new Date(`${today}T00:00:00+02:00`);
   const dayEnd = new Date(dayStart.getTime() + 24 * 3600_000);
 
-  const [events, commitments, people, weather, todoist] = await Promise.all([
+  const [events, commitments, people, weather, todoist, garmin] = await Promise.all([
     listCalendarEvents(owner.user.id, dayStart, dayEnd),
     listCommitments(owner.user.id),
     listPeopleWithCounts(owner.user.id),
     getWeather(opts.lat, opts.lon, opts.place),
     listTodoistTasksForUser(owner.user.id),
+    getCachedGarminSnapshot(owner.user.id),
   ]);
 
   // ── Today's schedule ──
@@ -109,6 +112,15 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
 
   const weatherStr = weatherLine(weather);
 
+  // ── Health (cached Garmin snapshot) ──
+  const healthParts: string[] = [];
+  if (garmin) {
+    if (garmin.sleepHours != null) healthParts.push(`Sleep ${garmin.sleepHours}h`);
+    if (garmin.restingHr != null) healthParts.push(`RHR ${garmin.restingHr}`);
+    if (garmin.steps != null) healthParts.push(`Steps ${garmin.steps.toLocaleString("en-ZA")}`);
+  }
+  const healthStr = healthParts.join(" · ");
+
   // ── All Todoist tasks with due dates (dated first, soonest → latest) ──
   const FAR = "9999-12-31";
   const todoistSorted = todoist
@@ -130,6 +142,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   const display = [
     `DeanOS · ${dateLabel(now)} · ${timeLabel(now)}`,
     ...(weatherStr ? [`${weather!.place}: ${weatherStr}`] : []),
+    ...(healthStr ? [`❤ ${healthStr}`] : []),
     ``,
     `📅 TODAY (${sorted.length})`,
     ...(scheduleLines.length ? scheduleLines.slice(0, 4) : ["Nothing scheduled"]),
@@ -159,6 +172,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     weather_now: weather ? `${weather.now}°` : "",
     all_tasks: todoistLines.join("\n"),
     all_tasks_total: todoistLines.length,
+    health: healthStr,
     chase: chaseLines.join("\n"),
     display,
   };

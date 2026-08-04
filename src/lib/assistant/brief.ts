@@ -5,6 +5,7 @@ import { getToday } from "@/lib/calendar/sync";
 import { wazeLinkFor } from "@/lib/maps";
 import { getTodayWeather } from "@/lib/weather";
 import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
+import { getCachedGarminSnapshot } from "@/lib/garmin/sync";
 import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
 
 function fmtTime(d: Date): string {
@@ -100,6 +101,22 @@ export async function generateDailyBrief(userId: string, now: Date = new Date())
       `\n🌤 Weather\n${weather.summary}, ${weather.tempMin}–${weather.tempMax}°C` +
         `${weather.wet ? ` · rain ~${weather.precipMm}mm` : ""}\n${weather.suggestion}`
     );
+  }
+
+  // Recovery (best-effort from the cached Garmin snapshot).
+  const garmin = await getCachedGarminSnapshot(userId).catch(() => null);
+  if (garmin) {
+    const bits: string[] = [];
+    if (garmin.sleepHours != null) bits.push(`slept ${garmin.sleepHours}h`);
+    if (garmin.restingHr != null) bits.push(`resting HR ${garmin.restingHr}`);
+    if (garmin.steps != null) bits.push(`${garmin.steps.toLocaleString("en-ZA")} steps`);
+    const last = garmin.activities[0];
+    const lastLine = last
+      ? `\nLast: ${last.name.trim()}${
+          last.distanceKm ? ` (${last.distanceKm}km${last.durationMin ? `, ${last.durationMin}min` : ""})` : last.durationMin ? ` (${last.durationMin}min)` : ""
+        }`
+      : "";
+    if (bits.length) parts.push(`\n🩺 Recovery\n${bits.join(" · ")}${lastLine}`);
   }
 
   parts.push(

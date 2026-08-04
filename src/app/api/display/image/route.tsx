@@ -98,11 +98,18 @@ export async function GET(request: NextRequest) {
           </div>
         </div>
 
-        {/* Weather bar (dark) — or a plain rule if weather is unavailable */}
-        {d.weather ? (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: INK, color: PAPER, borderRadius: 10, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, marginTop: 10, marginBottom: 12 }}>
-            <div style={{ display: "flex", fontSize: 19, fontWeight: 700 }}>{d.weather_place}</div>
-            <div style={{ display: "flex", fontSize: 19, fontWeight: 500 }}>{d.weather}</div>
+        {/* Weather + health bar (dark) — or a plain rule if neither is available */}
+        {d.weather || d.health ? (
+          <div style={{ display: "flex", flexDirection: "column", backgroundColor: INK, color: PAPER, borderRadius: 10, paddingLeft: 16, paddingRight: 16, paddingTop: 8, paddingBottom: 8, marginTop: 10, marginBottom: 12 }}>
+            {d.weather && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", fontSize: 19, fontWeight: 700 }}>{d.weather_place}</div>
+                <div style={{ display: "flex", fontSize: 19, fontWeight: 500 }}>{d.weather}</div>
+              </div>
+            )}
+            {d.health && (
+              <div style={{ display: "flex", fontSize: 16, fontWeight: 500, marginTop: d.weather ? 4 : 0 }}>{d.health}</div>
+            )}
           </div>
         ) : (
           <div style={{ display: "flex", height: 4, backgroundColor: INK, marginTop: 8, marginBottom: 14 }} />
