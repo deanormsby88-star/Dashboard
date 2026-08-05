@@ -248,10 +248,12 @@ export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()
   const today = ymd(now);
   const dow = new Date(`${today}T12:00:00+02:00`).getUTCDay(); // 0=Sun..6=Sat
   const monday = shiftYMD(today, -((dow + 6) % 7));
-  const dayYMDs = Array.from({ length: 7 }, (_, i) => shiftYMD(monday, i));
+  // Work week only (Mon–Fri) — weekends are deliberately dropped to give each
+  // day more width on the panel rather than cramming in two mostly-empty days.
+  const dayYMDs = Array.from({ length: 5 }, (_, i) => shiftYMD(monday, i));
 
   const weekStart = new Date(`${dayYMDs[0]}T00:00:00+02:00`);
-  const weekEnd = new Date(`${dayYMDs[6]}T00:00:00+02:00`).getTime() + 24 * 3600_000;
+  const weekEnd = new Date(`${dayYMDs[4]}T00:00:00+02:00`).getTime() + 24 * 3600_000;
   const events = await listCalendarEvents(owner.user.id, weekStart, new Date(weekEnd));
 
   const allDayByDay = new Map<string, string[]>();
@@ -288,8 +290,8 @@ export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()
   });
 
   const mondayAt = new Date(`${dayYMDs[0]}T12:00:00+02:00`);
-  const sundayAt = new Date(`${dayYMDs[6]}T12:00:00+02:00`);
-  const rangeLabel = `${mondayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric" })} – ${sundayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" })}`;
+  const fridayAt = new Date(`${dayYMDs[4]}T12:00:00+02:00`);
+  const rangeLabel = `${mondayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric" })} – ${fridayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" })}`;
 
   return { rangeLabel, updated: timeLabel(now), hourStart, hourEnd, days };
 }

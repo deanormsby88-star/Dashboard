@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   const gridTop = PAD + HEADER_H + ALLDAY_H;
   const gridH = h - gridTop - PAD;
   const gridW = w - PAD * 2 - GUTTER;
-  const dayW = gridW / 7;
+  const dayW = gridW / week.days.length;
   const pxPerMin = gridH / (hourCount * 60);
   const clipLen = Math.max(6, Math.floor(dayW / 6.5));
 
