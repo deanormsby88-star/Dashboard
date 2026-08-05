@@ -4,6 +4,7 @@ import { getWeather, weatherLine } from "@/lib/display/weather";
 import { getCachedGarminSnapshot } from "@/lib/garmin/sync";
 import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
 import { businessDaysStale } from "@/lib/accountability/staleness";
+import { shiftYMD } from "@/lib/deadlines/ladder";
 import type { Owner } from "@/lib/db/repo";
 import type { Commitment } from "@/lib/types";
 
@@ -178,4 +179,62 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
     chase: chaseLines.join("\n"),
     display,
   };
+}
+
+// ── Week calendar (unified, Monday–Sunday) ──────────────────────────────────
+
+export interface WeekCalendarEvent {
+  time: string; // "09:00" or "All day"
+  title: string;
+}
+
+export interface WeekCalendarDay {
+  dayName: string; // "Mon"
+  dayLabel: string; // "4 Aug"
+  isToday: boolean;
+  events: WeekCalendarEvent[];
+}
+
+export interface WeekCalendarData {
+  rangeLabel: string; // "4 – 10 Aug 2026"
+  updated: string;
+  days: WeekCalendarDay[];
+}
+
+export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()): Promise<WeekCalendarData> {
+  const today = ymd(now);
+  const dow = new Date(`${today}T12:00:00+02:00`).getUTCDay(); // 0=Sun..6=Sat
+  const monday = shiftYMD(today, -((dow + 6) % 7));
+  const dayYMDs = Array.from({ length: 7 }, (_, i) => shiftYMD(monday, i));
+
+  const weekStart = new Date(`${dayYMDs[0]}T00:00:00+02:00`);
+  const weekEnd = new Date(`${dayYMDs[6]}T00:00:00+02:00`).getTime() + 24 * 3600_000;
+  const events = await listCalendarEvents(owner.user.id, weekStart, new Date(weekEnd));
+
+  const byDay = new Map<string, WeekCalendarEvent[]>();
+  for (const e of events) {
+    const key = ymd(new Date(e.starts_at));
+    const list = byDay.get(key) ?? [];
+    list.push({ time: e.all_day ? "All day" : timeLabel(new Date(e.starts_at)), title: e.title });
+    byDay.set(key, list);
+  }
+  for (const list of byDay.values()) {
+    list.sort((a, b) => (a.time === "All day" ? -1 : b.time === "All day" ? 1 : a.time.localeCompare(b.time)));
+  }
+
+  const days: WeekCalendarDay[] = dayYMDs.map((d) => {
+    const at = new Date(`${d}T12:00:00+02:00`);
+    return {
+      dayName: at.toLocaleDateString("en-ZA", { timeZone: TZ, weekday: "short" }),
+      dayLabel: at.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short" }),
+      isToday: d === today,
+      events: byDay.get(d) ?? [],
+    };
+  });
+
+  const mondayAt = new Date(`${dayYMDs[0]}T12:00:00+02:00`);
+  const sundayAt = new Date(`${dayYMDs[6]}T12:00:00+02:00`);
+  const rangeLabel = `${mondayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric" })} – ${sundayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" })}`;
+
+  return { rangeLabel, updated: timeLabel(now), days };
 }
