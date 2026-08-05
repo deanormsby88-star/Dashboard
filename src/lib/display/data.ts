@@ -181,24 +181,67 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
   };
 }
 
-// ── Week calendar (unified, Monday–Sunday) ──────────────────────────────────
+// ── Week calendar (unified, Monday–Sunday, time-grid) ───────────────────────
 
-export interface WeekCalendarEvent {
-  time: string; // "09:00" or "All day"
+/** Minutes since SAST midnight, using the fixed UTC+2 offset (no DST). */
+function minutesSAST(d: Date): number {
+  const shifted = new Date(d.getTime() + 2 * 3600_000);
+  return shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
+}
+
+export interface WeekGridEvent {
   title: string;
+  startMin: number; // minutes since midnight, SAST
+  endMin: number; // clamped to <=1440 (same-day)
+  lane: number; // 0-based column within the day when events overlap
+  lanes: number; // total concurrent lanes for this event's overlap group
 }
 
 export interface WeekCalendarDay {
   dayName: string; // "Mon"
   dayLabel: string; // "4 Aug"
   isToday: boolean;
-  events: WeekCalendarEvent[];
+  allDay: string[]; // all-day event titles
+  timed: WeekGridEvent[];
 }
 
 export interface WeekCalendarData {
   rangeLabel: string; // "4 – 10 Aug 2026"
   updated: string;
+  hourStart: number; // first hour shown on the grid
+  hourEnd: number; // last hour shown (exclusive)
   days: WeekCalendarDay[];
+}
+
+/** Greedy lane-packing so overlapping events sit side-by-side, like a normal calendar. */
+export function packLanes(events: Array<{ title: string; startMin: number; endMin: number }>): WeekGridEvent[] {
+  const sorted = events.slice().sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+  const laneEnds: number[] = []; // laneEnds[i] = when lane i is next free
+  const placed: Array<WeekGridEvent & { groupId: number }> = [];
+  let groupId = 0;
+  let groupEnd = -1;
+
+  for (const e of sorted) {
+    if (e.startMin >= groupEnd) {
+      groupId++;
+      laneEnds.length = 0;
+      groupEnd = -1;
+    }
+    let lane = laneEnds.findIndex((end) => end <= e.startMin);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(e.endMin);
+    } else {
+      laneEnds[lane] = e.endMin;
+    }
+    groupEnd = Math.max(groupEnd, e.endMin);
+    placed.push({ ...e, lane, lanes: 1, groupId });
+  }
+
+  // Second pass: each event's `lanes` = max concurrent lanes within its overlap group.
+  const lanesByGroup = new Map<number, number>();
+  for (const p of placed) lanesByGroup.set(p.groupId, Math.max(lanesByGroup.get(p.groupId) ?? 1, p.lane + 1));
+  return placed.map(({ groupId, ...p }) => ({ ...p, lanes: lanesByGroup.get(groupId) ?? 1 }));
 }
 
 export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()): Promise<WeekCalendarData> {
@@ -211,16 +254,27 @@ export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()
   const weekEnd = new Date(`${dayYMDs[6]}T00:00:00+02:00`).getTime() + 24 * 3600_000;
   const events = await listCalendarEvents(owner.user.id, weekStart, new Date(weekEnd));
 
-  const byDay = new Map<string, WeekCalendarEvent[]>();
+  const allDayByDay = new Map<string, string[]>();
+  const timedByDay = new Map<string, Array<{ title: string; startMin: number; endMin: number }>>();
+  let minHour = 24;
+  let maxHour = 0;
+
   for (const e of events) {
     const key = ymd(new Date(e.starts_at));
-    const list = byDay.get(key) ?? [];
-    list.push({ time: e.all_day ? "All day" : timeLabel(new Date(e.starts_at)), title: e.title });
-    byDay.set(key, list);
+    if (e.all_day) {
+      allDayByDay.set(key, [...(allDayByDay.get(key) ?? []), e.title]);
+      continue;
+    }
+    const startMin = minutesSAST(new Date(e.starts_at));
+    const endMin = Math.max(startMin + 15, e.ends_at ? Math.min(1440, minutesSAST(new Date(e.ends_at))) : startMin + 30);
+    timedByDay.set(key, [...(timedByDay.get(key) ?? []), { title: e.title, startMin, endMin }]);
+    minHour = Math.min(minHour, Math.floor(startMin / 60));
+    maxHour = Math.max(maxHour, Math.ceil(endMin / 60));
   }
-  for (const list of byDay.values()) {
-    list.sort((a, b) => (a.time === "All day" ? -1 : b.time === "All day" ? 1 : a.time.localeCompare(b.time)));
-  }
+
+  // Business-hours default, widened automatically if events fall outside it.
+  const hourStart = Math.max(0, Math.min(7, minHour === 24 ? 7 : minHour));
+  const hourEnd = Math.min(23, Math.max(18, maxHour === 0 ? 18 : maxHour));
 
   const days: WeekCalendarDay[] = dayYMDs.map((d) => {
     const at = new Date(`${d}T12:00:00+02:00`);
@@ -228,7 +282,8 @@ export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()
       dayName: at.toLocaleDateString("en-ZA", { timeZone: TZ, weekday: "short" }),
       dayLabel: at.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short" }),
       isToday: d === today,
-      events: byDay.get(d) ?? [],
+      allDay: allDayByDay.get(d) ?? [],
+      timed: packLanes(timedByDay.get(d) ?? []),
     };
   });
 
@@ -236,5 +291,5 @@ export async function buildWeekCalendarData(owner: Owner, now: Date = new Date()
   const sundayAt = new Date(`${dayYMDs[6]}T12:00:00+02:00`);
   const rangeLabel = `${mondayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric" })} – ${sundayAt.toLocaleDateString("en-ZA", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" })}`;
 
-  return { rangeLabel, updated: timeLabel(now), days };
+  return { rangeLabel, updated: timeLabel(now), hourStart, hourEnd, days };
 }
