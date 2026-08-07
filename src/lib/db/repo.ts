@@ -78,7 +78,7 @@ export const DEFAULT_CONTEXT_SEED: Array<{ key: string; name: string }> = [
   { key: "personal", name: "Personal" },
 ];
 
-const USER_COLS = "id, email, name, microsoft_oid, setup_completed_at, telegram_chat_id";
+const USER_COLS = "id, email, name, microsoft_oid, setup_completed_at, telegram_chat_id, notifications_paused_until";
 
 async function loadBusinesses(userId: string, db: Queryable = getPool()): Promise<Business[]> {
   const res = await db.query<Business>(
@@ -165,6 +165,11 @@ export async function setUserTelegramChat(userId: string, chatId: string | null)
     await db.query(`update users set telegram_chat_id = null where telegram_chat_id = $1 and id <> $2`, [chatId, userId]);
   }
   await db.query(`update users set telegram_chat_id = $2 where id = $1`, [userId, chatId]);
+}
+
+/** Pause (or clear, with null) proactive Telegram pushes for a user until a given time. */
+export async function setNotificationsPausedUntil(userId: string, until: Date | null): Promise<void> {
+  await getPool().query(`update users set notifications_paused_until = $2 where id = $1`, [userId, until]);
 }
 
 /** Mark a user's first-run setup wizard complete. */
@@ -941,6 +946,15 @@ export async function listInteractionsForMeeting(userId: string, meetingId: stri
   const res = await getPool().query<Interaction>(
     `select * from interactions where meeting_id = $1 and user_id = $2 order by created_at desc`,
     [meetingId, userId]
+  );
+  return res.rows;
+}
+
+/** General notes ("remember" with no person) — the only way these are ever read back. */
+export async function listGeneralNotes(userId: string, limit = 100): Promise<Interaction[]> {
+  const res = await getPool().query<Interaction>(
+    `select * from interactions where user_id = $1 and person_id is null and kind = 'note' order by created_at desc limit $2`,
+    [userId, limit]
   );
   return res.rows;
 }

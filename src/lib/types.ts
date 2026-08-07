@@ -9,6 +9,7 @@ export interface User {
   microsoft_oid?: string | null;
   setup_completed_at?: Date | null;
   telegram_chat_id?: string | null;
+  notifications_paused_until?: Date | string | null;
 }
 
 export interface Business {

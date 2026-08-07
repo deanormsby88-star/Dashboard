@@ -1,11 +1,13 @@
 import {
   countUnresolvedEmails,
+  getUserById,
   listCommitments,
   listMeetings,
   listRisks,
   listTasks,
 } from "@/lib/db/repo";
 import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
+import { isNotificationsPaused } from "@/lib/telegram/notify";
 import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
 
 /**
@@ -21,17 +23,22 @@ export interface StateSnapshot {
   open_risks: Array<{ description: string; severity: string }>;
   recent_meetings: Array<{ title: string; date: string | null; summary: string | null }>;
   unresolved_inbox_items: number;
+  /** Set (and still in the future) while proactive notifications are paused. */
+  notifications_paused_until: string | null;
 }
 
 export async function buildSnapshot(userId: string, now: Date = new Date()): Promise<StateSnapshot> {
-  const [suggested, todoist, commitments, risks, meetings, inboxCount] = await Promise.all([
+  const [suggested, todoist, commitments, risks, meetings, inboxCount, user] = await Promise.all([
     listTasks(userId, { status: "suggested" }),
     listTodoistTasksForUser(userId),
     listCommitments(userId),
     listRisks(userId),
     listMeetings(userId, 5),
     countUnresolvedEmails(userId),
+    getUserById(userId),
   ]);
+  const pausedUntilRaw = user?.user.notifications_paused_until ?? null;
+  const notificationsPausedUntil = isNotificationsPaused(pausedUntilRaw, now) ? new Date(pausedUntilRaw!).toISOString() : null;
 
   const openWaiting = commitments.filter((c) => c.direction === "to_dean" && c.status === "open");
   const openByDean = commitments.filter((c) => c.direction === "by_dean" && c.status === "open");
@@ -72,5 +79,6 @@ export async function buildSnapshot(userId: string, now: Date = new Date()): Pro
       summary: m.summary,
     })),
     unresolved_inbox_items: inboxCount,
+    notifications_paused_until: notificationsPausedUntil,
   };
 }

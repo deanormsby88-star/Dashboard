@@ -13,17 +13,32 @@ function botConfigured(): boolean {
   return Boolean(getEnv().TELEGRAM_BOT_TOKEN);
 }
 
-/** The Telegram chat id to deliver a given user's messages to, or null. */
-async function chatIdForUser(userId: string): Promise<string | null> {
+/** True while a "pause notifications until X" request is still in effect. */
+export function isNotificationsPaused(pausedUntil: Date | string | null | undefined, now: Date = new Date()): boolean {
+  if (!pausedUntil) return false;
+  const until = new Date(pausedUntil);
+  return !Number.isNaN(until.getTime()) && until.getTime() > now.getTime();
+}
+
+/**
+ * The Telegram chat id to deliver a given user's messages to (or null), and
+ * whether they're currently in a self-requested quiet period. Only PROACTIVE
+ * sends (sendToUser/sendToUserWithButtons — briefs, reminders, watch alerts,
+ * task nudges, etc.) honour the pause; direct replies to something the user
+ * just said go through telegram/api.ts's sendMessage directly and are
+ * unaffected, matching "I won't ping you unless you ask directly."
+ */
+async function deliveryTarget(userId: string): Promise<{ chatId: string | null; paused: boolean }> {
   const owner = await getUserById(userId).catch(() => null);
-  if (!owner) return null;
-  if (owner.user.telegram_chat_id) return owner.user.telegram_chat_id;
+  if (!owner) return { chatId: null, paused: false };
+  const paused = isNotificationsPaused(owner.user.notifications_paused_until);
+  if (owner.user.telegram_chat_id) return { chatId: owner.user.telegram_chat_id, paused };
   // Legacy owner fallback: the env-configured chat belongs to DEANOS_EMAIL.
   const env = getEnv();
   if (env.TELEGRAM_ALLOWED_CHAT_ID && owner.user.email.toLowerCase() === env.DEANOS_EMAIL.toLowerCase()) {
-    return env.TELEGRAM_ALLOWED_CHAT_ID;
+    return { chatId: env.TELEGRAM_ALLOWED_CHAT_ID, paused };
   }
-  return null;
+  return { chatId: null, paused };
 }
 
 /**
@@ -39,11 +54,11 @@ async function rememberProactive(userId: string, text: string): Promise<void> {
   }
 }
 
-/** Push a message to a specific user's Telegram chat. No-op (false) if unlinked. */
+/** Push a message to a specific user's Telegram chat. No-op (false) if unlinked or paused. */
 export async function sendToUser(userId: string, text: string): Promise<boolean> {
   if (!botConfigured()) return false;
-  const chatId = await chatIdForUser(userId);
-  if (!chatId) return false;
+  const { chatId, paused } = await deliveryTarget(userId);
+  if (!chatId || paused) return false;
   const res = await sendMessage(chatId, text);
   if (res.ok) await rememberProactive(userId, text);
   return res.ok;
@@ -56,8 +71,8 @@ export async function sendToUserWithButtons(
   buttons: InlineButton[][]
 ): Promise<boolean> {
   if (!botConfigured()) return false;
-  const chatId = await chatIdForUser(userId);
-  if (!chatId) return false;
+  const { chatId, paused } = await deliveryTarget(userId);
+  if (!chatId || paused) return false;
   const res = await sendMessageWithButtons(chatId, text, buttons);
   if (res.ok) await rememberProactive(userId, text);
   return res.ok;

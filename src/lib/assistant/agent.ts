@@ -45,10 +45,12 @@ import {
   insertRisk,
   insertTask,
   listActionableTasks,
+  listGeneralNotes,
   listOpenCommitmentsWithMeta,
   listRisks,
   markTaskCreatedByDedupKey,
   pruneConversation,
+  setNotificationsPausedUntil,
   setTaskStatus,
   updateCommitment,
   updatePerson,
@@ -131,7 +133,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "remember",
-    description: "Store a durable note or a fact about a person (their preferences, role, context).",
+    description: "Store a durable note or a fact about a person (their preferences, role, context). A general note (person=null) — e.g. a medication dosage, a personal fact, a preference — is retrieved later ONLY via recall_notes, so if Dean asks for something like that back, call recall_notes rather than assuming it wasn't saved.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -141,6 +143,29 @@ const TOOLS: AgentTool[] = [
         person: { type: ["string", "null"], description: "Person the note is about, or null for a general note." },
       },
     },
+  },
+  {
+    name: "recall_notes",
+    description: "List Dean's general notes — durable facts he's told you to remember that aren't tied to a person (medication dosages, personal details, preferences, etc., saved via remember with person=null). Call this for ANY question that might be answered by something he previously asked you to remember, before ever saying he didn't tell you.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
+  },
+  {
+    name: "pause_notifications",
+    description:
+      "Actually stop sending Dean proactive Telegram messages (briefs, reminders, task nudges, watch alerts, chase nudges — everything except direct replies to him) until a given time. Call this whenever he asks for quiet, a break, to pause/mute/snooze notifications, etc. — never just say you've paused them without calling this.",
+    parameters: {
+      type: "object",
+      additionalProperties: false,
+      required: ["until"],
+      properties: {
+        until: { type: "string", description: "UTC ISO 8601 instant to resume at, converted from his local SAST time (subtract 2 hours)." },
+      },
+    },
+  },
+  {
+    name: "resume_notifications",
+    description: "Turn proactive notifications back on immediately (before the paused-until time). Call when Dean says resume/unmute/unpause.",
+    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
   },
   {
     name: "get_person",
@@ -524,6 +549,8 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Teammates on Teams: message_teammate to send a Heya teammate a Microsoft Teams message now (as Dean — it shows Dean a draft with Send/Cancel to approve first); remind_teammate to schedule a Teams reminder to them for a future time. Both need the person on file with an email; if there's none, ask Dean for it. Use these for "ping/remind [teammate] on Teams".
   • Health (Garmin): for ANY question about sleep, energy, recovery, stress, training-readiness, resting HR, steps or workouts, call get_health first and ground your answer in the actual numbers. Give practical, encouraging feedback ("body battery's only 30 and stress is high — protect your afternoon, keep it light"). You are NOT a doctor: keep it sensible, never diagnose, and if a reading looks genuinely concerning, gently suggest he check with a professional rather than alarming him. If get_health says not connected, tell him to connect Garmin in Settings.
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
+  • Pausing notifications: when Dean asks for quiet, a break, or to pause/mute/snooze notifications/reminders/task checkers, you MUST call pause_notifications with the resolved end time — never just reply that you've paused them without calling it, that leaves nudges still firing. Convert his local SAST time to UTC (subtract 2 hours). Call resume_notifications if he says resume/unmute/unpause early. The snapshot's notifications_paused_until tells you the current state — mention it if relevant (e.g. he asks whether he's still paused).
+  • General notes ("remember" something not tied to a person — a medication dosage, a personal fact, a preference): ALWAYS call recall_notes when he asks for one back, before ever telling him he never told you — the note is real, it's just not in your immediate context, and it is only reachable through that tool.
   • Handling inbox alerts: when Dean says an inbox item / alert / email is resolved, handled, done, sorted or can be ignored, actually mark it done — call find_emails to locate the matching item, then resolve_email so it stops resurfacing in the watch loop and briefs. Never just acknowledge it verbally; "handled" must mean handled in the system. If it keeps re-surfacing, that means it wasn't marked resolved — so resolve it rather than blaming "lag".
   • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the FULL message yourself in DEAN'S VOICE (see the voice guide below — short, direct, closes with "Thanks,") and call send_email_reply / send_email. These do NOT send — they show Dean the draft with Send/Cancel buttons for him to approve, so always put the complete finished message in the body. After calling, tell him the draft is ready above and he can tap Send; never claim you've sent it. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
   • remember for durable notes/person facts.
@@ -677,6 +704,22 @@ async function executeTool(
         sourceUrl: null,
       });
       return JSON.stringify({ ok: true, remembered: str(args.note) });
+    }
+    case "recall_notes": {
+      const notes = await listGeneralNotes(owner.user.id);
+      return JSON.stringify({
+        notes: notes.map((n) => ({ note: n.summary, saved_at: n.created_at })),
+      });
+    }
+    case "pause_notifications": {
+      const until = new Date(str(args.until));
+      if (Number.isNaN(until.getTime())) return JSON.stringify({ ok: false, error: "invalid time" });
+      await setNotificationsPausedUntil(owner.user.id, until);
+      return JSON.stringify({ ok: true, paused_until: until.toISOString(), paused_until_local: formatLocal(until) });
+    }
+    case "resume_notifications": {
+      await setNotificationsPausedUntil(owner.user.id, null);
+      return JSON.stringify({ ok: true, resumed: true });
     }
     case "get_person": {
       const bundle = await getPersonBundle(owner.user.id, str(args.name));
