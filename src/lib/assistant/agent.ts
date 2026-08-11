@@ -4,7 +4,6 @@ import { callResponses, type AgentInputItem, type AgentTool } from "@/lib/ai/ope
 import { buildSnapshot } from "@/lib/assistant/state";
 import { generateDailyBrief } from "@/lib/assistant/brief";
 import { cancelReminder, createReminder, listUpcomingReminders } from "@/lib/assistant/adhoc-reminders";
-import { getCachedGarminSnapshot } from "@/lib/garmin/sync";
 import { normalizeTitle } from "@/lib/dedup";
 import { DEAN_VOICE } from "@/lib/voice";
 import { findRecommendations, research } from "@/lib/research";
@@ -95,12 +94,6 @@ const TOOLS: AgentTool[] = [
         description: { type: "string", description: "Short supporting context; empty string if none." },
       },
     },
-  },
-  {
-    name: "get_health",
-    description:
-      "Get Dean's latest Garmin health snapshot — sleep hours, body battery, stress, resting HR, steps, and recent workouts (as of the last sync). Call this for ANY health, recovery, energy, sleep, training-readiness or fitness question so your feedback is grounded in his real data.",
-    parameters: { type: "object", additionalProperties: false, required: [], properties: {} },
   },
   {
     name: "track_waiting_on",
@@ -547,7 +540,6 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person. remove_person to delete someone Dean says is unimportant / not a real contact (their history is kept).
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • Teammates on Teams: message_teammate to send a Heya teammate a Microsoft Teams message now (as Dean — it shows Dean a draft with Send/Cancel to approve first); remind_teammate to schedule a Teams reminder to them for a future time. Both need the person on file with an email; if there's none, ask Dean for it. Use these for "ping/remind [teammate] on Teams".
-  • Health (Garmin): for ANY question about sleep, energy, recovery, stress, training-readiness, resting HR, steps or workouts, call get_health first and ground your answer in the actual numbers. Give practical, encouraging feedback ("body battery's only 30 and stress is high — protect your afternoon, keep it light"). You are NOT a doctor: keep it sensible, never diagnose, and if a reading looks genuinely concerning, gently suggest he check with a professional rather than alarming him. If get_health says not connected, tell him to connect Garmin in Settings.
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
   • Pausing notifications: when Dean asks for quiet, a break, or to pause/mute/snooze notifications/reminders/task checkers, you MUST call pause_notifications with the resolved end time — never just reply that you've paused them without calling it, that leaves nudges still firing. Convert his local SAST time to UTC (subtract 2 hours). Call resume_notifications if he says resume/unmute/unpause early. The snapshot's notifications_paused_until tells you the current state — mention it if relevant (e.g. he asks whether he's still paused).
   • General notes ("remember" something not tied to a person — a medication dosage, a personal fact, a preference): ALWAYS call recall_notes when he asks for one back, before ever telling him he never told you — the note is real, it's just not in your immediate context, and it is only reachable through that tool.
@@ -616,11 +608,6 @@ async function executeTool(
         await setTaskStatus(owner.user.id, task.id, "sent");
       }
       return JSON.stringify({ ok: true, created: title, business: business?.name ?? "Inbox", due: args.due_date ?? null });
-    }
-    case "get_health": {
-      const snap = await getCachedGarminSnapshot(owner.user.id).catch(() => null);
-      if (!snap) return JSON.stringify({ connected: false, note: "Garmin not connected or no data synced yet." });
-      return JSON.stringify({ connected: true, as_of: snap.fetchedAt, ...snap });
     }
     case "track_waiting_on": {
       const business = biz(args.business);
