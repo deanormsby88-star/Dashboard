@@ -24,15 +24,13 @@ import {
   resolveDeadlineDate,
   setAwaitingDeadline,
 } from "@/lib/tasks/deadline";
-import { getPendingEmail, markPendingDone, stagePendingEmail } from "@/lib/email/pending";
+import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
 import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calendar/microsoft";
 import { signedEmailBody } from "@/lib/email/signature";
 import { getPendingTeams, markPendingTeamsDone } from "@/lib/teams/pending";
-import { messageTeammate, messageTeammateForUser } from "@/lib/teams/send";
-import { getPendingChase, markChaseDone } from "@/lib/accountability/chase";
-import { getPendingDeadline, markDeadlineDone } from "@/lib/deadlines/scan";
-import { createReminder } from "@/lib/assistant/adhoc-reminders";
-import { getPendingOffer, markOfferDone, sendAttendeeReminders } from "@/lib/teams/attendee-reminders";
+import { messageTeammate } from "@/lib/teams/send";
+import { resolvePendingChase } from "@/lib/accountability/chase";
+import { applyDeadlineDecision } from "@/lib/deadlines/scan";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -255,12 +253,6 @@ async function handleCallback(
     return handleTeamsCallback(cb, teamsMatch[1] as "send" | "cancel", teamsMatch[2], String(cbChat));
   }
 
-  // Attendee-reminder approval buttons.
-  const attMatch = /^attrem:(go|skip):(.+)$/.exec(cb.data ?? "");
-  if (attMatch) {
-    return handleAttendeeReminderCallback(cb, attMatch[1] as "go" | "skip", attMatch[2], String(cbChat));
-  }
-
   // Deadline reminder-ladder buttons.
   const dlMatch = /^dl:(all|day|no):(.+)$/.exec(cb.data ?? "");
   if (dlMatch) {
@@ -343,36 +335,22 @@ async function handleDeadlineCallback(
   id: string,
   chatId: string
 ): Promise<NextResponse> {
-  const pending = await getPendingDeadline(id);
-  if (!pending) {
+  const result = await applyDeadlineDecision(owner, id, action);
+  if (!result.ok || !result.pending) {
     await answerCallbackQuery(cb.id, "This suggestion has expired or was already handled").catch(() => {});
     return NextResponse.json({ ok: true });
   }
 
-  const original = cb.message?.text ?? "Deadline";
-  const firstLine = `“${pending.what}” — due ${pending.dueLabel}`;
+  const firstLine = `“${result.pending.what}” — due ${result.pending.dueLabel}`;
   let toast: string;
   let newText: string;
 
   if (action === "no") {
-    await markDeadlineDone(owner, id);
     toast = "Ignored";
     newText = `✖️ Ignored · ${firstLine}`;
   } else {
-    const tierText: Record<string, string> = {
-      day_before: `Due tomorrow — ${pending.what} (${pending.dueLabel})`,
-      on_the_day: `Due today — ${pending.what} (${pending.dueLabel})`,
-      hour_before: `Due in 1 hour — ${pending.what} (${pending.dueLabel})`,
-    };
-    const wanted = action === "day" ? pending.rungs.filter((r) => r.tier === "on_the_day") : pending.rungs;
-    let set = 0;
-    for (const r of wanted) {
-      const res = await createReminder(owner, tierText[r.tier] ?? pending.what, r.atIso);
-      if (res.ok) set++;
-    }
-    await markDeadlineDone(owner, id);
-    toast = set ? `Set ${set} reminder${set === 1 ? "" : "s"}` : "Nothing left to set";
-    newText = `🔔 ${set} reminder${set === 1 ? "" : "s"} set · ${firstLine}`;
+    toast = result.set ? `Set ${result.set} reminder${result.set === 1 ? "" : "s"}` : "Nothing left to set";
+    newText = `🔔 ${result.set} reminder${result.set === 1 ? "" : "s"} set · ${firstLine}`;
   }
 
   await answerCallbackQuery(cb.id, toast).catch(() => {});
@@ -409,29 +387,19 @@ async function handleLoopCallback(
     newText = done ? `✅ Done · ${original.split("\n")[0]}` : original;
   } else {
     // teams | email — send the already-drafted chase (shown in the nudge).
-    const chase = await getPendingChase(id);
-    if (!chase) {
+    const result = await resolvePendingChase(owner, id, action);
+    if (!result.chase) {
       await answerCallbackQuery(cb.id, "This draft has expired or was already handled").catch(() => {});
       return NextResponse.json({ ok: true });
     }
     if (action === "teams") {
-      const res = await messageTeammateForUser(owner.user.id, chase.personEmail, chase.draft);
-      await markChaseDone(owner, id);
-      toast = res.ok ? "Sent via Teams" : res.error ?? "Teams send failed";
-      newText = res.ok
-        ? `📤 Chased ${chase.personName} on Teams · ${original.split("\n")[0]}`
-        : `${original}\n\n⚠️ ${res.error ?? "Teams send failed"}`;
+      toast = result.ok ? "Sent via Teams" : result.error ?? "Teams send failed";
+      newText = result.ok
+        ? `📤 Chased ${result.chase.personName} on Teams · ${original.split("\n")[0]}`
+        : `${original}\n\n⚠️ ${result.error ?? "Teams send failed"}`;
     } else {
-      await stagePendingEmail({
-        kind: "new",
-        mailbox: chase.businessKey,
-        to: [chase.personEmail],
-        subject: chase.subject,
-        body: chase.draft,
-      });
-      await markChaseDone(owner, id);
       toast = "Draft email ready — approve to send";
-      newText = `✉️ Email draft ready for ${chase.personName} · ${original.split("\n")[0]}`;
+      newText = `✉️ Email draft ready for ${result.chase.personName} · ${original.split("\n")[0]}`;
     }
   }
 
@@ -524,29 +492,3 @@ async function handleTeamsCallback(
   return NextResponse.json({ ok: true });
 }
 
-/** Approve or skip reminding a meeting's attendees on Teams. */
-async function handleAttendeeReminderCallback(
-  cb: { id: string; message?: { message_id?: number; text?: string } },
-  action: "go" | "skip",
-  id: string,
-  chatId: string
-): Promise<NextResponse> {
-  const offer = await getPendingOffer(id);
-  if (!offer) {
-    await answerCallbackQuery(cb.id, "This has expired or was already handled").catch(() => {});
-    return NextResponse.json({ ok: true });
-  }
-  if (action === "skip") {
-    await markOfferDone(id);
-    await answerCallbackQuery(cb.id, "Skipped").catch(() => {});
-    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, `❌ Skipped — didn't remind attendees of “${offer.title}”.`).catch(() => {});
-    return NextResponse.json({ ok: true });
-  }
-  const sent = await sendAttendeeReminders(offer);
-  await markOfferDone(id);
-  await answerCallbackQuery(cb.id, sent ? `Reminded ${sent} on Teams ✅` : "Couldn't send").catch(() => {});
-  if (cb.message?.message_id !== undefined) {
-    await editMessageText(chatId, cb.message.message_id, `✅ Reminded ${sent} attendee(s) of “${offer.title}” on Teams.`).catch(() => {});
-  }
-  return NextResponse.json({ ok: true });
-}

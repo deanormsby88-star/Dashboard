@@ -2,9 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { getEnv } from "@/lib/env";
 import { callStructured } from "@/lib/ai/openai";
 import {
-  appendConversationMessage,
   getLastSyncRun,
   listCalendarConnections,
+  listSyncRunsByPrefix,
   listSyncRunsBySource,
   recordSyncRun,
 } from "@/lib/db/repo";
@@ -15,7 +15,7 @@ import {
   listRecentTeamsMessages,
   listSentMessages,
 } from "@/lib/calendar/microsoft";
-import { sendToUserWithButtons } from "@/lib/telegram/notify";
+import { createReminder } from "@/lib/assistant/adhoc-reminders";
 import { deadlineLabel, reminderLadder, type ReminderRung } from "@/lib/deadlines/ladder";
 import type { Owner } from "@/lib/db/repo";
 
@@ -189,6 +189,52 @@ export async function markDeadlineDone(owner: Owner, id: string): Promise<void> 
   await recordSyncRun({ userId: owner.user.id, sourceSystem: `pendingdldone:${id}`, stats: {} });
 }
 
+/** Every deadline suggestion still awaiting a decision — for the review page. */
+export async function listPendingDeadlines(owner: Owner): Promise<PendingDeadline[]> {
+  const rows = await listSyncRunsByPrefix(owner.user.id, "pendingdl:");
+  const seen = new Set<string>();
+  const out: PendingDeadline[] = [];
+  for (const r of rows) {
+    const s = r.stats as unknown as PendingDeadline | undefined;
+    if (!s?.id || !s.rungs?.length || seen.has(s.id)) continue;
+    seen.add(s.id);
+    if (await getLastSyncRun(`pendingdldone:${s.id}`)) continue;
+    out.push(s);
+  }
+  return out;
+}
+
+const RUNG_TEXT: Record<string, string> = {
+  day_before: "Due tomorrow",
+  on_the_day: "Due today",
+  hour_before: "Due in 1 hour",
+};
+
+/** Apply a decision on a pending deadline (set its reminders, or ignore it). Shared by the Telegram callback and the web review page. */
+export async function applyDeadlineDecision(
+  owner: Owner,
+  id: string,
+  action: "all" | "day" | "no"
+): Promise<{ ok: boolean; set: number; pending?: PendingDeadline }> {
+  const pending = await getPendingDeadline(id);
+  if (!pending) return { ok: false, set: 0 };
+
+  if (action === "no") {
+    await markDeadlineDone(owner, id);
+    return { ok: true, set: 0, pending };
+  }
+
+  const wanted = action === "day" ? pending.rungs.filter((r) => r.tier === "on_the_day") : pending.rungs;
+  let set = 0;
+  for (const r of wanted) {
+    const label = `${RUNG_TEXT[r.tier] ?? "Due"} — ${pending.what} (${pending.dueLabel})`;
+    const res = await createReminder(owner, label, r.atIso);
+    if (res.ok) set++;
+  }
+  await markDeadlineDone(owner, id);
+  return { ok: true, set, pending };
+}
+
 /**
  * Scan recent Teams + email for concrete deadlines and, for each new one,
  * suggest the reminder ladder (day before / on the day / hour before) with
@@ -235,26 +281,10 @@ export async function scanDeadlines(owner: Owner, now: Date = new Date()): Promi
       stats: { id, what: d.what.trim(), dueLabel, source: src, rungs },
     });
 
-    const lines = [
-      `📅 Deadline spotted`,
-      `“${d.what.trim()}” — due ${dueLabel}`,
-      `Source: ${src}`,
-      ``,
-      `Suggested reminders:`,
-      ...rungs.map((r) => `• ${r.label}`),
-    ];
-    const ok = await sendToUserWithButtons(owner.user.id, lines.join("\n"), [
-      [
-        { text: `🔔 Set ${rungs.length === 1 ? "reminder" : `all ${rungs.length}`}`, callback_data: `dl:all:${id}` },
-        { text: "📆 On the day only", callback_data: `dl:day:${id}` },
-      ],
-      [{ text: "✖️ Ignore", callback_data: `dl:no:${id}` }],
-    ]);
-    if (ok) {
-      await recordSyncRun({ userId: owner.user.id, sourceSystem: `dlsug:${dupKey}`, stats: { what: d.what } });
-      await appendConversationMessage({ userId: owner.user.id, channel: "telegram", role: "assistant", content: lines.join("\n") });
-      suggested++;
-    }
+    // No individual Telegram push — the suggestion is staged (above) and
+    // surfaced on the /review page for a single end-of-day approval pass.
+    await recordSyncRun({ userId: owner.user.id, sourceSystem: `dlsug:${dupKey}`, stats: { what: d.what } });
+    suggested++;
   }
   return { suggested, scanned: batch.length };
 }

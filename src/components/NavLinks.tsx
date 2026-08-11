@@ -7,6 +7,7 @@ import {
   Briefcase,
   Calendar,
   CheckSquare,
+  ClipboardCheck,
   Handshake,
   Inbox,
   MessageSquare,
@@ -20,6 +21,7 @@ import clsx from "clsx";
 const NAV_ITEMS = [
   { href: "/assistant", label: "Assistant", icon: MessageSquare },
   { href: "/", label: "Today", icon: Sun },
+  { href: "/review", label: "Review", icon: ClipboardCheck },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/team", label: "Team", icon: Users2 },

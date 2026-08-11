@@ -1,18 +1,14 @@
-import { randomUUID } from "node:crypto";
 import {
-  ensureOwner,
   findPersonByName,
   getLastSyncRun,
   listCalendarEvents,
-  listSyncRunsBySource,
   recordSyncRun,
   type Owner,
 } from "@/lib/db/repo";
 import { ensureCalendarsFresh } from "@/lib/calendar/sync";
-import { sendToUser, sendToUserWithButtons } from "@/lib/telegram/notify";
 import { messageTeammate } from "@/lib/teams/send";
 
-/** Offer to remind attendees when a meeting is within this many minutes. */
+/** Only auto-remind attendees when a meeting is within this many minutes. */
 const OFFER_WINDOW_MIN = 45;
 
 interface OfferAttendee {
@@ -20,7 +16,6 @@ interface OfferAttendee {
   email: string;
 }
 interface PendingOffer {
-  id: string;
   title: string;
   startIso: string;
   attendees: OfferAttendee[];
@@ -67,8 +62,11 @@ async function resolveTeammates(userId: string, attendees: string[]): Promise<Of
 }
 
 /**
- * For each upcoming meeting with teammate attendees, ask Dean (once) whether to
- * remind them on Teams. On approval (webhook callback) each teammate is pinged.
+ * Auto-remind teammates about Dean's daily 1-1s on Teams — silently, no
+ * approval and no ping back to Dean (this only ever messages the teammate,
+ * never Dean, so it doesn't add to his notification load). Other meetings
+ * with teammate attendees are left alone; ask the assistant directly if you
+ * want a specific meeting's attendees reminded.
  */
 export async function offerAttendeeReminders(owner: Owner, now: Date = new Date()): Promise<{ offered: number }> {
   await ensureCalendarsFresh(owner.user.id).catch(() => {});
@@ -76,51 +74,19 @@ export async function offerAttendeeReminders(owner: Owner, now: Date = new Date(
   const events = await listCalendarEvents(owner.user.id, now, new Date(now.getTime() + OFFER_WINDOW_MIN * 60_000));
   let offered = 0;
   for (const e of events) {
-    if (e.all_day || e.attendees.length === 0) continue;
+    if (e.all_day || e.attendees.length === 0 || !isDaily1on1(e.title)) continue;
     const dedupKey = `attoffered:${e.calendar}:${e.source_uid}:${new Date(e.starts_at).toISOString()}`;
     if (await getLastSyncRun(dedupKey)) continue;
 
     const teammates = await resolveTeammates(owner.user.id, e.attendees);
-    // Mark offered regardless, so we don't re-scan this meeting each tick.
     await recordSyncRun({ userId: owner.user.id, sourceSystem: dedupKey, stats: { title: e.title } });
     if (teammates.length === 0) continue;
 
-    const id = randomUUID().slice(0, 8);
-    const offer: PendingOffer = { id, title: e.title, startIso: new Date(e.starts_at).toISOString(), attendees: teammates.slice(0, 10) };
-
-    // Daily 1-1s: auto-remind, no approval; else ask Dean first.
-    if (isDaily1on1(e.title)) {
-      const sent = await sendAttendeeReminders(offer, now);
-      if (sent > 0) {
-        await sendToUser(owner.user.id, `🔔 Reminded ${teammates.map((t) => t.name.split(" ")[0]).join(", ")} about your ${fmtTime(offer.startIso)} 1-1 on Teams.`);
-        offered++;
-      }
-      continue;
-    }
-
-    await recordSyncRun({ userId: owner.user.id, sourceSystem: `attoffer:${id}`, stats: offer });
-    const card = `👥 Remind attendees of your ${fmtTime(offer.startIso)} — “${e.title}”?\nWould ping on Teams: ${teammates.map((t) => t.name.split(" ")[0]).join(", ")}`;
-    const ok = await sendToUserWithButtons(owner.user.id, card, [
-      [
-        { text: "✅ Remind them", callback_data: `attrem:go:${id}` },
-        { text: "❌ Skip", callback_data: `attrem:skip:${id}` },
-      ],
-    ]);
-    if (ok) offered++;
+    const offer: PendingOffer = { title: e.title, startIso: new Date(e.starts_at).toISOString(), attendees: teammates.slice(0, 10) };
+    const sent = await sendAttendeeReminders(offer, now);
+    if (sent > 0) offered++;
   }
   return { offered };
-}
-
-export async function getPendingOffer(id: string): Promise<PendingOffer | null> {
-  if (await getLastSyncRun(`attofferdone:${id}`)) return null;
-  const rows = await listSyncRunsBySource(`attoffer:${id}`, 7);
-  const s = rows[0]?.stats as unknown as PendingOffer | undefined;
-  return s?.attendees ? s : null;
-}
-
-export async function markOfferDone(id: string): Promise<void> {
-  const owner = await ensureOwner();
-  await recordSyncRun({ userId: owner.user.id, sourceSystem: `attofferdone:${id}`, stats: {} });
 }
 
 /** Send the Teams reminders to a resolved offer's attendees. Returns count sent. */

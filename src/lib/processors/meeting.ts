@@ -32,8 +32,6 @@ import {
   listAllTaskTitles,
   setMeetingProcessing,
 } from "@/lib/db/repo";
-import { notifyNewPerson } from "@/lib/people/notify-new";
-import type { Person } from "@/lib/types";
 
 export interface ProcessResult {
   ok: boolean;
@@ -198,11 +196,8 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
 
   const meetingDate = meeting.meeting_date ?? new Date(meeting.created_at);
 
-  // Track newly-discovered people so Dean gets one bio prompt each afterwards.
-  const newPeople = new Map<string, Person>();
   async function personIdFor(name: string): Promise<string> {
-    const { person, created } = await getOrCreatePerson(owner.user.id, name);
-    if (created) newPeople.set(person.id, person);
+    const { person } = await getOrCreatePerson(owner.user.id, name);
     return person.id;
   }
 
@@ -319,11 +314,6 @@ export async function processMeeting(meetingId: string): Promise<ProcessResult> 
     summary: output.summary,
     recommendedFollowUp: output.recommended_follow_up,
   });
-
-  // Ask Dean for a bio on each newly-discovered contact (best-effort).
-  for (const person of newPeople.values()) {
-    await notifyNewPerson(owner.user.id, person, business?.name ?? null).catch(() => {});
-  }
 
   return { ok: true, counts };
 }

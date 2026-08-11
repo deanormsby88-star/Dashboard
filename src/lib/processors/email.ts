@@ -31,10 +31,8 @@ import {
   threadHasResolvedEmail,
 } from "@/lib/db/repo";
 import { executeComplete } from "@/lib/todoist/execute";
-import { notifyNewPerson } from "@/lib/people/notify-new";
 import { MAILBOX_ADDRESSES } from "@/lib/email/schema";
 import { isNoiseEmail } from "@/lib/assistant/noise";
-import type { Person } from "@/lib/types";
 
 /** Dean's own addresses, this email's mailbox first — lets the processor judge
  * whether an action is Dean's to perform vs. an FYI he was merely CC'd on. */
@@ -180,10 +178,8 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
   const counts = { tasks: 0, waitingOn: 0, risks: 0, relationshipUpdates: 0, resolvedWaitingOn: 0 };
   let suggestedTaskId: string | null = null;
 
-  const newPeople = new Map<string, Person>();
   async function personIdFor(name: string): Promise<string> {
-    const { person, created } = await getOrCreatePerson(owner.user.id, name);
-    if (created) newPeople.set(person.id, person);
+    const { person } = await getOrCreatePerson(owner.user.id, name);
     return person.id;
   }
 
@@ -317,10 +313,6 @@ export async function processEmail(emailId: string): Promise<EmailProcessResult>
     // Ignore/reference emails need no further attention.
     resolved: output.classification === "ignore" || output.classification === "reference",
   });
-
-  for (const person of newPeople.values()) {
-    await notifyNewPerson(owner.user.id, person, business?.name ?? null).catch(() => {});
-  }
 
   return { ok: true, classification: output.classification, counts };
 }

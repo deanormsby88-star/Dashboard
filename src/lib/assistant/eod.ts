@@ -1,59 +1,45 @@
-import { ensureOwner, listCommitments } from "@/lib/db/repo";
-import { businessDaysBetween, ESCALATION_BUSINESS_DAYS } from "@/lib/dates";
+import { getEnv } from "@/lib/env";
+import { listTasks } from "@/lib/db/repo";
 import { getUpcoming } from "@/lib/calendar/sync";
-import { listTodoistTasksForUser } from "@/lib/todoist/scoped";
-import { bucketDueTasks, localToday } from "@/lib/todoist/reminders";
-import { wazeLinkFor } from "@/lib/maps";
+import { localToday } from "@/lib/todoist/reminders";
+import { listPendingDeadlines } from "@/lib/deadlines/scan";
+import { listPendingChases } from "@/lib/accountability/chase";
 import { sendToUser } from "@/lib/telegram/notify";
 import type { Owner } from "@/lib/db/repo";
 
-function fmtTime(d: Date): string {
-  return new Date(d).toLocaleTimeString("en-ZA", { timeZone: "Africa/Johannesburg", hour: "2-digit", minute: "2-digit", hour12: false });
-}
-
 /**
- * End-of-day wrap: tomorrow's schedule, what's still on his plate (Todoist due
- * today/overdue), and who to chase — so nothing slips overnight.
+ * End-of-day wrap: ONE message with a link to /review, where everything the
+ * tool found today — suggested tasks, detected deadlines, drafted chases —
+ * waits in one place for a single approve/decline pass. No individual pushes
+ * during the day; this is the one nudge that replaces all of them.
  */
 export async function sendEndOfDay(owner: Owner, now: Date = new Date()): Promise<{ delivered: boolean }> {
-  const todayStr = localToday(now);
   const tomorrowStr = localToday(new Date(now.getTime() + 86400_000));
 
-  // Tomorrow's timed meetings.
-  let tomorrow: string[] = [];
+  let tomorrowCount = 0;
   try {
     const events = await getUpcoming(owner.user.id, 2);
-    tomorrow = events
-      .filter((e) => !e.all_day && localToday(new Date(e.starts_at)) === tomorrowStr)
-      .map((e) => {
-        const waze = wazeLinkFor(e.location);
-        return `- ${fmtTime(e.starts_at)} · ${e.title}${e.location ? ` @ ${e.location}` : ""}${waze ? `\n   🚗 ${waze}` : ""}`;
-      });
+    tomorrowCount = events.filter((e) => !e.all_day && localToday(new Date(e.starts_at)) === tomorrowStr).length;
   } catch {
     /* no calendar */
   }
 
-  // Still open in Todoist (due today or overdue).
-  let openLines: string[] = [];
-  try {
-    const { overdue, today } = bucketDueTasks(await listTodoistTasksForUser(owner.user.id), todayStr);
-    openLines = [...overdue.map((t) => `- ${t.content} (overdue)`), ...today.map((t) => `- ${t.content}`)];
-  } catch {
-    /* todoist unavailable */
-  }
+  const [suggestedTasks, pendingDeadlines, pendingChases] = await Promise.all([
+    listTasks(owner.user.id, { status: "suggested" }),
+    listPendingDeadlines(owner),
+    listPendingChases(owner),
+  ]);
+  const reviewCount = suggestedTasks.length + pendingDeadlines.length + pendingChases.length;
 
-  // Who to chase (waiting on others, escalated).
-  const commitments = await listCommitments(owner.user.id);
-  const chase = commitments
-    .filter((c) => c.direction === "to_dean" && c.status === "open")
-    .map((c) => ({ c, days: businessDaysBetween(new Date(c.date_made ?? c.created_at), now) }))
-    .filter((x) => x.days >= ESCALATION_BUSINESS_DAYS)
-    .map((x) => `- ${x.c.text}${x.c.person_name ? ` — ${x.c.person_name}` : ""} (${x.days}d)`);
-
-  const parts = [`🌙 End of day — ${now.toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Johannesburg" })}`];
-  parts.push(`\n📅 Tomorrow (${tomorrow.length})\n${tomorrow.length ? tomorrow.join("\n") : "Nothing scheduled."}`);
-  if (openLines.length) parts.push(`\n✅ Still on your plate (${openLines.length})\n${openLines.join("\n")}`);
-  if (chase.length) parts.push(`\n⏳ Chase tomorrow\n${chase.join("\n")}`);
+  const dateLine = now.toLocaleDateString("en-ZA", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Johannesburg" });
+  const parts = [`🌙 End of day — ${dateLine}`];
+  parts.push(`\n📅 Tomorrow: ${tomorrowCount} meeting${tomorrowCount === 1 ? "" : "s"}.`);
+  parts.push(
+    reviewCount
+      ? `📝 ${reviewCount} item${reviewCount === 1 ? "" : "s"} waiting for your review — tasks, deadlines and chase drafts found today.`
+      : `📝 Nothing waiting for review — you're all caught up.`
+  );
+  parts.push(`\n👉 ${getEnv().APP_URL.replace(/\/$/, "")}/review`);
 
   const delivered = await sendToUser(owner.user.id, parts.join("\n"));
   return { delivered };

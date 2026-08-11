@@ -12,15 +12,11 @@ import { sendToUser } from "@/lib/telegram/notify";
 import { wazeLinkFor } from "@/lib/maps";
 
 /**
- * Two nudges per meeting: ~30 min before (with prep) and ~5 min before (a
- * quick heads-up). `within` is the trigger threshold in minutes; the cron runs
- * every 5 min so each tier fires close to its target.
+ * One nudge per meeting, ~15 min before (with prep). `within` is the trigger
+ * threshold in minutes; the cron runs every 5 min so it fires close to target.
  */
-const TIERS = [
-  { name: "t30", within: 33, prep: true },
-  { name: "t5", within: 6, prep: false },
-] as const;
-const MAX_LEAD_MIN = 33;
+const TIERS = [{ name: "t15", within: 18, prep: true }] as const;
+const MAX_LEAD_MIN = 18;
 
 function fmtTime(d: Date): string {
   return new Date(d).toLocaleTimeString("en-ZA", {

@@ -1,13 +1,6 @@
-import {
-  appendConversationMessage,
-  getLastSyncRun,
-  listPeopleWithCounts,
-  recordSyncRun,
-} from "@/lib/db/repo";
-import { sendToUserWithButtons } from "@/lib/telegram/notify";
+import { getLastSyncRun, listPeopleWithCounts, recordSyncRun } from "@/lib/db/repo";
 import { draftCheckIn, stagePendingChase } from "@/lib/accountability/chase";
 import type { Owner } from "@/lib/db/repo";
-import type { InlineButton } from "@/lib/telegram/api";
 
 /** A contact counts as stale once it's been this many days since any activity. */
 export const STALE_CONTACT_DAYS = 42; // ~6 weeks
@@ -61,18 +54,13 @@ export async function scanStaleContacts(owner: Owner, now: Date = new Date()): P
 
     const days = daysSince(p.last_activity, now) ?? 0;
     const weeks = Math.max(1, Math.round(days / 7));
-    const org = p.organization ? ` · ${p.organization}` : "";
-    const openItems = p.open_to_dean + p.open_by_dean;
 
-    const lines = [`👋 You've gone quiet with ${p.full_name}${org}`];
-    lines.push(`Last activity ~${weeks} week(s) ago.`);
-    if (openItems > 0) lines.push(`You still have ${openItems} open item(s) together.`);
-
-    const buttons: InlineButton[][] = [];
+    // No individual Telegram nudge — stage a ready-to-send check-in draft (when
+    // we have a contact address) and surface it on the /review page instead.
     if (p.email) {
       const draft = await draftCheckIn(p.full_name, weeks, p.notes ?? null);
       if (draft) {
-        const chaseId = await stagePendingChase(owner, {
+        await stagePendingChase(owner, {
           commitmentId: "",
           direction: "by_dean",
           personName: p.full_name,
@@ -81,22 +69,10 @@ export async function scanStaleContacts(owner: Owner, now: Date = new Date()): P
           subject: `Checking in`,
           draft,
         });
-        lines.push(`\nDraft check-in ready:\n“${draft}”`);
-        buttons.push([
-          { text: "📤 Send via Teams", callback_data: `loop:teams:${chaseId}` },
-          { text: "✉️ Email", callback_data: `loop:email:${chaseId}` },
-        ]);
       }
     }
-    buttons.push([{ text: "💤 Not now", callback_data: `loop:dismiss:${p.id}` }]);
-
-    const msg = lines.join("\n");
-    const ok = await sendToUserWithButtons(owner.user.id, msg, buttons);
-    if (ok) {
-      await recordSyncRun({ userId: owner.user.id, sourceSystem: `relnudge:${p.id}`, stats: { name: p.full_name } });
-      await appendConversationMessage({ userId: owner.user.id, channel: "telegram", role: "assistant", content: msg });
-      sent++;
-    }
+    await recordSyncRun({ userId: owner.user.id, sourceSystem: `relnudge:${p.id}`, stats: { name: p.full_name } });
+    sent++;
   }
   return { sent, scanned };
 }

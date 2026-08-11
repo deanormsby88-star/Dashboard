@@ -1234,6 +1234,22 @@ export async function listSyncRunsBySource(
   return res.rows;
 }
 
+/** All succeeded sync_runs for this user whose key starts with `prefix` (e.g. "pendingdl:"). */
+export async function listSyncRunsByPrefix(
+  userId: string,
+  prefix: string,
+  sinceDays = 45
+): Promise<Array<{ sourceSystem: string; stats: Record<string, unknown>; started_at: Date }>> {
+  const res = await getPool().query<{ source_system: string; stats: Record<string, unknown>; started_at: Date }>(
+    `select source_system, stats, started_at from sync_runs
+     where user_id = $1 and source_system like $2 and status = 'succeeded'
+       and started_at > now() - make_interval(days => $3)
+     order by started_at desc limit 500`,
+    [userId, `${prefix}%`, sinceDays]
+  );
+  return res.rows.map((r) => ({ sourceSystem: r.source_system, stats: r.stats, started_at: r.started_at }));
+}
+
 export interface RecentChanges {
   tasksCreated: Array<{ title: string; status: string }>;
   commitmentsOpened: Array<{ text: string; direction: string; person_name: string | null }>;

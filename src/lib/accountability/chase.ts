@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
 import { DEAN_VOICE } from "@/lib/voice";
-import { getLastSyncRun, listSyncRunsBySource, recordSyncRun } from "@/lib/db/repo";
+import { getLastSyncRun, listSyncRunsByPrefix, listSyncRunsBySource, recordSyncRun } from "@/lib/db/repo";
+import { messageTeammateForUser } from "@/lib/teams/send";
+import { stagePendingEmail } from "@/lib/email/pending";
 import type { Commitment } from "@/lib/types";
 import type { Owner } from "@/lib/db/repo";
 
@@ -95,4 +97,48 @@ export async function getPendingChase(id: string): Promise<PendingChase | null> 
 /** Mark a staged chase resolved so its buttons can't fire twice. */
 export async function markChaseDone(owner: Owner, id: string): Promise<void> {
   await recordSyncRun({ userId: owner.user.id, sourceSystem: `pendingchasedone:${id}`, stats: {} });
+}
+
+/** Every drafted chase / check-in still awaiting a decision — for the review page. */
+export async function listPendingChases(owner: Owner): Promise<PendingChase[]> {
+  const rows = await listSyncRunsByPrefix(owner.user.id, "pendingchase:");
+  const seen = new Set<string>();
+  const out: PendingChase[] = [];
+  for (const r of rows) {
+    const s = r.stats as unknown as PendingChase | undefined;
+    if (!s?.id || !s.draft || seen.has(s.id)) continue;
+    seen.add(s.id);
+    if (await getLastSyncRun(`pendingchasedone:${s.id}`)) continue;
+    out.push(s);
+  }
+  return out;
+}
+
+/** Send a staged chase (Teams or a draft email), or just dismiss it. Shared by the Telegram callback and the web review page. */
+export async function resolvePendingChase(
+  owner: Owner,
+  id: string,
+  action: "teams" | "email" | "ignore"
+): Promise<{ ok: boolean; error?: string; chase?: PendingChase }> {
+  const chase = await getPendingChase(id);
+  if (!chase) return { ok: false, error: "expired" };
+
+  if (action === "ignore") {
+    await markChaseDone(owner, id);
+    return { ok: true, chase };
+  }
+  if (action === "teams") {
+    const res = await messageTeammateForUser(owner.user.id, chase.personEmail, chase.draft);
+    await markChaseDone(owner, id);
+    return { ok: res.ok, error: res.error, chase };
+  }
+  await stagePendingEmail({
+    kind: "new",
+    mailbox: chase.businessKey,
+    to: [chase.personEmail],
+    subject: chase.subject,
+    body: chase.draft,
+  });
+  await markChaseDone(owner, id);
+  return { ok: true, chase };
 }
