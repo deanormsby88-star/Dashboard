@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
 import { DEAN_VOICE } from "@/lib/voice";
-import { getLastSyncRun, listSyncRunsByPrefix, listSyncRunsBySource, recordSyncRun } from "@/lib/db/repo";
+import { getLastSyncRun, listSyncRunsByPrefix, listSyncRunsBySource, markCommitmentDone, recordSyncRun } from "@/lib/db/repo";
 import { messageTeammateForUser } from "@/lib/teams/send";
 import { stagePendingEmail } from "@/lib/email/pending";
 import type { Commitment } from "@/lib/types";
@@ -114,16 +114,28 @@ export async function listPendingChases(owner: Owner): Promise<PendingChase[]> {
   return out;
 }
 
-/** Send a staged chase (Teams or a draft email), or just dismiss it. Shared by the Telegram callback and the web review page. */
+/**
+ * Send a staged chase (Teams or a draft email), dismiss it for now, or mark
+ * it truly done. "ignore" only skips this one draft — since the underlying
+ * commitment is still open, a fresh chase will be drafted again once it goes
+ * stale. "done" actually resolves the underlying commitment (when there is
+ * one) so it stops being chased at all. Shared by the Telegram callback and
+ * the web review page.
+ */
 export async function resolvePendingChase(
   owner: Owner,
   id: string,
-  action: "teams" | "email" | "ignore"
+  action: "teams" | "email" | "ignore" | "done"
 ): Promise<{ ok: boolean; error?: string; chase?: PendingChase }> {
   const chase = await getPendingChase(id);
   if (!chase) return { ok: false, error: "expired" };
 
   if (action === "ignore") {
+    await markChaseDone(owner, id);
+    return { ok: true, chase };
+  }
+  if (action === "done") {
+    if (chase.commitmentId) await markCommitmentDone(owner.user.id, chase.commitmentId);
     await markChaseDone(owner, id);
     return { ok: true, chase };
   }

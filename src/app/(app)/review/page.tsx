@@ -82,7 +82,7 @@ export default async function ReviewPage() {
               <h2 className="eyebrow">Drafted chases &amp; check-ins ({chases.length})</h2>
               <div className="space-y-3">
                 {chases.map((c) => (
-                  <ChaseReviewCard key={c.id} chase={{ id: c.id, personName: c.personName, draft: c.draft, subject: c.subject }} />
+                  <ChaseReviewCard key={c.id} chase={{ id: c.id, personName: c.personName, draft: c.draft, subject: c.subject, hasCommitment: Boolean(c.commitmentId) }} />
                 ))}
               </div>
             </section>

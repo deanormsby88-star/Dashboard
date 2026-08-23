@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, Send, X } from "lucide-react";
+import { Check, Mail, Send, X } from "lucide-react";
 
 export interface ChaseView {
   id: string;
   personName: string;
   draft: string;
   subject: string;
+  hasCommitment: boolean;
 }
 
 export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
@@ -16,7 +17,7 @@ export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function act(action: "teams" | "email" | "ignore") {
+  async function act(action: "teams" | "email" | "ignore" | "done") {
     setBusy(action);
     setError(null);
     try {
@@ -40,6 +41,11 @@ export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
     <div className="card p-4">
       <p className="font-medium">💬 Draft for {chase.personName}</p>
       <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">“{chase.draft}”</p>
+      {chase.hasCommitment && (
+        <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+          Mark done closes it out for good — Not now just skips this reminder, it'll come back if still open.
+        </p>
+      )}
       {error && (
         <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>
       )}
@@ -50,8 +56,11 @@ export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
         <button className="btn-secondary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("email")}>
           <Mail size={13} /> {busy === "email" ? "Drafting…" : "Email instead"}
         </button>
+        <button className="btn-secondary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("done")}>
+          <Check size={13} /> {busy === "done" ? "Marking…" : chase.hasCommitment ? "Mark done" : "Handled"}
+        </button>
         <button className="btn-secondary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("ignore")}>
-          <X size={13} /> {busy === "ignore" ? "Ignoring…" : "Ignore"}
+          <X size={13} /> {busy === "ignore" ? "…" : "Not now"}
         </button>
       </div>
     </div>

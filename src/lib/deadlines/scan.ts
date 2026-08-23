@@ -40,9 +40,10 @@ interface ExtractedDeadline {
   due_date: string; // YYYY-MM-DD
   due_time: string | null; // HH:MM or null
   confidence: number;
+  owner: "dean" | "other";
 }
 
-const SYSTEM = `You find explicit DEADLINES for Dean Ormsby in his recent Microsoft Teams messages and emails (inbox and things he sent).
+const SYSTEM = `You find explicit DEADLINES that DEAN ORMSBY HIMSELF is responsible for delivering, in his recent Microsoft Teams messages and emails (inbox and things he sent).
 
 A deadline is a concrete date (and optionally a time) by which something is due — e.g. "by Friday", "before 15 Aug", "EOD Thursday", "by 3pm tomorrow", "due end of month". Resolve relative dates against the CURRENT DATE given below, in South African time.
 
@@ -50,6 +51,7 @@ Rules:
 - Only real, concrete deadlines. Ignore vague language ("soon", "asap", "when you can") unless an actual date is stated.
 - due_date is YYYY-MM-DD. due_time is HH:MM (24-hour) ONLY if a specific time is given, otherwise null. "EOD"/"end of day" → null time (not a specific hour).
 - "what" is a short description of what's due (verb-first where possible).
+- owner: "dean" if DEAN is the one who has to deliver/complete this by the deadline — his own promise or task. "other" if someone else (a teammate, colleague or contact) is the one responsible for delivering it, even if it was mentioned to Dean or affects him — e.g. a teammate saying "I'll get you the report by Friday" is "other", not "dean". Only extract "other" deadlines too (so the caller can filter), but be careful to set this field correctly — it's the main signal used to decide what to remind Dean about.
 - ref must be the exact id of the message the deadline came from.
 - confidence 0–1: how sure you are this is a genuine deadline.
 - If there are no real deadlines, return an empty list.`;
@@ -64,13 +66,14 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["ref", "what", "due_date", "due_time", "confidence"],
+        required: ["ref", "what", "due_date", "due_time", "confidence", "owner"],
         properties: {
           ref: { type: "string" },
           what: { type: "string" },
           due_date: { type: "string" },
           due_time: { type: ["string", "null"] },
           confidence: { type: "number", minimum: 0, maximum: 1 },
+          owner: { type: "string", enum: ["dean", "other"] },
         },
       },
     },
@@ -264,6 +267,7 @@ export async function scanDeadlines(owner: Owner, now: Date = new Date()): Promi
   const byId = new Map(batch.map((m) => [m.id, m]));
   let suggested = 0;
   for (const d of deadlines) {
+    if (d.owner !== "dean") continue; // only remind Dean about deadlines that are his own to deliver
     if (!d.what?.trim() || !/^\d{4}-\d{2}-\d{2}$/.test(d.due_date) || d.confidence < MIN_CONFIDENCE) continue;
     const dupKey = hash(`${d.what.toLowerCase()}|${d.due_date}|${d.due_time ?? ""}`);
     if (await getLastSyncRun(`dlsug:${dupKey}`)) continue;
