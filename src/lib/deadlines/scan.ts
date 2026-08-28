@@ -181,9 +181,15 @@ export interface PendingDeadline {
   rungs: ReminderRung[];
 }
 
+// Must match listPendingDeadlines' lookback (listSyncRunsByPrefix's default)
+// — otherwise an item can sit on the /review page (listed within the longer
+// window) while every action on it 404s as "expired" (looked up within a
+// shorter one). Keep these in sync.
+const PENDING_LOOKBACK_DAYS = 45;
+
 export async function getPendingDeadline(id: string): Promise<PendingDeadline | null> {
   if (await getLastSyncRun(`pendingdldone:${id}`)) return null;
-  const rows = await listSyncRunsBySource(`pendingdl:${id}`, 7);
+  const rows = await listSyncRunsBySource(`pendingdl:${id}`, PENDING_LOOKBACK_DAYS);
   const s = rows[0]?.stats as unknown as PendingDeadline | undefined;
   return s?.rungs?.length ? s : null;
 }

@@ -86,10 +86,16 @@ export async function stagePendingChase(owner: Owner, p: Omit<PendingChase, "id"
   return id;
 }
 
+// Must match listPendingChases' lookback (listSyncRunsByPrefix's default) —
+// otherwise an item can sit on the /review page (listed within the longer
+// window) while every action on it 404s as "expired" (looked up within a
+// shorter one). Keep these in sync.
+const PENDING_LOOKBACK_DAYS = 45;
+
 /** Load a staged chase if still pending (not yet sent/cancelled). */
 export async function getPendingChase(id: string): Promise<PendingChase | null> {
   if (await getLastSyncRun(`pendingchasedone:${id}`)) return null;
-  const rows = await listSyncRunsBySource(`pendingchase:${id}`, 7);
+  const rows = await listSyncRunsBySource(`pendingchase:${id}`, PENDING_LOOKBACK_DAYS);
   const s = rows[0]?.stats as unknown as PendingChase | undefined;
   return s?.draft ? s : null;
 }

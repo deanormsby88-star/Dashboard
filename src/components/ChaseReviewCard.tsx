@@ -27,6 +27,12 @@ export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
         body: JSON.stringify({ action }),
       });
       if (!res.ok) {
+        if (res.status === 404) {
+          // Already resolved (elsewhere, or a duplicate click) — refresh so
+          // the stale card clears instead of leaving dead buttons behind.
+          router.refresh();
+          return;
+        }
         const b = (await res.json().catch(() => null)) as { error?: string } | null;
         setError(b?.error ?? `Request failed (${res.status})`);
         return;
