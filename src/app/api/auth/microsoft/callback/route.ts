@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getEnv, isAllowedSignupEmail } from "@/lib/env";
+import { getEnv } from "@/lib/env";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
-import { ensureUser, getUserByEmail, upsertCalendarConnection } from "@/lib/db/repo";
+import { ensureUser, upsertCalendarConnection } from "@/lib/db/repo";
 import { encryptSecret } from "@/lib/crypto";
 import {
   exchangeCode,
@@ -40,10 +40,10 @@ export async function GET(request: NextRequest) {
       const profile = await getAccountProfile(tokens.access_token);
       if (!profile) return NextResponse.redirect(new URL("/login?error=profile", request.url));
 
-      // The domain allow-list gates NEW sign-ups only; an existing user (e.g.
-      // the original owner) can always sign in regardless of the current list.
-      const existing = await getUserByEmail(profile.email);
-      if (!existing && !isAllowedSignupEmail(profile.email)) {
+      // Microsoft sign-in is locked to Dean's own account only — no domain
+      // allow-list, no other existing rows. Anyone else is rejected here,
+      // before a session is ever created.
+      if (profile.email.trim().toLowerCase() !== getEnv().DEANOS_EMAIL.toLowerCase()) {
         return NextResponse.redirect(new URL("/login?error=domain", request.url));
       }
 

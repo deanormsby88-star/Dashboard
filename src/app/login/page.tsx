@@ -2,7 +2,7 @@ export const metadata = { title: "Sign in — DeanOS" };
 export const dynamic = "force-dynamic";
 
 const ERRORS: Record<string, string> = {
-  domain: "That account isn't part of an organisation approved for DeanOS. Use your work account.",
+  domain: "DeanOS is locked to a single account. If this isn't Dean's account, sign-in isn't available.",
   not_configured: "Microsoft sign-in isn't configured yet. Contact your administrator.",
   oauth: "Microsoft sign-in was cancelled or failed. Please try again.",
   bad_state: "Your sign-in link expired. Please try again.",
