@@ -1,17 +1,8 @@
+import LoginForm from "@/components/LoginForm";
+
 export const metadata = { title: "Sign in — DeanOS" };
-export const dynamic = "force-dynamic";
 
-const ERRORS: Record<string, string> = {
-  domain: "DeanOS is locked to a single account. If this isn't Dean's account, sign-in isn't available.",
-  not_configured: "Microsoft sign-in isn't configured yet. Contact your administrator.",
-  oauth: "Microsoft sign-in was cancelled or failed. Please try again.",
-  bad_state: "Your sign-in link expired. Please try again.",
-  profile: "Couldn't read your Microsoft profile. Please try again.",
-  exchange_failed: "Sign-in couldn't complete. Please try again.",
-};
-
-export default function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
-  const error = searchParams.error ? ERRORS[searchParams.error] ?? "Sign-in failed." : null;
+export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm animate-fade-in space-y-8">
@@ -24,15 +15,7 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
             Your AI chief of staff
           </p>
         </div>
-        <div className="card space-y-4 p-6">
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          <a href="/api/auth/microsoft/login" className="btn-primary flex w-full items-center justify-center gap-2">
-            Sign in with Microsoft
-          </a>
-          <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-            Use your work Microsoft 365 account. This connects your calendar and email.
-          </p>
-        </div>
+        <LoginForm />
       </div>
     </div>
   );
