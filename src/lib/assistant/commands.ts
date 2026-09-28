@@ -54,9 +54,9 @@ export interface AssistantReply {
 
 /**
  * Recognise a message as a terse shortcut command vs. natural conversation.
- * Commands fire only when the message is a slash-command ("/prep Lawrence")
+ * Commands fire only when the message is a slash-command ("/prep Alex")
  * or a bare single command word ("brief", "waiting"). Everything else —
- * including "prep Lawrence" without a slash or any real sentence — is treated
+ * including "prep Alex" without a slash or any real sentence — is treated
  * as conversation and handled by the agent, so the bot reads as a chatbot.
  */
 export function parseCommand(input: string): { cmd: string; args: string } {
@@ -175,7 +175,7 @@ async function risks(owner: Owner): Promise<AssistantReply> {
 }
 
 async function people(owner: Owner, args: string): Promise<AssistantReply> {
-  if (!args) return { reply: "Who? Try: people Lawrence" };
+  if (!args) return { reply: "Who? Try: people Alex" };
   const bundle = await getPersonBundle(owner.user.id, args);
   if (!bundle.person && bundle.commitments.length === 0 && bundle.meetings.length === 0 && bundle.emails.length === 0) {
     return { reply: `Nothing on file yet for "${args}".` };
@@ -342,7 +342,7 @@ async function review(owner: Owner): Promise<AssistantReply> {
   const result = await callText({
     model,
     system:
-      "You are Second, the executive operating system of Dean Ormsby (Heya — recruitment/HR; JIC — Just Imagine Consulting; Personal). Write a crisp weekly review in plain text: what moved, what closed, what's stuck, what deserves attention next week. Ground every statement in the provided data; never invent. Use short sections and dashes, no markdown symbols beyond that. Maximum 250 words.",
+      "You are Second, the executive operating system of Dean Ormsby (JIC — Just Imagine Consulting; Personal). Write a crisp weekly review in plain text: what moved, what closed, what's stuck, what deserves attention next week. Ground every statement in the provided data; never invent. Use short sections and dashes, no markdown symbols beyond that. Maximum 250 words.",
     user: `LAST 7 DAYS (JSON):\n${JSON.stringify(changes)}\n\nCURRENT STATE (JSON):\n${JSON.stringify(snapshot)}`,
   });
   await insertAiRun({
@@ -362,7 +362,7 @@ async function review(owner: Owner): Promise<AssistantReply> {
 }
 
 async function prep(owner: Owner, args: string): Promise<AssistantReply> {
-  if (!args) return { reply: "Prep for whom or what? Try: prep Lawrence — or: prep supplier call" };
+  if (!args) return { reply: "Prep for whom or what? Try: prep Alex — or: prep supplier call" };
   const bundle = await getPersonBundle(owner.user.id, args);
   const context = {
     person: bundle.person

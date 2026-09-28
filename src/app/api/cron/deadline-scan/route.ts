@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Detect concrete deadlines across Teams + email and suggest reminder ladders. */
+/** Detect concrete deadlines in email and suggest reminder ladders. */
 export async function GET(request: NextRequest) {
   const denied = requireCron(request);
   if (denied) return denied;

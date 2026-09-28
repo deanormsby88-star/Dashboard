@@ -59,10 +59,10 @@ describe("email JSON schema is strict-mode compliant", () => {
 describe("buildUserMessage", () => {
   it("includes the open waiting-on list with IDs", () => {
     const message = buildUserMessage({
-      mailbox: "heya",
+      mailbox: "jic",
       direction: "inbound",
       sender: "lawrence@example.com",
-      recipients: ["deano@heya.team"],
+      recipients: ["dean@justimagineconsulting.co.za"],
       subject: "Revised proposal attached",
       body: "Here is the revised team proposal.",
       emailDate: "2026-07-10T10:00:00Z",

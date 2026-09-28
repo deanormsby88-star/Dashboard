@@ -36,7 +36,7 @@ describe("isNoiseEmail (email processor)", () => {
     expect(isNoiseEmail("lawrence@client.co.za", "Revised proposal", "Here is the contract for signature")).toBe(false);
     // Mentions a platform but is a real work request, not a login/security alert.
     expect(
-      isNoiseEmail("mo@heya.team", "LinkedIn campaign", "Can you approve the LinkedIn ad budget for Q3?")
+      isNoiseEmail("mo@example.com", "LinkedIn campaign", "Can you approve the LinkedIn ad budget for Q3?")
     ).toBe(false);
   });
 });

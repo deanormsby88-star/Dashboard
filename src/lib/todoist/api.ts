@@ -28,7 +28,7 @@ export function buildTodoistCreateBody(
     priority: task.priority,
   };
   // Everything goes to the Inbox (no project_id) so Dean triages it in one
-  // place; the business is preserved as a label (Heya / JIC / Personal).
+  // place; the business is preserved as a label (JIC / Personal).
   const labels = [...task.labels];
   if (business?.name) labels.push(business.name);
   if (task.due_date) body.due_date = toIsoDate(task.due_date);

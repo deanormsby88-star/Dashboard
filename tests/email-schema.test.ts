@@ -9,7 +9,7 @@ import newsletter from "./fixtures/email/email-newsletter.json";
 
 describe("normalizeAddress", () => {
   it("extracts bare addresses from display forms", () => {
-    expect(normalizeAddress("Dean Ormsby <deano@heya.team>")).toBe("deano@heya.team");
+    expect(normalizeAddress("Dean Ormsby <dean@justimagineconsulting.co.za>")).toBe("dean@justimagineconsulting.co.za");
     expect(normalizeAddress("  SAM@Anchoroffices.COM.au ")).toBe("sam@anchoroffices.com.au");
   });
 });
@@ -29,10 +29,10 @@ describe("normalizeEmailPayload", () => {
     const result = normalizeEmailPayload(actionEmail);
     expect(result.ok).toBe(true);
     const p = result.payload!;
-    expect(p.mailbox).toBe("heya");
+    expect(p.mailbox).toBe("jic");
     expect(p.direction).toBe("inbound"); // sender is not one of Dean's addresses
     expect(p.sender).toBe("sam@anchoroffices.com.au");
-    expect(p.recipients).toEqual(["deano@heya.team"]);
+    expect(p.recipients).toEqual(["dean@justimagineconsulting.co.za"]);
     expect(p.messageId).toContain("anchoroffices");
     expect(p.threadId).toBe("AAQkAGI2T4MkzTQtM2QwYy00");
     expect(p.sourceUrl).toContain("outlook.office365.com");
@@ -60,13 +60,13 @@ describe("normalizeEmailPayload", () => {
 
   it("infers outbound direction when Dean is the sender", () => {
     const result = normalizeEmailPayload({
-      from: "Dean Ormsby <deano@heya.team>",
+      from: "Dean Ormsby <dean@justimagineconsulting.co.za>",
       to: "lawrence@example.com",
       subject: "Please send the proposal",
       body: "Hi Lawrence, when can you get me the revised proposal?",
     });
     expect(result.ok).toBe(true);
-    expect(result.payload!.mailbox).toBe("heya");
+    expect(result.payload!.mailbox).toBe("jic");
     expect(result.payload!.direction).toBe("outbound");
   });
 
@@ -97,7 +97,7 @@ describe("normalizeEmailPayload", () => {
   });
 
   it("rejects payloads with neither subject nor body", () => {
-    const result = normalizeEmailPayload({ mailbox: "heya", from: "a@b.com" });
+    const result = normalizeEmailPayload({ mailbox: "jic", from: "a@b.com" });
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/nothing to process/i);
   });

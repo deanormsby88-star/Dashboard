@@ -16,7 +16,7 @@ export const runtime = "nodejs";
  */
 const bodySchema = z.object({
   title: z.string().min(1).max(500),
-  business: z.enum(["heya", "jic", "personal"]),
+  business: z.enum(["jic", "personal"]),
   description: z.string().max(5000).default(""),
   priority: z.number().int().min(1).max(4).default(2),
   due_date: z

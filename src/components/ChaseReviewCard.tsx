@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Mail, Send, X } from "lucide-react";
+import { Check, Mail, X } from "lucide-react";
 
 export interface ChaseView {
   id: string;
@@ -17,7 +17,7 @@ export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function act(action: "teams" | "email" | "ignore" | "done") {
+  async function act(action: "email" | "ignore" | "done") {
     setBusy(action);
     setError(null);
     try {
@@ -56,11 +56,8 @@ export default function ChaseReviewCard({ chase }: { chase: ChaseView }) {
         <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">{error}</p>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="btn-primary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("teams")}>
-          <Send size={13} /> {busy === "teams" ? "Sending…" : "Send via Teams"}
-        </button>
-        <button className="btn-secondary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("email")}>
-          <Mail size={13} /> {busy === "email" ? "Drafting…" : "Email instead"}
+        <button className="btn-primary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("email")}>
+          <Mail size={13} /> {busy === "email" ? "Drafting…" : "Draft email"}
         </button>
         <button className="btn-secondary !py-1.5 text-xs" disabled={busy !== null} onClick={() => act("done")}>
           <Check size={13} /> {busy === "done" ? "Marking…" : chase.hasCommitment ? "Mark done" : "Handled"}

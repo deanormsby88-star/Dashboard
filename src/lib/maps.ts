@@ -27,7 +27,6 @@ const ONLINE_PATTERNS = [
  */
 const OFFICE_PATTERNS = [
   /beyachad/i,
-  /heya\s*sa/i,
   /dean'?s office/i,
   /\b(in|my|the)\s+office\b/i,
   /^\s*office\s*$/i,

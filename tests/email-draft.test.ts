@@ -6,7 +6,7 @@ describe("senderAddress", () => {
     expect(senderAddress("Lawrence Green <lawrence@acme.co.za>")).toBe("lawrence@acme.co.za");
   });
   it("passes through a bare address", () => {
-    expect(senderAddress("dean@heya.team")).toBe("dean@heya.team");
+    expect(senderAddress("dean@justimagineconsulting.co.za")).toBe("dean@justimagineconsulting.co.za");
   });
 });
 

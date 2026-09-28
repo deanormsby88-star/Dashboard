@@ -11,7 +11,7 @@ const BASE = "https://api.todoist.com/api/v1";
 /**
  * Diagnose Todoist pushing end-to-end from the prod environment: is the token
  * present + valid, what project IDs are stored, and does a live create succeed
- * (into the Heya project and the Inbox). Test tasks are deleted. Open in the
+ * (into the JIC project and the Inbox). Test tasks are deleted. Open in the
  * browser while logged in.
  */
 export async function GET() {
@@ -39,7 +39,7 @@ export async function GET() {
 
   out.auth = await hfetch("/tasks?limit=1");
 
-  const heya = owner.businesses.find((b) => b.key === "heya");
+  const jic = owner.businesses.find((b) => b.key === "jic");
   const testCreate = async (label: string, projectId?: string | null) => {
     const body: Record<string, unknown> = { content: `__DeanOS diagnose ${label}__`, priority: 1 };
     if (projectId) body.project_id = projectId;
@@ -55,7 +55,7 @@ export async function GET() {
     return { status: res.status, ok: res.ok, created: Boolean(id), error: res.ok ? undefined : text.slice(0, 300) };
   };
 
-  out.createInHeyaProject = await testCreate("heya", heya?.todoist_project_id);
+  out.createInJicProject = await testCreate("jic", jic?.todoist_project_id);
   out.createInInbox = await testCreate("inbox", null);
   return NextResponse.json(out);
 }

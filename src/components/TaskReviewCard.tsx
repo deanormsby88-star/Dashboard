@@ -136,7 +136,6 @@ export default function TaskReviewCard({ task }: { task: TaskView }) {
               <label className="form-label">Business</label>
               <select className="form-input" value={business} onChange={(e) => setBusiness(e.target.value)}>
                 <option value="">(unchanged)</option>
-                <option value="heya">Heya</option>
                 <option value="jic">JIC</option>
                 <option value="personal">Personal</option>
               </select>

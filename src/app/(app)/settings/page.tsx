@@ -25,8 +25,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
   const owner = await pageUser();
   const calendarConns = await listCalendarConnections(owner.user.id);
   const graphConfigured = status.MS_CLIENT_ID && status.MS_CLIENT_SECRET;
-  const calendars: Array<{ key: "heya" | "jic"; name: string }> = [
-    { key: "heya", name: "Heya Outlook" },
+  const calendars: Array<{ key: "jic"; name: string }> = [
     { key: "jic", name: "JIC Outlook" },
   ];
   const calMsg: Record<string, string> = {
@@ -61,14 +60,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
       detail: `Outbound fallback: Catch Hooks for create/update/complete; Zapier calls back to POST ${appUrl}/api/webhooks/zapier/todoist with the Todoist task ID.`,
     },
     {
-      name: "Email ingestion (Heya / JIC / Gmail via Zapier)",
+      name: "Email ingestion (JIC / Gmail via Zapier)",
       configured: status.ZAPIER_WEBHOOK_SECRET,
       detail: `Inbound: POST ${appUrl}/api/webhooks/zapier/email — flagged/foldered emails flow from each mailbox's Zap with its business context. Bodies are stored truncated; the mail platform stays the system of record.`,
     },
     {
       name: "Outlook calendar + email (Microsoft Graph)",
       configured: status.MS_CLIENT_ID && status.MS_CLIENT_SECRET,
-      detail: "Two-way: Second reads and schedules meetings, and reads/replies/sends email, across the Heya and JIC Outlook accounts. Connect each below.",
+      detail: "Two-way: Second reads and schedules meetings, and reads/replies/sends email, in your JIC Outlook account. Connect it below.",
     },
   ];
 
@@ -150,7 +149,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           })}
         </div>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Sign in with each Outlook account to let Second read and manage that mailbox's calendar and email (read, reply, send), and — for Heya — read Teams chats and message teammates. If you connected before a capability was added (email, Teams), click Reconnect to grant it; Teams messaging needs tenant admin consent (tick “consent on behalf of your organization” if you're an admin). Tokens are stored encrypted.
+          Sign in with your JIC Outlook account to let Second read and manage its calendar and email (read, reply, send). If you connected before a capability was added, click Reconnect to grant it. Tokens are stored encrypted.
         </p>
         <div className="flex flex-col gap-1.5 pt-1">
           <ImportJicSignatureButton />

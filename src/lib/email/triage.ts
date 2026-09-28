@@ -14,7 +14,7 @@ function localToday(now: Date): string {
 }
 
 /**
- * Send Dean a morning inbox triage: unread mail across Heya + JIC, distilled by
+ * Send Dean a morning inbox triage: unread JIC mail, distilled by
  * the model into what needs him with suggested actions. Once per local day.
  */
 export async function morningTriage(owner: Owner, now: Date = new Date()): Promise<{ status: string; count?: number }> {
@@ -26,7 +26,7 @@ export async function morningTriage(owner: Owner, now: Date = new Date()): Promi
   const sinceIso = new Date(now.getTime() - LOOKBACK_HOURS * 3600_000).toISOString();
   const all: Array<GraphMessage & { mailbox: string }> = [];
   for (const c of conns) {
-    if (c.calendar !== "heya" && c.calendar !== "jic") continue;
+    if (c.calendar !== "jic") continue;
     const token = await getValidAccessToken(owner.user.id, c.calendar);
     if (!token) continue;
     try {

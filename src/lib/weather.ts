@@ -8,7 +8,7 @@
 
 const DEFAULT_LAT = -26.1307; // Pierneef Park, Randburg, Johannesburg
 const DEFAULT_LON = 28.0018;
-const USER_AGENT = "DeanOS/1.0 (https://deanos-nu.vercel.app; deano@heya.team)";
+const USER_AGENT = "Second/1.0 (https://deanos-nu.vercel.app; dean.ormsby88@gmail.com)";
 
 export interface TodayWeather {
   summary: string;

@@ -17,14 +17,6 @@
       "schedule": "0 15 * * 1-5"
     },
     {
-      "path": "/api/cron/teams-tasks",
-      "schedule": "*/15 4-18 * * 1-5"
-    },
-    {
-      "path": "/api/cron/attendee-reminders",
-      "schedule": "*/15 * * * *"
-    },
-    {
       "path": "/api/cron/open-loops",
       "schedule": "0 5,11 * * 1-5"
     },
@@ -35,10 +27,6 @@
     {
       "path": "/api/cron/deadline-scan",
       "schedule": "20 4-16 * * 1-5"
-    },
-    {
-      "path": "/api/cron/zoho-sync",
-      "schedule": "*/15 4-16 * * 1-5"
     }
   ]
 }

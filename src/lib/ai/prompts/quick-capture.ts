@@ -22,7 +22,7 @@ const dueDate = z
 
 export const quickCaptureOutputSchema = z.object({
   kind: z.enum(["task", "waiting_on", "risk", "relationship_update", "note"]),
-  business: z.enum(["heya", "jic", "personal", "unknown"]),
+  business: z.enum(["jic", "personal", "unknown"]),
   task: z
     .object({
       title: z.string().min(1),
@@ -47,7 +47,7 @@ export const quickCaptureJsonSchema: Record<string, unknown> = {
   required: ["kind", "business", "task", "waiting_on", "risk", "relationship_update", "note"],
   properties: {
     kind: { type: "string", enum: ["task", "waiting_on", "risk", "relationship_update", "note"] },
-    business: { type: "string", enum: ["heya", "jic", "personal", "unknown"] },
+    business: { type: "string", enum: ["jic", "personal", "unknown"] },
     task: {
       type: ["object", "null"],
       additionalProperties: false,
@@ -90,16 +90,16 @@ export const quickCaptureJsonSchema: Record<string, unknown> = {
   },
 };
 
-export const SYSTEM_PROMPT = `You are the Quick Capture parser inside Second for Dean Ormsby (businesses: Heya = recruitment/HR services; JIC = Just Imagine Consulting; plus Personal).
+export const SYSTEM_PROMPT = `You are the Quick Capture parser inside Second for Dean Ormsby (businesses: JIC = Just Imagine Consulting; plus Personal).
 
 Turn Dean's one-liner into exactly one record:
 - "task": something Dean must do. Title concise and verb-first. Priority: 4 only for same-day urgency/serious risk; 3 for client-facing or blocking work; 2 normal (default); 1 backlog. due_date ONLY if Dean stated an explicit date or unambiguous relative date (resolve against today's date given in the message) — never invent one.
 - "waiting_on": someone owes Dean something ("waiting on X for Y", "X said he'd send…"). text reads like "X to send Y".
 - "risk": a concern or exposure worth tracking, not an action.
-- "relationship_update": a durable fact about a person ("remember that Sam prefers calls over email").
+- "relationship_update": a durable fact about a person ("remember that Alex prefers calls over email").
 - "note": anything else worth keeping.
 
-business: infer from content (Heya = recruitment/HR/team/clients-of-heya; JIC = consulting/orders/suppliers; Personal = family/health/home/finance-personal). Use "unknown" when unclear.
+business: infer from content (JIC = work: consulting/clients/orders/suppliers; Personal = family/health/home/finance-personal). Use "unknown" when unclear.
 
 Fill exactly one of task / waiting_on / risk / relationship_update / note (matching kind); set the others null.`;
 

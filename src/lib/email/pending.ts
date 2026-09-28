@@ -10,7 +10,7 @@ import { sendToDeanWithButtons } from "@/lib/telegram/notify";
 export interface PendingEmail {
   id: string;
   kind: "reply" | "new";
-  mailbox: "heya" | "jic";
+  mailbox: "jic";
   messageId?: string; // for replies
   to?: string[]; // for new mail
   subject?: string;

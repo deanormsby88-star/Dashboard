@@ -17,7 +17,7 @@ describe("meeting processor output schema", () => {
     const result = parseMeetingProcessorOutput(JSON.stringify(validExtraction));
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.output.business).toBe("heya");
+      expect(result.output.business).toBe("jic");
       expect(result.output.tasks).toHaveLength(2);
     }
   });

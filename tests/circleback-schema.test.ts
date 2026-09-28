@@ -10,7 +10,7 @@ describe("normalizeCirclebackPayload", () => {
     expect(result.ok).toBe(true);
     const p = result.payload!;
     expect(p.meetingId).toBe("cb-meeting-1001");
-    expect(p.title).toContain("Heya Ops Weekly");
+    expect(p.title).toContain("JIC Ops Weekly");
     expect(p.attendees).toHaveLength(3);
     expect(p.attendees[0].name).toBe("Dean Ormsby");
     expect(p.actionItems).toHaveLength(2);
@@ -29,7 +29,7 @@ describe("normalizeCirclebackPayload", () => {
 
   it("derives a stable meeting ID when the payload has none (real Circleback feeds omit it)", () => {
     const payload = {
-      title: "Heya Team - IT Monthly Call",
+      title: "JIC Team - IT Monthly Call",
       meetingDate: "2026-07-09T15:31:02.967Z",
       notes: "Some notes",
       transcript: "Some transcript",

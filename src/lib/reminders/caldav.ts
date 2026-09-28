@@ -49,7 +49,7 @@ export interface ReminderTodo {
   dueDate: string | null; // YYYY-MM-DD
   completed: boolean;
   priority: number | null; // 1 (high) … 9 (low), Apple maps to !!!/!!/!
-  tags: string[]; // e.g. ["heya"]
+  tags: string[]; // e.g. ["jic"]
   url: string; // object URL (for later update/complete)
 }
 

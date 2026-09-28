@@ -24,7 +24,6 @@ type Queryable = Pool | PoolClient;
 // Known Todoist project IDs from the brief. Personal intentionally has no
 // project ID — tasks go to the Todoist Inbox until a validated ID exists.
 export const BUSINESS_SEED: Array<{ key: BusinessKey; name: string; todoistProjectId: string | null }> = [
-  { key: "heya", name: "Heya", todoistProjectId: "6h4cX6qV6VRX9gQ8" },
   { key: "jic", name: "JIC", todoistProjectId: "6Crg2Ch856x5xC46" },
   { key: "personal", name: "Personal", todoistProjectId: "6Crg2Ch83pFrmj7H" },
 ];

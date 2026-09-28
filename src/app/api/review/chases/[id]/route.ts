@@ -11,8 +11,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const body = (await request.json().catch(() => null)) as { action?: string } | null;
   const action = body?.action;
-  if (action !== "teams" && action !== "email" && action !== "ignore" && action !== "done") {
-    return NextResponse.json({ error: "action must be 'teams', 'email', 'ignore' or 'done'" }, { status: 400 });
+  if (action !== "email" && action !== "ignore" && action !== "done") {
+    return NextResponse.json({ error: "action must be 'email', 'ignore' or 'done'" }, { status: 400 });
   }
 
   const result = await resolvePendingChase(owner, params.id, action);

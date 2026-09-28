@@ -10,8 +10,7 @@ import { z } from "zod";
 
 // Dean's mailboxes → business context. Single-user app; used only as a
 // fallback when the Zap doesn't set an explicit mailbox field.
-export const MAILBOX_ADDRESSES: Record<string, "heya" | "jic" | "personal"> = {
-  "deano@heya.team": "heya",
+export const MAILBOX_ADDRESSES: Record<string, "jic" | "personal"> = {
   "dean@justimagineconsulting.co.za": "jic",
   "dean.ormsby88@gmail.com": "personal",
 };
@@ -19,7 +18,7 @@ export const MAILBOX_ADDRESSES: Record<string, "heya" | "jic" | "personal"> = {
 const OWN_ADDRESSES = new Set(Object.keys(MAILBOX_ADDRESSES));
 
 export const emailPayloadSchema = z.object({
-  mailbox: z.enum(["heya", "jic", "personal"]),
+  mailbox: z.enum(["jic", "personal"]),
   direction: z.enum(["inbound", "outbound"]),
   sender: z.string(),
   recipients: z.array(z.string()),
@@ -72,7 +71,7 @@ function asAddressList(value: unknown): string[] {
   return [];
 }
 
-/** Extract a bare lowercase address from forms like `Dean Ormsby <deano@heya.team>`. */
+/** Extract a bare lowercase address from forms like `Dean Ormsby <dean@justimagineconsulting.co.za>`. */
 export function normalizeAddress(input: string): string {
   const match = input.match(/<([^>]+)>/);
   const addr = (match ? match[1] : input).trim().toLowerCase();
@@ -128,7 +127,7 @@ export function normalizeEmailPayload(raw: unknown): EmailNormalizeResult {
   let mailbox = (asString(firstValue(r, ["mailbox", "mailbox_context", "mailboxContext", "context"])) ?? "")
     .trim()
     .toLowerCase();
-  if (!["heya", "jic", "personal"].includes(mailbox)) {
+  if (!["jic", "personal"].includes(mailbox)) {
     const own =
       (OWN_ADDRESSES.has(sender) ? sender : undefined) ??
       recipients.find((a) => OWN_ADDRESSES.has(a));
@@ -138,7 +137,7 @@ export function normalizeEmailPayload(raw: unknown): EmailNormalizeResult {
     return {
       ok: false,
       error:
-        "Missing mailbox context (expected mailbox = heya | jic | personal, or a recognizable Dean address).",
+        "Missing mailbox context (expected mailbox = jic | personal, or a recognizable Dean address).",
     };
   }
 

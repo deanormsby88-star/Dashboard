@@ -8,19 +8,18 @@ describe("isOwnerAttendee (Dean must never appear as an attendee to prep about)"
   });
 
   it("matches Dean by any of his mailbox addresses", () => {
-    expect(isOwnerAttendee("deano@heya.team")).toBe(true);
-    expect(isOwnerAttendee("dean@justimagineconsulting.co.za")).toBe(true);
+    expect(expect(isOwnerAttendee("dean@justimagineconsulting.co.za")).toBe(true);
     expect(isOwnerAttendee("dean.ormsby88@gmail.com")).toBe(true);
   });
 
   it("matches a resolved person record for Dean", () => {
     expect(isOwnerAttendee(null, { full_name: "Dean Ormsby", email: null } as never)).toBe(true);
-    expect(isOwnerAttendee(null, { full_name: "Dean", email: "deano@heya.team" } as never)).toBe(true);
+    expect(isOwnerAttendee(null, { full_name: "Dean", email: "dean@justimagineconsulting.co.za" } as never)).toBe(true);
   });
 
   it("does not match other attendees", () => {
-    expect(isOwnerAttendee("Zozo Nyokani")).toBe(false);
-    expect(isOwnerAttendee("skandorozu@heya.team")).toBe(false);
-    expect(isOwnerAttendee(null, { full_name: "Debbie Derman", email: "dderman@heya.team" } as never)).toBe(false);
+    expect(isOwnerAttendee("Alex Smith")).toBe(false);
+    expect(isOwnerAttendee("alex@example.com")).toBe(false);
+    expect(isOwnerAttendee(null, { full_name: "Jordan Lee", email: "jordan@example.com" } as never)).toBe(false);
   });
 });

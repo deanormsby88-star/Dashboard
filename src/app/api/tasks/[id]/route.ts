@@ -16,7 +16,7 @@ const patchSchema = z.object({
     .nullable()
     .optional(),
   labels: z.array(z.string()).optional(),
-  business: z.enum(["heya", "jic", "personal"]).optional(),
+  business: z.enum(["jic", "personal"]).optional(),
 });
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {

@@ -10,7 +10,6 @@ import { findRecommendations, research } from "@/lib/research";
 import { wazeLinkFor } from "@/lib/maps";
 import { draftReply, mailtoLink, senderAddress } from "@/lib/email/draft";
 import { stagePendingEmail } from "@/lib/email/pending";
-import { stagePendingTeams } from "@/lib/teams/pending";
 import { getUpcoming, syncCalendar } from "@/lib/calendar/sync";
 import {
   createEvent,
@@ -75,7 +74,7 @@ function formatLocal(d: Date): string {
   });
 }
 
-const BUSINESS_ENUM = ["heya", "jic", "personal"] as const;
+const BUSINESS_ENUM = ["jic", "personal"] as const;
 
 const TOOLS: AgentTool[] = [
   {
@@ -88,7 +87,7 @@ const TOOLS: AgentTool[] = [
       required: ["title", "business", "priority", "due_date", "description"],
       properties: {
         title: { type: "string", description: "Concise, verb-first, e.g. 'Approve supplier artwork'." },
-        business: { type: "string", enum: [...BUSINESS_ENUM], description: "Heya, JIC, or Personal." },
+        business: { type: "string", enum: [...BUSINESS_ENUM], description: "JIC or Personal." },
         priority: { type: "integer", minimum: 1, maximum: 4, description: "4 urgent, 3 important, 2 normal, 1 backlog." },
         due_date: { type: ["string", "null"], description: "YYYY-MM-DD, only if Dean gave an explicit date; else null." },
         description: { type: "string", description: "Short supporting context; empty string if none." },
@@ -207,7 +206,7 @@ const TOOLS: AgentTool[] = [
   {
     name: "get_calendar",
     description:
-      "List Dean's calendar events (Outlook Heya + JIC) for the next N days. Use for 'what's on today', 'what's my week', 'am I free Thursday', 'when's my next meeting'. Returns events with ids for rescheduling/cancelling.",
+      "List Dean's calendar events (Outlook JIC) for the next N days. Use for 'what's on today', 'what's my week', 'am I free Thursday', 'when's my next meeting'. Returns events with ids for rescheduling/cancelling.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -224,7 +223,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["calendar", "title", "start_utc", "end_utc", "attendees", "location"],
       properties: {
-        calendar: { type: "string", enum: ["heya", "jic"], description: "Which Outlook calendar." },
+        calendar: { type: "string", enum: ["jic"], description: "Which Outlook calendar." },
         title: { type: "string" },
         start_utc: { type: "string", description: "Start, UTC ISO e.g. 2026-07-15T13:00:00Z." },
         end_utc: { type: "string", description: "End, UTC ISO. Default 30 min after start if unsure." },
@@ -241,7 +240,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["calendar", "event_id", "start_utc", "end_utc"],
       properties: {
-        calendar: { type: "string", enum: ["heya", "jic"] },
+        calendar: { type: "string", enum: ["jic"] },
         event_id: { type: "string" },
         start_utc: { type: "string" },
         end_utc: { type: "string" },
@@ -256,7 +255,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["calendar", "event_id"],
       properties: {
-        calendar: { type: "string", enum: ["heya", "jic"] },
+        calendar: { type: "string", enum: ["jic"] },
         event_id: { type: "string" },
       },
     },
@@ -284,35 +283,6 @@ const TOOLS: AgentTool[] = [
     name: "cancel_reminder",
     description: "Cancel a scheduled one-off reminder so it won't be sent. Get the id from list_reminders first.",
     parameters: { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } },
-  },
-  {
-    name: "message_teammate",
-    description:
-      "Send a Microsoft Teams message NOW to one of Dean's Heya teammates, as Dean. This does NOT send immediately — it shows Dean a draft with Send/Cancel to approve. Compose the full message in his voice. Use for 'ping/message X on Teams'.",
-    parameters: {
-      type: "object",
-      additionalProperties: false,
-      required: ["person", "text"],
-      properties: {
-        person: { type: "string", description: "The teammate's name (must be someone on file with an email)." },
-        text: { type: "string", description: "The full message to send, in Dean's voice." },
-      },
-    },
-  },
-  {
-    name: "remind_teammate",
-    description:
-      "Schedule a Teams reminder to be sent to a teammate at a future time, as Dean. Use for 'remind X to… at/by…'. Convert Dean's local SAST time to UTC ISO. Fires automatically at that time (Dean's scheduling is the approval).",
-    parameters: {
-      type: "object",
-      additionalProperties: false,
-      required: ["person", "text", "remind_at_utc"],
-      properties: {
-        person: { type: "string", description: "The teammate's name (must be on file with an email)." },
-        text: { type: "string", description: "What to remind them about (e.g. 'send the LEA report')." },
-        remind_at_utc: { type: "string", description: "When to send, UTC ISO 8601. Must be future." },
-      },
-    },
   },
   {
     name: "find_emails",
@@ -351,13 +321,13 @@ const TOOLS: AgentTool[] = [
   {
     name: "search_email",
     description:
-      "Search Dean's actual Outlook mail directly (Heya and/or JIC) — the live inbox, full history. Use for ANY question about his email ('what did Lisa send about X', 'anything from ylazarus this week', 'check my Heya inbox'). Returns messages with ids for reading or replying.",
+      "Search Dean's actual Outlook mail directly (JIC) — the live inbox, full history. Use for ANY question about his email ('what did X send about Y', 'anything from ylazarus this week', 'check my inbox'). Returns messages with ids for reading or replying.",
     parameters: {
       type: "object",
       additionalProperties: false,
       required: ["mailbox", "query", "days"],
       properties: {
-        mailbox: { type: "string", enum: ["heya", "jic", "both"], description: "Which mailbox. Default 'both' if unclear." },
+        mailbox: { type: "string", enum: ["jic"], description: "Which mailbox (JIC)." },
         query: { type: ["string", "null"], description: "Free-text search over subject/body/sender. Null lists most recent mail." },
         days: { type: ["integer", "null"], description: "Only mail newer than this many days (used when query is null). Null = no date limit." },
       },
@@ -371,7 +341,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["mailbox", "message_id"],
       properties: {
-        mailbox: { type: "string", enum: ["heya", "jic"] },
+        mailbox: { type: "string", enum: ["jic"] },
         message_id: { type: "string" },
       },
     },
@@ -385,7 +355,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["mailbox", "message_id", "body"],
       properties: {
-        mailbox: { type: "string", enum: ["heya", "jic"] },
+        mailbox: { type: "string", enum: ["jic"] },
         message_id: { type: "string" },
         body: { type: "string", description: "The reply body, in Dean's voice, signed off as Dean." },
       },
@@ -400,7 +370,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["mailbox", "to", "subject", "body"],
       properties: {
-        mailbox: { type: "string", enum: ["heya", "jic"] },
+        mailbox: { type: "string", enum: ["jic"] },
         to: { type: "array", items: { type: "string" }, description: "Recipient email addresses." },
         subject: { type: "string" },
         body: { type: "string", description: "The email body, in Dean's voice, signed off as Dean." },
@@ -521,7 +491,7 @@ const TOOLS: AgentTool[] = [
 ];
 
 function systemPrompt(snapshotJson: string, today: string, nowLocal: string, connectedCalendars: string): string {
-  return `You are Second — Dean Ormsby's AI 2IC (second-in-command), speaking with him directly over chat. Dean runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}. Current local time: ${nowLocal}. Dean's timezone is Africa/Johannesburg (UTC+2, no daylight saving).
+  return `You are Second — Dean Ormsby's AI 2IC (second-in-command), speaking with him directly over chat. Dean runs JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}. Current local time: ${nowLocal}. Dean's timezone is Africa/Johannesburg (UTC+2, no daylight saving).
 
 Connected calendars: ${connectedCalendars}. For ANY question about his diary, schedule, meetings, or availability, you MUST call get_calendar and answer from what it returns — never answer from memory and never say the calendar isn't connected when calendars are listed here.
 
@@ -538,15 +508,14 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • Commitments: track_waiting_on to add; find_commitments then resolve_commitment (done/cancelled/reopen) or update_commitment to manage. Resolving a waiting-on also closes its follow-up task.
   • Risks: log_risk to add; find_risks then update_risk to mitigate/close/edit.
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person. remove_person to delete someone Dean says is unimportant / not a real contact (their history is kept).
-  • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
-  • Teammates on Teams: message_teammate to send a Heya teammate a Microsoft Teams message now (as Dean — it shows Dean a draft with Send/Cancel to approve first); remind_teammate to schedule a Teams reminder to them for a future time. Both need the person on file with an email; if there's none, ask Dean for it. Use these for "ping/remind [teammate] on Teams".
+  • Calendar (Outlook JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Use the "jic" calendar.
   • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — Second will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
   • Pausing notifications: when Dean asks for quiet, a break, or to pause/mute/snooze notifications/reminders/task checkers, you MUST call pause_notifications with the resolved end time — never just reply that you've paused them without calling it, that leaves nudges still firing. Convert his local SAST time to UTC (subtract 2 hours). Call resume_notifications if he says resume/unmute/unpause early. The snapshot's notifications_paused_until tells you the current state — mention it if relevant (e.g. he asks whether he's still paused).
   • General notes ("remember" something not tied to a person — a medication dosage, a personal fact, a preference): ALWAYS call recall_notes when he asks for one back, before ever telling him he never told you — the note is real, it's just not in your immediate context, and it is only reachable through that tool.
   • Handling inbox alerts: when Dean says an inbox item / alert / email is resolved, handled, done, sorted or can be ignored, actually mark it done — call find_emails to locate the matching item, then resolve_email so it stops resurfacing in the watch loop and briefs. Never just acknowledge it verbally; "handled" must mean handled in the system. If it keeps re-surfacing, that means it wasn't marked resolved — so resolve it rather than blaming "lag".
-  • Email (Dean's live Outlook — Heya + JIC, kept strictly separate): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the FULL message yourself in DEAN'S VOICE (see the voice guide below — short, direct, closes with "Thanks,") and call send_email_reply / send_email. These do NOT send — they show Dean the draft with Send/Cancel buttons for him to approve, so always put the complete finished message in the body. After calling, tell him the draft is ready above and he can tap Send; never claim you've sent it. Pick the mailbox from context; if a message is in Heya, reply from Heya. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
+  • Email (Dean's live JIC Outlook): search_email for ANY email question (it reads the real mailbox, full history), read_email for a full message. To reply or write: compose the FULL message yourself in DEAN'S VOICE (see the voice guide below — short, direct, closes with "Thanks,") and call send_email_reply / send_email. These do NOT send — they show Dean the draft with Send/Cancel buttons for him to approve, so always put the complete finished message in the body. After calling, tell him the draft is ready above and he can tap Send; never claim you've sent it. Use the "jic" mailbox. If search_email reports a mailbox isn't connected for email, tell Dean to reconnect it in Settings to grant email access. (find_emails/draft_email_reply remain for the older forwarded-inbox flow.)
   • remember for durable notes/person facts.
-- When Dean refers to something by description ("that artwork task", "the payroll risk", "what Lawrence owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
+- When Dean refers to something by description ("that artwork task", "the payroll risk", "what Alex owes me"), use the matching find_ tool to locate the right id, then act. If several plausibly match, ask which one.
 - Infer the business from context; if truly unclear, ask one short question instead of guessing. Never invent due dates — only set one if Dean stated it.
 - After acting, confirm briefly and specifically what you did (e.g. "Done — marked the artwork task complete in Todoist.").
 - Never fabricate facts, people, or commitments. If you don't know, say so.
@@ -763,7 +732,7 @@ async function executeTool(
       });
     }
     case "create_event": {
-      const calendar = str(args.calendar) as "heya" | "jic";
+      const calendar = str(args.calendar) as "jic";
       const token = await getValidAccessToken(owner.user.id, calendar);
       if (!token) return JSON.stringify({ ok: false, error: `${calendar} calendar isn't connected.` });
       try {
@@ -782,7 +751,7 @@ async function executeTool(
       }
     }
     case "reschedule_event": {
-      const calendar = str(args.calendar) as "heya" | "jic";
+      const calendar = str(args.calendar) as "jic";
       const token = await getValidAccessToken(owner.user.id, calendar);
       if (!token) return JSON.stringify({ ok: false, error: `${calendar} calendar isn't connected.` });
       try {
@@ -798,7 +767,7 @@ async function executeTool(
       }
     }
     case "cancel_event": {
-      const calendar = str(args.calendar) as "heya" | "jic";
+      const calendar = str(args.calendar) as "jic";
       const token = await getValidAccessToken(owner.user.id, calendar);
       if (!token) return JSON.stringify({ ok: false, error: `${calendar} calendar isn't connected.` });
       try {
@@ -823,33 +792,8 @@ async function executeTool(
       const ok = await cancelReminder(owner, str(args.id));
       return JSON.stringify({ ok, error: ok ? undefined : "not found or already sent" });
     }
-    case "message_teammate": {
-      const person = await findPersonByName(owner.user.id, str(args.person));
-      if (!person?.email) {
-        return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
-      }
-      const staged = await stagePendingTeams({ name: person.full_name, email: person.email, body: str(args.text) });
-      return JSON.stringify({
-        ok: staged.ok,
-        staged: true,
-        note: "Draft Teams message shown to Dean with Send/Cancel — NOT sent yet. Tell him it's ready to approve; don't claim you sent it.",
-      });
-    }
-    case "remind_teammate": {
-      const person = await findPersonByName(owner.user.id, str(args.person));
-      if (!person?.email) {
-        return JSON.stringify({ ok: false, error: `No email on file for ${str(args.person)} — add it to their profile first.` });
-      }
-      const r = await createReminder(owner, str(args.text), str(args.remind_at_utc), new Date(), {
-        email: person.email,
-        name: person.full_name,
-      });
-      if (!r.ok) return JSON.stringify({ ok: false, error: r.error });
-      return JSON.stringify({ ok: true, reminder_for: person.full_name, when_local: r.when, via: "Teams" });
-    }
     case "search_email": {
-      const which = str(args.mailbox) || "both";
-      const boxes = which === "both" ? (["heya", "jic"] as const) : ([which] as ("heya" | "jic")[]);
+      const boxes = ["jic"] as const;
       const query = typeof args.query === "string" && args.query.trim() ? args.query.trim() : undefined;
       const days = typeof args.days === "number" ? args.days : null;
       const sinceIso = !query && days ? new Date(Date.now() - days * 86400_000).toISOString() : undefined;
@@ -885,7 +829,7 @@ async function executeTool(
       });
     }
     case "read_email": {
-      const box = str(args.mailbox) as "heya" | "jic";
+      const box = str(args.mailbox) as "jic";
       const token = await getValidAccessToken(owner.user.id, box);
       if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
       const msg = await getMessageBody(token, str(args.message_id));
@@ -893,7 +837,7 @@ async function executeTool(
       return JSON.stringify({ ok: true, ...msg });
     }
     case "send_email_reply": {
-      const box = str(args.mailbox) as "heya" | "jic";
+      const box = str(args.mailbox) as "jic";
       const token = await getValidAccessToken(owner.user.id, box);
       if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
       const staged = await stagePendingEmail({ kind: "reply", mailbox: box, messageId: str(args.message_id), body: str(args.body) });
@@ -904,7 +848,7 @@ async function executeTool(
       });
     }
     case "send_email": {
-      const box = str(args.mailbox) as "heya" | "jic";
+      const box = str(args.mailbox) as "jic";
       const token = await getValidAccessToken(owner.user.id, box);
       if (!token) return JSON.stringify({ ok: false, error: `${box} not connected for email` });
       const to = Array.isArray(args.to) ? (args.to as string[]).filter(Boolean) : [];

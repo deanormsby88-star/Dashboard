@@ -24,7 +24,7 @@ export default async function InboxPage({
       <div>
         <h1 className="text-xl font-bold">Inbox</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Email events from Heya, JIC and personal mail, classified by AI. Newsletters and
+          Email events from JIC and personal mail, classified by AI. Newsletters and
           reference mail are filed away automatically.
         </p>
       </div>

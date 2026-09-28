@@ -27,8 +27,6 @@ import {
 import { getPendingEmail, markPendingDone } from "@/lib/email/pending";
 import { getValidAccessToken, replyToMessage, sendNewMessage } from "@/lib/calendar/microsoft";
 import { signedEmailBody } from "@/lib/email/signature";
-import { getPendingTeams, markPendingTeamsDone } from "@/lib/teams/pending";
-import { messageTeammate } from "@/lib/teams/send";
 import { resolvePendingChase } from "@/lib/accountability/chase";
 import { applyDeadlineDecision } from "@/lib/deadlines/scan";
 
@@ -247,25 +245,19 @@ async function handleCallback(
     return handleEmailCallback(cb, emailMatch[1] as "send" | "cancel", emailMatch[2], String(cbChat));
   }
 
-  // Teams-message approval buttons.
-  const teamsMatch = /^tmsg:(send|cancel):(.+)$/.exec(cb.data ?? "");
-  if (teamsMatch) {
-    return handleTeamsCallback(cb, teamsMatch[1] as "send" | "cancel", teamsMatch[2], String(cbChat));
-  }
-
   // Deadline reminder-ladder buttons.
   const dlMatch = /^dl:(all|day|no):(.+)$/.exec(cb.data ?? "");
   if (dlMatch) {
     return handleDeadlineCallback(owner, cb, dlMatch[1] as "all" | "day" | "no", dlMatch[2], String(cbChat));
   }
 
-  // Accountability + relationship buttons: chase via Teams/email, snooze, done, dismiss.
-  const loopMatch = /^loop:(teams|email|snooze|done|dismiss):(.+)$/.exec(cb.data ?? "");
+  // Accountability + relationship buttons: chase via email, snooze, done, dismiss.
+  const loopMatch = /^loop:(email|snooze|done|dismiss):(.+)$/.exec(cb.data ?? "");
   if (loopMatch) {
     return handleLoopCallback(
       owner,
       cb,
-      loopMatch[1] as "teams" | "email" | "snooze" | "done" | "dismiss",
+      loopMatch[1] as "email" | "snooze" | "done" | "dismiss",
       loopMatch[2],
       String(cbChat)
     );
@@ -364,7 +356,7 @@ async function handleDeadlineCallback(
 async function handleLoopCallback(
   owner: Owner,
   cb: { id: string; message?: { message_id?: number; text?: string } },
-  action: "teams" | "email" | "snooze" | "done" | "dismiss",
+  action: "email" | "snooze" | "done" | "dismiss",
   id: string,
   chatId: string
 ): Promise<NextResponse> {
@@ -386,21 +378,14 @@ async function handleLoopCallback(
     toast = done ? "Marked done" : "Couldn't find it";
     newText = done ? `✅ Done · ${original.split("\n")[0]}` : original;
   } else {
-    // teams | email — send the already-drafted chase (shown in the nudge).
+    // email — stage the already-drafted chase (shown in the nudge) for approval.
     const result = await resolvePendingChase(owner, id, action);
     if (!result.chase) {
       await answerCallbackQuery(cb.id, "This draft has expired or was already handled").catch(() => {});
       return NextResponse.json({ ok: true });
     }
-    if (action === "teams") {
-      toast = result.ok ? "Sent via Teams" : result.error ?? "Teams send failed";
-      newText = result.ok
-        ? `📤 Chased ${result.chase.personName} on Teams · ${original.split("\n")[0]}`
-        : `${original}\n\n⚠️ ${result.error ?? "Teams send failed"}`;
-    } else {
-      toast = "Draft email ready — approve to send";
-      newText = `✉️ Email draft ready for ${result.chase.personName} · ${original.split("\n")[0]}`;
-    }
+    toast = "Draft email ready — approve to send";
+    newText = `✉️ Email draft ready for ${result.chase.personName} · ${original.split("\n")[0]}`;
   }
 
   await answerCallbackQuery(cb.id, toast).catch(() => {});
@@ -459,35 +444,6 @@ async function handleEmailCallback(
   } catch (err) {
     const msg = err instanceof Error ? err.message : "send failed";
     await answerCallbackQuery(cb.id, `Send failed: ${msg}`.slice(0, 190)).catch(() => {});
-  }
-  return NextResponse.json({ ok: true });
-}
-
-/** Send or cancel a staged Teams message to a teammate when Dean taps the button. */
-async function handleTeamsCallback(
-  cb: { id: string; message?: { message_id?: number } },
-  action: "send" | "cancel",
-  id: string,
-  chatId: string
-): Promise<NextResponse> {
-  const pending = await getPendingTeams(id);
-  if (!pending) {
-    await answerCallbackQuery(cb.id, "This draft has expired or was already handled").catch(() => {});
-    return NextResponse.json({ ok: true });
-  }
-  if (action === "cancel") {
-    await markPendingTeamsDone(id);
-    await answerCallbackQuery(cb.id, "Cancelled").catch(() => {});
-    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, "❌ Teams message cancelled — not sent.").catch(() => {});
-    return NextResponse.json({ ok: true });
-  }
-  const res = await messageTeammate(pending.email, pending.body);
-  if (res.ok) {
-    await markPendingTeamsDone(id);
-    await answerCallbackQuery(cb.id, "Sent ✅").catch(() => {});
-    if (cb.message?.message_id !== undefined) await editMessageText(chatId, cb.message.message_id, `✅ Sent to ${pending.name} on Teams`).catch(() => {});
-  } else {
-    await answerCallbackQuery(cb.id, `Failed: ${res.error ?? "send error"}`.slice(0, 190)).catch(() => {});
   }
   return NextResponse.json({ ok: true });
 }

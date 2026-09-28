@@ -24,7 +24,7 @@ describe("wazeLinkFor", () => {
     expect(wazeLinkFor("Online")).toBeNull();
   });
   it("skips Dean's own workplace / internal rooms", () => {
-    expect(wazeLinkFor("Heya SA, 2nd Floor, Beyachad")).toBeNull();
+    expect(wazeLinkFor("2nd Floor, Beyachad")).toBeNull();
     expect(wazeLinkFor("Beyachad")).toBeNull();
     expect(wazeLinkFor("Dean's Office")).toBeNull();
     expect(wazeLinkFor("In Office")).toBeNull();

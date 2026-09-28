@@ -2,7 +2,6 @@ import Link from "next/link";
 import { listPeopleWithCounts } from "@/lib/db/repo";
 import { pageUser } from "@/lib/auth/current-user";
 import EmptyState from "@/components/EmptyState";
-import ImportDirectoryButton from "@/components/ImportDirectoryButton";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "People — Second" };
@@ -21,7 +20,6 @@ export default async function PeoplePage() {
             for their full history and a recommended next move.
           </p>
         </div>
-        <ImportDirectoryButton />
       </div>
 
       {people.length === 0 ? (

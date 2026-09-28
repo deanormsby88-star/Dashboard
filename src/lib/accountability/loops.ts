@@ -3,7 +3,6 @@ import { allowedSignupDomains, emailDomainAllowed } from "@/lib/env";
 import { businessDaysStale, loopNeedsNudge } from "@/lib/accountability/staleness";
 import { draftChase, stagePendingChase } from "@/lib/accountability/chase";
 import type { Owner } from "@/lib/db/repo";
-import type { Business } from "@/lib/types";
 
 /** Org domains that mark a contact as one of Dean's own team (vs external). */
 function orgDomains(owner: Owner): string[] {
@@ -18,12 +17,6 @@ const SNOOZE_HOURS = 120; // "Snooze 2d" button parks a loop for ~5 days
 
 function within(last: Date | null, now: Date, hours: number): boolean {
   return !!last && now.getTime() - last.getTime() < hours * 3600_000;
-}
-
-/** Map a commitment's business to a mail-capable mailbox key. */
-function mailboxFor(businesses: Business[], businessId: string | null): "heya" | "jic" {
-  const b = businesses.find((x) => x.id === businessId);
-  return b?.key === "jic" ? "jic" : "heya";
 }
 
 /**
@@ -69,7 +62,7 @@ export async function scanOpenLoops(owner: Owner, now: Date = new Date()): Promi
           direction: c.direction,
           personName,
           personEmail: email,
-          businessKey: mailboxFor(owner.businesses, c.business_id),
+          businessKey: "jic",
           subject: owe ? `Update: ${c.text}`.slice(0, 120) : `Following up: ${c.text}`.slice(0, 120),
           draft,
         });

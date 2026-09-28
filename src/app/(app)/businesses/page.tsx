@@ -4,7 +4,6 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Businesses — Second" };
 
 const SCOPE: Record<string, string> = {
-  heya: "Operations, clients, recruitment, HR, finance, IT, and facilities.",
   jic: "Clients, orders, suppliers, finance, cash flow, product, and logistics.",
   personal: "Family, health, personal finance, travel, and life administration.",
 };
@@ -17,11 +16,11 @@ export default async function BusinessesPage() {
       <div>
         <h1 className="text-xl font-bold">Businesses</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Every record in Second is scoped to one of these contexts. Heya and JIC records are
+          Every record in Second is scoped to one of these contexts. Work and personal records are
           never mixed.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {owner.businesses.map((b) => (
           <div key={b.id} className="card p-4">
             <h2 className="font-semibold">{b.name}</h2>

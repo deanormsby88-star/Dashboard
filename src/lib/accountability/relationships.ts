@@ -65,7 +65,7 @@ export async function scanStaleContacts(owner: Owner, now: Date = new Date()): P
           direction: "by_dean",
           personName: p.full_name,
           personEmail: p.email,
-          businessKey: "heya",
+          businessKey: "jic",
           subject: `Checking in`,
           draft,
         });

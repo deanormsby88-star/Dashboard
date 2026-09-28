@@ -19,16 +19,16 @@ let nextId = 1;
 vi.mock("@/lib/env", () => ({
   getEnv: () => ({
     ZAPIER_WEBHOOK_SECRET: TEST_SECRET,
-    DEANOS_EMAIL: "deano@heya.team",
+    DEANOS_EMAIL: "dean@justimagineconsulting.co.za",
     APP_URL: "http://localhost:3000",
   }),
 }));
 
 vi.mock("@/lib/db/repo", () => ({
   ensureOwner: vi.fn(async () => ({
-    user: { id: "user-1", email: "deano@heya.team", name: "Dean" },
+    user: { id: "user-1", email: "dean@justimagineconsulting.co.za", name: "Dean" },
     businesses: [
-      { id: "biz-heya", user_id: "user-1", key: "heya", name: "Heya", todoist_project_id: "x" },
+      { id: "biz-jic", user_id: "user-1", key: "jic", name: "JIC", todoist_project_id: "x" },
     ],
   })),
   businessByKey: vi.fn((owner: { businesses: Array<{ key: string }> }, key: string) =>

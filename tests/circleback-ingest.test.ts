@@ -22,14 +22,14 @@ let nextId = 1;
 vi.mock("@/lib/env", () => ({
   getEnv: () => ({
     ZAPIER_WEBHOOK_SECRET: TEST_SECRET,
-    DEANOS_EMAIL: "deano@heya.team",
+    DEANOS_EMAIL: "dean@justimagineconsulting.co.za",
     APP_URL: "http://localhost:3000",
   }),
 }));
 
 vi.mock("@/lib/db/repo", () => ({
   ensureOwner: vi.fn(async () => ({
-    user: { id: "user-1", email: "deano@heya.team", name: "Dean" },
+    user: { id: "user-1", email: "dean@justimagineconsulting.co.za", name: "Dean" },
     businesses: [],
   })),
   recordWebhookEvent: vi.fn(async (params: { idempotencyKey: string }) => {
@@ -121,7 +121,7 @@ describe("ingestCircleback", () => {
     // raw payload preserved
     expect(state.sourceRecords.get("cb-meeting-1001")).toEqual(basic);
     // meeting stored
-    expect(state.meetings.get("cb-meeting-1001")?.title).toContain("Heya Ops Weekly");
+    expect(state.meetings.get("cb-meeting-1001")?.title).toContain("JIC Ops Weekly");
     // attendees stored
     const meetingId = state.meetings.get("cb-meeting-1001")!.id;
     expect(state.attendees.get(meetingId)).toHaveLength(3);

@@ -20,7 +20,7 @@ export async function notifyAwaitingReplies(owner: Owner, now: Date = new Date()
   let sent = 0;
   let checked = 0;
   for (const c of conns) {
-    if (c.calendar !== "heya" && c.calendar !== "jic") continue;
+    if (c.calendar !== "jic") continue;
     const token = await getValidAccessToken(owner.user.id, c.calendar);
     if (!token) continue;
     const me = ((await getAccountEmail(token)) ?? "").toLowerCase();

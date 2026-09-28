@@ -1,5 +1,5 @@
 // User-defined context key. Free-form so each user can name their own work
-// contexts (e.g. "work", "personal"); legacy owner keeps heya/jic/personal.
+// contexts (e.g. "work", "personal"); legacy owner keeps jic/personal.
 export type BusinessKey = string;
 
 export interface User {

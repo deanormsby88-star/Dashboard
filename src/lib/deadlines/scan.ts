@@ -12,7 +12,6 @@ import {
   getMessageBody,
   getValidAccessToken,
   listInboxMessages,
-  listRecentTeamsMessages,
   listSentMessages,
 } from "@/lib/calendar/microsoft";
 import { createReminder } from "@/lib/assistant/adhoc-reminders";
@@ -24,12 +23,12 @@ const MAX_MESSAGES = 40;
 const MIN_CONFIDENCE = 0.6;
 
 interface MsgItem {
-  id: string; // e.g. "inbox:AAA", "sent:BBB", "teams:CCC"
+  id: string; // e.g. "inbox:AAA", "sent:BBB"
   source: string; // human label
   text: string;
   when: string; // ISO
-  kind: "inbox" | "sent" | "teams";
-  calendar?: "heya" | "jic"; // mailbox for full-body fetch (mail only)
+  kind: "inbox" | "sent";
+  calendar?: "jic"; // mailbox for full-body fetch
   rawId?: string; // Graph message id, for full-body fetch
   subject?: string; // mail subject, prepended to the fetched body
 }
@@ -43,7 +42,7 @@ interface ExtractedDeadline {
   owner: "dean" | "other";
 }
 
-const SYSTEM = `You find explicit DEADLINES that DEAN ORMSBY HIMSELF is responsible for delivering, in his recent Microsoft Teams messages and emails (inbox and things he sent).
+const SYSTEM = `You find explicit DEADLINES that DEAN ORMSBY HIMSELF is responsible for delivering, in his recent emails (inbox and things he sent).
 
 A deadline is a concrete date (and optionally a time) by which something is due — e.g. "by Friday", "before 15 Aug", "EOD Thursday", "by 3pm tomorrow", "due end of month". Resolve relative dates against the CURRENT DATE given below, in South African time.
 
@@ -82,12 +81,12 @@ const SCHEMA = {
 
 const hash = (s: string) => createHash("sha256").update(s).digest("hex").slice(0, 24);
 
-/** Gather recent Teams + inbox + sent messages across the owner's mailboxes. */
+/** Gather recent inbox + sent messages from the owner's JIC mailbox. */
 async function gatherMessages(owner: Owner, sinceIso: string): Promise<MsgItem[]> {
   const conns = await listCalendarConnections(owner.user.id);
   const items: MsgItem[] = [];
   for (const c of conns) {
-    if (c.calendar !== "heya" && c.calendar !== "jic") continue;
+    if (c.calendar !== "jic") continue;
     const token = await getValidAccessToken(owner.user.id, c.calendar);
     if (!token) continue;
     const box = c.calendar.toUpperCase();
@@ -106,15 +105,6 @@ async function gatherMessages(owner: Owner, sinceIso: string): Promise<MsgItem[]
     } catch {
       /* skip */
     }
-    if (c.calendar === "heya") {
-      try {
-        for (const m of await listRecentTeamsMessages(token, sinceIso, 15)) {
-          items.push({ id: `teams:${m.id}`, source: `Teams — from ${m.from}${m.chatTopic ? ` in “${m.chatTopic}”` : ""}`, when: m.createdIso, text: m.text, kind: "teams" });
-        }
-      } catch {
-        /* Teams not consented — skip */
-      }
-    }
   }
   return items;
 }
@@ -126,7 +116,7 @@ async function gatherMessages(owner: Owner, sinceIso: string): Promise<MsgItem[]
  */
 async function enrichMailBodies(owner: Owner, items: MsgItem[]): Promise<void> {
   const mail = items.filter((it) => it.calendar && it.rawId);
-  const byBox = new Map<"heya" | "jic", MsgItem[]>();
+  const byBox = new Map<"jic", MsgItem[]>();
   for (const it of mail) {
     const list = byBox.get(it.calendar!) ?? [];
     list.push(it);
@@ -245,7 +235,7 @@ export async function applyDeadlineDecision(
 }
 
 /**
- * Scan recent Teams + email for concrete deadlines and, for each new one,
+ * Scan recent email for concrete deadlines and, for each new one,
  * suggest the reminder ladder (day before / on the day / hour before) with
  * one-tap buttons. Each message is scanned once; each deadline suggested once.
  */

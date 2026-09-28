@@ -9,7 +9,7 @@ describe("parseVTodos", () => {
       "BEGIN:VCALENDAR",
       "BEGIN:VTODO",
       "UID:abc-123",
-      "SUMMARY:Send the MSA to Standard Bank #heya",
+      "SUMMARY:Send the MSA to Standard Bank #jic",
       "DUE;VALUE=DATE:20260805",
       "STATUS:NEEDS-ACTION",
       "PRIORITY:1",
@@ -19,7 +19,7 @@ describe("parseVTodos", () => {
     const [t] = parseVTodos(ical, URL);
     expect(t.uid).toBe("abc-123");
     expect(t.title).toBe("Send the MSA to Standard Bank");
-    expect(t.tags).toEqual(["heya"]);
+    expect(t.tags).toEqual(["jic"]);
     expect(t.dueDate).toBe("2026-08-05");
     expect(t.completed).toBe(false);
     expect(t.priority).toBe(1);

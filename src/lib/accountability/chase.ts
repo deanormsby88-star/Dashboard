@@ -3,7 +3,6 @@ import { getEnv } from "@/lib/env";
 import { callText } from "@/lib/ai/openai";
 import { DEAN_VOICE } from "@/lib/voice";
 import { getLastSyncRun, listSyncRunsByPrefix, listSyncRunsBySource, markCommitmentDone, recordSyncRun } from "@/lib/db/repo";
-import { messageTeammateForUser } from "@/lib/teams/send";
 import { stagePendingEmail } from "@/lib/email/pending";
 import type { Commitment } from "@/lib/types";
 import type { Owner } from "@/lib/db/repo";
@@ -19,7 +18,7 @@ export interface PendingChase {
   direction: Commitment["direction"];
   personName: string;
   personEmail: string;
-  businessKey: "heya" | "jic";
+  businessKey: "jic";
   subject: string;
   draft: string;
 }
@@ -121,7 +120,7 @@ export async function listPendingChases(owner: Owner): Promise<PendingChase[]> {
 }
 
 /**
- * Send a staged chase (Teams or a draft email), dismiss it for now, or mark
+ * Stage a chase as a draft email, dismiss it for now, or mark
  * it truly done. "ignore" only skips this one draft — since the underlying
  * commitment is still open, a fresh chase will be drafted again once it goes
  * stale. "done" actually resolves the underlying commitment (when there is
@@ -131,7 +130,7 @@ export async function listPendingChases(owner: Owner): Promise<PendingChase[]> {
 export async function resolvePendingChase(
   owner: Owner,
   id: string,
-  action: "teams" | "email" | "ignore" | "done"
+  action: "email" | "ignore" | "done"
 ): Promise<{ ok: boolean; error?: string; chase?: PendingChase }> {
   const chase = await getPendingChase(id);
   if (!chase) return { ok: false, error: "expired" };
@@ -145,14 +144,9 @@ export async function resolvePendingChase(
     await markChaseDone(owner, id);
     return { ok: true, chase };
   }
-  if (action === "teams") {
-    const res = await messageTeammateForUser(owner.user.id, chase.personEmail, chase.draft);
-    await markChaseDone(owner, id);
-    return { ok: res.ok, error: res.error, chase };
-  }
   await stagePendingEmail({
     kind: "new",
-    mailbox: chase.businessKey,
+    mailbox: "jic",
     to: [chase.personEmail],
     subject: chase.subject,
     body: chase.draft,

@@ -6,21 +6,21 @@ const SECRET = "test-secret-at-least-32-characters-long!!";
 
 describe("session token carries userId", () => {
   it("round-trips userId + email and validates the signature", async () => {
-    const token = await createSessionToken("user-123", "dean@heya.team", SECRET);
+    const token = await createSessionToken("user-123", "dean@justimagineconsulting.co.za", SECRET);
     const payload = await verifySessionToken(token, SECRET);
     expect(payload?.userId).toBe("user-123");
-    expect(payload?.email).toBe("dean@heya.team");
+    expect(payload?.email).toBe("dean@justimagineconsulting.co.za");
   });
 
   it("rejects a token signed with a different secret", async () => {
-    const token = await createSessionToken("user-123", "dean@heya.team", SECRET);
+    const token = await createSessionToken("user-123", "dean@justimagineconsulting.co.za", SECRET);
     expect(await verifySessionToken(token, "another-secret-at-least-32-chars-xxxxx")).toBeNull();
   });
 
   it("rejects a legacy email-only token (no userId) — forces re-login", async () => {
     // Hand-craft a token whose payload lacks userId, signed with the real secret.
     const enc = new TextEncoder();
-    const body = Buffer.from(JSON.stringify({ email: "dean@heya.team", exp: Date.now() + 100000 }))
+    const body = Buffer.from(JSON.stringify({ email: "dean@justimagineconsulting.co.za", exp: Date.now() + 100000 }))
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
@@ -36,17 +36,17 @@ describe("session token carries userId", () => {
 
 describe("sign-up domain gate (fails closed)", () => {
   it("allows only listed domains", () => {
-    const domains = ["heya.team", "justimagineconsulting.co.za"];
-    expect(emailDomainAllowed("someone@heya.team", domains)).toBe(true);
+    const domains = ["example.com", "justimagineconsulting.co.za"];
+    expect(emailDomainAllowed("someone@example.com", domains)).toBe(true);
     expect(emailDomainAllowed("dean@JustImagineConsulting.co.za".toLowerCase(), domains)).toBe(true);
     expect(emailDomainAllowed("outsider@gmail.com", domains)).toBe(false);
   });
 
   it("fails closed when no domains are configured", () => {
-    expect(emailDomainAllowed("someone@heya.team", [])).toBe(false);
+    expect(emailDomainAllowed("someone@example.com", [])).toBe(false);
   });
 
   it("rejects malformed emails", () => {
-    expect(emailDomainAllowed("not-an-email", ["heya.team"])).toBe(false);
+    expect(emailDomainAllowed("not-an-email", ["example.com"])).toBe(false);
   });
 });
