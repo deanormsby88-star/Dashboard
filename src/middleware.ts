@@ -10,6 +10,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 // secret; /api/telegram/setup stays session-gated (it's an admin action).
 const PUBLIC_PREFIXES = [
   "/login",
+  "/forgot-password",
+  "/reset-password",
   "/api/auth/",
   "/api/webhooks/",
   "/api/cron/",

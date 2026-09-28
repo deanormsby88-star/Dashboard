@@ -1,4 +1,4 @@
-import { scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 
 /**
  * Verifies a password against a hash in the format produced by
@@ -15,4 +15,11 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Hash a password in the same `scrypt:<salt-b64>:<hash-b64>` format. */
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const hash = scryptSync(password, salt, 64);
+  return `scrypt:${salt.toString("base64")}:${hash.toString("base64")}`;
 }

@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
-export default function LoginForm() {
-  const router = useRouter();
+export default function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -15,18 +13,17 @@ export default function LoginForm() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/forgot", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
       });
+      const body = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        setError(body?.error ?? "Sign-in failed.");
+        setError(body?.error ?? "Couldn't send a reset link.");
         return;
       }
-      router.push("/");
-      router.refresh();
+      setMessage(body?.message ?? "Check your Telegram for a reset link.");
     } finally {
       setBusy(false);
     }
@@ -34,6 +31,9 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={onSubmit} className="card space-y-4 p-6">
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Enter your DeanOS email and we&apos;ll send a reset link to your Telegram.
+      </p>
       <div>
         <label htmlFor="email" className="form-label">
           Email
@@ -48,26 +48,13 @@ export default function LoginForm() {
           onChange={(e) => setEmail(e.target.value)}
         />
       </div>
-      <div>
-        <label htmlFor="password" className="form-label">
-          Password
-        </label>
-        <input
-          id="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className="form-input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-      </div>
+      {message && <p className="text-sm text-emerald-600 dark:text-emerald-400">{message}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
       <button type="submit" disabled={busy} className="btn-primary w-full">
-        {busy ? "Signing in…" : "Sign in"}
+        {busy ? "Sending…" : "Send reset link"}
       </button>
-      <a href="/forgot-password" className="block text-center text-xs text-slate-500 hover:underline dark:text-slate-400">
-        Forgot password?
+      <a href="/login" className="block text-center text-xs text-slate-500 hover:underline dark:text-slate-400">
+        Back to sign in
       </a>
     </form>
   );

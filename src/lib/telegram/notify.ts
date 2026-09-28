@@ -64,6 +64,18 @@ export async function sendToUser(userId: string, text: string): Promise<boolean>
   return res.ok;
 }
 
+/**
+ * Security messages (password reset links, "password changed" notices) go out
+ * even during a notification pause — they're a direct response to an action.
+ */
+export async function sendSecurityMessage(userId: string, text: string): Promise<boolean> {
+  if (!botConfigured()) return false;
+  const { chatId } = await deliveryTarget(userId);
+  if (!chatId) return false;
+  const res = await sendMessage(chatId, text);
+  return res.ok;
+}
+
 /** Push a message with tap-to-act inline buttons to a specific user. */
 export async function sendToUserWithButtons(
   userId: string,

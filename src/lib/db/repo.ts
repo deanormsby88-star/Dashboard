@@ -172,6 +172,28 @@ export async function setNotificationsPausedUntil(userId: string, until: Date | 
   await getPool().query(`update users set notifications_paused_until = $2 where id = $1`, [userId, until]);
 }
 
+/**
+ * The user's in-app password hash, or null if none has been set (login then
+ * falls back to DEANOS_PASSWORD_HASH). Also null if the password_hash column
+ * doesn't exist yet (migration 0014 not applied) so login never breaks.
+ */
+export async function getUserPasswordHash(userId: string): Promise<string | null> {
+  try {
+    const res = await getPool().query<{ password_hash: string | null }>(
+      `select password_hash from users where id = $1`,
+      [userId]
+    );
+    return res.rows[0]?.password_hash ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Store a new password hash for the user (set by the reset flow). */
+export async function setUserPasswordHash(userId: string, hash: string): Promise<void> {
+  await getPool().query(`update users set password_hash = $2 where id = $1`, [userId, hash]);
+}
+
 /** Mark a user's first-run setup wizard complete. */
 export async function markSetupComplete(userId: string): Promise<void> {
   await getPool().query(

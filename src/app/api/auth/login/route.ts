@@ -4,7 +4,7 @@ import { getEnv } from "@/lib/env";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 import { clientIp, isRateLimited, recordFailure, recordSuccess } from "@/lib/auth/throttle";
-import { ensureOwner } from "@/lib/db/repo";
+import { ensureOwner, getUserPasswordHash } from "@/lib/db/repo";
 
 export const runtime = "nodejs";
 
@@ -29,16 +29,19 @@ export async function POST(request: NextRequest) {
   }
 
   const { email, password } = parsed.data;
-  const emailMatches = email.trim().toLowerCase() === env.DEANOS_EMAIL.toLowerCase();
-  const passwordMatches = verifyPassword(password, env.DEANOS_PASSWORD_HASH);
-
-  if (!emailMatches || !passwordMatches) {
+  const invalid = () => {
     recordFailure(ip);
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
-  }
+  };
+  if (email.trim().toLowerCase() !== env.DEANOS_EMAIL.toLowerCase()) return invalid();
+
+  // A password set in-app via "Forgot password?" wins; until then the
+  // DEANOS_PASSWORD_HASH env var is the password.
+  const owner = await ensureOwner();
+  const storedHash = (await getUserPasswordHash(owner.user.id)) ?? env.DEANOS_PASSWORD_HASH;
+  if (!verifyPassword(password, storedHash)) return invalid();
 
   recordSuccess(ip);
-  const owner = await ensureOwner();
 
   const token = await createSessionToken(owner.user.id, owner.user.email, env.SESSION_SECRET);
   const response = NextResponse.json({ ok: true });
