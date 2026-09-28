@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import clsx from "clsx";
+import BrandMark from "@/components/BrandMark";
 
 interface Message {
   role: "user" | "assistant";
@@ -59,7 +60,8 @@ export default function AssistantChat() {
     <div className="flex h-[calc(100vh-8rem)] flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto pb-4">
         {messages.map((m, i) => (
-          <div key={i} className={clsx("flex", m.role === "user" ? "justify-end" : "justify-start")}>
+          <div key={i} className={clsx("flex items-end gap-2", m.role === "user" ? "justify-end" : "justify-start")}>
+            {m.role === "assistant" && <BrandMark className="mb-1 h-5 w-5 shrink-0" />}
             <div
               className={clsx(
                 "max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed",
@@ -73,7 +75,8 @@ export default function AssistantChat() {
           </div>
         ))}
         {busy && (
-          <div className="flex justify-start">
+          <div className="flex items-end justify-start gap-2">
+            <BrandMark className="mb-1 h-5 w-5 shrink-0 animate-pulse" />
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900">
               Thinking…
             </div>

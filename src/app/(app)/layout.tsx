@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import NavLinks from "@/components/NavLinks";
 import LogoutButton from "@/components/LogoutButton";
 import { getSessionUser } from "@/lib/auth/current-user";
+import BrandTile from "@/components/BrandTile";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   // First-run gate: require a session, and send users who haven't finished the
@@ -19,12 +20,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                    md:flex-col md:rounded-3xl md:border md:border-white/60 md:shadow-soft md:dark:border-white/5"
       >
         <div className="mb-2 flex items-center gap-3 px-3 md:mb-6 md:py-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white dark:bg-white dark:text-slate-900">
-            S
-          </div>
+          <BrandTile size="sm" />
           <div>
             <div className="text-sm font-bold leading-tight tracking-tight">Second</div>
-            <div className="text-xs text-slate-400 dark:text-slate-500">Your AI 2IC</div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.22em] text-slate-400 dark:text-slate-500">
+              Your AI 2IC
+            </div>
           </div>
         </div>
         <NavLinks />
