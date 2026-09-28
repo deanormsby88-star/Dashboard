@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 /**
  * Connect Apple Reminders: verify the Apple ID + app-specific password by
  * listing the account's Reminders lists, store the credential encrypted, and
- * return the lists so the user can pick the one DeanOS should use.
+ * return the lists so the user can pick the one Second should use.
  */
 export async function POST(request: NextRequest) {
   const owner = await requireUser();

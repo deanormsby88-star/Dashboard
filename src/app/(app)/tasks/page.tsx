@@ -11,7 +11,7 @@ import MoveToInboxButton from "@/components/MoveToInboxButton";
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Tasks — DeanOS" };
+export const metadata = { title: "Tasks — Second" };
 
 const FILTERS: Array<{ label: string; value: TaskStatus | "all" }> = [
   { label: "To review", value: "suggested" },
@@ -32,7 +32,7 @@ export default async function TasksPage({
 
   // "In Todoist" reads LIVE from Todoist (the source of truth) so it reflects
   // what's actually there — including tasks completed or added directly in
-  // Todoist. Other tabs are DeanOS workflow states before a task reaches it.
+  // Todoist. Other tabs are Second workflow states before a task reaches it.
   const live = filter === "created";
   const liveTasks: TodoistTask[] = live ? await listTodoistTasksForUser(owner.user.id) : [];
   const tasks: Task[] = live ? [] : await listTasks(owner.user.id, filter === "all" ? undefined : { status: filter as TaskStatus });

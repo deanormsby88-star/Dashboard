@@ -6,7 +6,7 @@ import EmptyState from "@/components/EmptyState";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Meetings — DeanOS" };
+export const metadata = { title: "Meetings — Second" };
 
 export default async function MeetingsPage() {
   const owner = await pageUser();

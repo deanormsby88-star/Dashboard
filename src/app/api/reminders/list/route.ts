@@ -5,7 +5,7 @@ import { getReminderConnection, setReminderList } from "@/lib/db/repo";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Save the single Reminders list DeanOS should read from / write to. */
+/** Save the single Reminders list Second should read from / write to. */
 export async function POST(request: NextRequest) {
   const owner = await requireUser();
   if (owner instanceof Response) return owner;

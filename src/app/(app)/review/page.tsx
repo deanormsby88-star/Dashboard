@@ -8,7 +8,7 @@ import ChaseReviewCard from "@/components/ChaseReviewCard";
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Review — DeanOS" };
+export const metadata = { title: "Review — Second" };
 
 export default async function ReviewPage() {
   const owner = await pageUser();
@@ -27,7 +27,7 @@ export default async function ReviewPage() {
       <div>
         <h1 className="text-xl font-bold">Review</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Everything DeanOS found today, in one place — approve or decline it here instead of a stream of
+          Everything Second found today, in one place — approve or decline it here instead of a stream of
           messages.
         </p>
       </div>

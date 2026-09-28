@@ -31,7 +31,7 @@ function isDaily1on1(title: string): boolean {
 }
 
 /** People who must never receive attendee reminders. Lisa (former EA) was
- *  removed from DeanOS at Dean's request — keep her suppressed so the bot never
+ *  removed from Second at Dean's request — keep her suppressed so the bot never
  *  pings her on Teams even if she lingers as a calendar attendee. */
 const NEVER_REMIND_EMAILS = new Set(["lisaw@heya.team"]);
 const NEVER_REMIND_NAME = /\blisa\s+wainbergas\b|^\s*lisa\s*$/i;

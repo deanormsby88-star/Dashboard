@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Sweep DeanOS-created Todoist tasks out of the per-business projects and into
+ * Sweep Second-created Todoist tasks out of the per-business projects and into
  * the Inbox, tagging each with its business label. Safe to re-run (moving a
  * task already in the Inbox is a no-op).
  */

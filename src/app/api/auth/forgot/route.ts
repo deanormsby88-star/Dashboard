@@ -14,7 +14,7 @@ const bodySchema = z.object({ email: z.string().email() });
 // discover the account email.
 const GENERIC = {
   ok: true,
-  message: "If that's your DeanOS email, a reset link is on its way to your Telegram.",
+  message: "If that's your Second email, a reset link is on its way to your Telegram.",
 };
 
 /** Send a password-reset link to the owner's linked Telegram chat. */
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   await sendSecurityMessage(
     owner.user.id,
-    `🔑 DeanOS password reset\n\nTap to choose a new password (link expires in 30 minutes):\n${link}\n\nIf you didn't ask for this, ignore this message.`
+    `🔑 Second password reset\n\nTap to choose a new password (link expires in 30 minutes):\n${link}\n\nIf you didn't ask for this, ignore this message.`
   ).catch(() => false);
 
   return NextResponse.json(GENERIC);

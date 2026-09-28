@@ -20,7 +20,7 @@ const ENDPOINT = "zapier/todoist";
 
 /**
  * Callback from Zapier after it executes a Todoist action. For "created",
- * stores the Todoist task ID and URL against the DeanOS task, matched by
+ * stores the Todoist task ID and URL against the Second task, matched by
  * deanos_task_id or dedup_key (Phase 1 acceptance criterion 10).
  */
 const callbackSchema = z.object({
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
         todoistTaskUrl: body.todoist_task_url ?? null,
       });
       if (!task) {
-        const error = "No matching DeanOS task for callback (deanos_task_id / dedup_key not found).";
+        const error = "No matching Second task for callback (deanos_task_id / dedup_key not found).";
         await updateWebhookEvent(event.id, "failed", error);
         return NextResponse.json({ error, webhookEventId: event.id }, { status: 404 });
       }

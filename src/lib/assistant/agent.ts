@@ -162,7 +162,7 @@ const TOOLS: AgentTool[] = [
   },
   {
     name: "get_person",
-    description: "Look up everything DeanOS knows about a person: commitments both ways, meetings, recent email, notes. Use for questions about someone or to prep for a meeting with them.",
+    description: "Look up everything Second knows about a person: commitments both ways, meetings, recent email, notes. Use for questions about someone or to prep for a meeting with them.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -179,7 +179,7 @@ const TOOLS: AgentTool[] = [
       additionalProperties: false,
       required: ["name", "role", "organization", "email", "phone", "notes"],
       properties: {
-        name: { type: "string", description: "The person's name as DeanOS knows them." },
+        name: { type: "string", description: "The person's name as Second knows them." },
         role: { type: ["string", "null"] },
         organization: { type: ["string", "null"] },
         email: { type: ["string", "null"] },
@@ -264,7 +264,7 @@ const TOOLS: AgentTool[] = [
   {
     name: "set_reminder",
     description:
-      "Schedule a one-off reminder that DeanOS will send Dean as a Telegram message at a specific time. Use whenever Dean says 'remind me to… at/​in…'. Convert his local SAST time to UTC ISO for remind_at_utc (e.g. '3pm today' → todayT13:00:00Z; 'in 30 minutes' → now + 30 min in UTC).",
+      "Schedule a one-off reminder that Second will send Dean as a Telegram message at a specific time. Use whenever Dean says 'remind me to… at/​in…'. Convert his local SAST time to UTC ISO for remind_at_utc (e.g. '3pm today' → todayT13:00:00Z; 'in 30 minutes' → now + 30 min in UTC).",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -521,7 +521,7 @@ const TOOLS: AgentTool[] = [
 ];
 
 function systemPrompt(snapshotJson: string, today: string, nowLocal: string, connectedCalendars: string): string {
-  return `You are DeanOS — Dean Ormsby's AI chief of staff, speaking with him directly over chat. Dean runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}. Current local time: ${nowLocal}. Dean's timezone is Africa/Johannesburg (UTC+2, no daylight saving).
+  return `You are Second — Dean Ormsby's AI 2IC (second-in-command), speaking with him directly over chat. Dean runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, plus a Personal context. Today is ${today}. Current local time: ${nowLocal}. Dean's timezone is Africa/Johannesburg (UTC+2, no daylight saving).
 
 Connected calendars: ${connectedCalendars}. For ANY question about his diary, schedule, meetings, or availability, you MUST call get_calendar and answer from what it returns — never answer from memory and never say the calendar isn't connected when calendars are listed here.
 
@@ -540,7 +540,7 @@ You have a live snapshot of Dean's world below, and tools to look deeper and to 
   • People: update_person to save a bio/details (role, company, email, phone, notes). When you've just asked Dean about a new contact and he replies with details, call update_person for that person. remove_person to delete someone Dean says is unimportant / not a real contact (their history is kept).
   • Calendar (Outlook Heya + JIC): get_calendar to view; create_event to book; reschedule_event and cancel_event to change existing ones (identify which by its start time + title, then use its event_id from get_calendar). get_calendar returns start/end already in Dean's LOCAL time — read them out verbatim, never re-adjust. Each event also has a 'navigate' field (a Waze link) when it has a location — share it when Dean asks how to get there or wants directions to a meeting. When BOOKING or MOVING an event, the NEW times you send MUST be UTC ISO 8601, and Dean speaks in local SAST (UTC+2), so convert down by 2 hours: e.g. "3pm Thursday" → that Thursday T13:00:00Z. Default meeting length 30 min if unstated. Pick the calendar from context (work-with-JIC-people → jic, Heya matters → heya); ask if ambiguous.
   • Teammates on Teams: message_teammate to send a Heya teammate a Microsoft Teams message now (as Dean — it shows Dean a draft with Send/Cancel to approve first); remind_teammate to schedule a Teams reminder to them for a future time. Both need the person on file with an email; if there's none, ask Dean for it. Use these for "ping/remind [teammate] on Teams".
-  • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — DeanOS will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
+  • Reminders: when Dean says "remind me to X at/in Y", use set_reminder — Second will Telegram him the reminder at that time. Convert his local SAST time to UTC. This is a timed nudge, distinct from a task (Todoist) or a calendar event; use it for "ping me at 3pm" style asks. list_reminders / cancel_reminder to review or drop them. Confirm the local time back to him ("Done — I'll ping you at 15:00.").
   • Pausing notifications: when Dean asks for quiet, a break, or to pause/mute/snooze notifications/reminders/task checkers, you MUST call pause_notifications with the resolved end time — never just reply that you've paused them without calling it, that leaves nudges still firing. Convert his local SAST time to UTC (subtract 2 hours). Call resume_notifications if he says resume/unmute/unpause early. The snapshot's notifications_paused_until tells you the current state — mention it if relevant (e.g. he asks whether he's still paused).
   • General notes ("remember" something not tied to a person — a medication dosage, a personal fact, a preference): ALWAYS call recall_notes when he asks for one back, before ever telling him he never told you — the note is real, it's just not in your immediate context, and it is only reachable through that tool.
   • Handling inbox alerts: when Dean says an inbox item / alert / email is resolved, handled, done, sorted or can be ignored, actually mark it done — call find_emails to locate the matching item, then resolve_email so it stops resurfacing in the watch loop and briefs. Never just acknowledge it verbally; "handled" must mean handled in the system. If it keeps re-surfacing, that means it wasn't marked resolved — so resolve it rather than blaming "lag".
@@ -1106,7 +1106,7 @@ async function executeTool(
 }
 
 /**
- * Conversational agent: natural-language chat over DeanOS, with memory and
+ * Conversational agent: natural-language chat over Second, with memory and
  * tools to read deeper and take actions. Used by Telegram and the web chat.
  */
 export async function runAgent(

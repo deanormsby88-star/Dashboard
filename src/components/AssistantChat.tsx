@@ -15,7 +15,7 @@ export default function AssistantChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      text: "Hi Dean — I'm DeanOS. Talk to me however you like: ask what's on your plate, who's waiting on you, how to prep for a meeting, or just tell me to add a task or track something. Short commands (brief, focus, sync) work too.",
+      text: "Hi Dean — I'm Second. Talk to me however you like: ask what's on your plate, who's waiting on you, how to prep for a meeting, or just tell me to add a task or track something. Short commands (brief, focus, sync) work too.",
     },
   ]);
   const [input, setInput] = useState("");

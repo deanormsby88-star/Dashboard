@@ -6,7 +6,7 @@ import EmailInboxCard from "@/components/EmailInboxCard";
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Inbox — DeanOS" };
+export const metadata = { title: "Inbox — Second" };
 
 export default async function InboxPage({
   searchParams,

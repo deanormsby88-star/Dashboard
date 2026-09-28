@@ -8,7 +8,7 @@
  *     WhatsApp codes, etc. Dean's words: "never raise Facebook issues, they
  *     are rubbish." These are automated, endless, and not actionable by him.
  *
- *  2. DeanOS's OWN infrastructure alerts — Supabase, Row-Level Security,
+ *  2. Second's OWN infrastructure alerts — Supabase, Row-Level Security,
  *     Vercel, the database. Dean is non-technical; the operating system's
  *     plumbing is Claude's responsibility, not something to nag Dean about.
  */
@@ -19,12 +19,12 @@ const CONSUMER_PLATFORM = /\b(facebook|fb|instagram|\bmeta\b|messenger|threads|w
 /** Sender domains for that same consumer-platform noise. */
 const CONSUMER_SENDER = /@(?:[\w.-]*\.)?(facebook|facebookmail|instagram|meta|fb|tiktok|twitter|x|snapchat|linkedin)\.[a-z.]+/i;
 
-/** DeanOS's own infrastructure — Claude handles this, Dean is never nudged. */
+/** Second's own infrastructure — Claude handles this, Dean is never nudged. */
 const INFRA = /\b(supabase|row[-\s]?level security|\brls\b|vercel|postgres(?:ql)?|deanos project|database is (?:off|exposed))\b/i;
 
 /**
  * True when a watch signal's text is something Dean should never be pinged
- * about — consumer-platform noise or DeanOS's own infrastructure.
+ * about — consumer-platform noise or Second's own infrastructure.
  */
 export function isNoiseSignal(text: string): boolean {
   return CONSUMER_PLATFORM.test(text) || INFRA.test(text);

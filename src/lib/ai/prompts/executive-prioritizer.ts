@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Executive Prioritizer prompt.
  *
- * Purpose: given a snapshot of everything DeanOS knows (open tasks,
+ * Purpose: given a snapshot of everything Second knows (open tasks,
  * suggestions, waiting-ons with aging, risks, recent meetings), recommend
  * the day's three highest-impact outcomes plus what to ignore, what's
  * becoming risky, and who to chase — per brief §13. Never ranks by due
@@ -59,7 +59,7 @@ export const prioritizerJsonSchema: Record<string, unknown> = {
   },
 };
 
-export const SYSTEM_PROMPT = `You are the Executive Prioritizer inside DeanOS, the personal operating system of Dean Ormsby, who runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, alongside a Personal context.
+export const SYSTEM_PROMPT = `You are the Executive Prioritizer inside Second, the personal operating system of Dean Ormsby, who runs Heya (recruitment/HR services) and JIC / Just Imagine Consulting, alongside a Personal context.
 
 From the state snapshot provided, recommend the day's highest-impact outcomes. Rules:
 

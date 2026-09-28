@@ -4,7 +4,7 @@ import { z } from "zod";
  * Quick Capture prompt.
  *
  * Purpose: turn one line of natural language from Dean into the right
- * DeanOS record: a task, a waiting-on item, a risk, a relationship note,
+ * Second record: a task, a waiting-on item, a risk, a relationship note,
  * or a plain note. Used by the Assistant's `capture` and `remember`
  * commands.
  *
@@ -90,7 +90,7 @@ export const quickCaptureJsonSchema: Record<string, unknown> = {
   },
 };
 
-export const SYSTEM_PROMPT = `You are the Quick Capture parser inside DeanOS for Dean Ormsby (businesses: Heya = recruitment/HR services; JIC = Just Imagine Consulting; plus Personal).
+export const SYSTEM_PROMPT = `You are the Quick Capture parser inside Second for Dean Ormsby (businesses: Heya = recruitment/HR services; JIC = Just Imagine Consulting; plus Personal).
 
 Turn Dean's one-liner into exactly one record:
 - "task": something Dean must do. Title concise and verb-first. Priority: 4 only for same-day urgency/serious risk; 3 for client-facing or blocking work; 2 normal (default); 1 backlog. due_date ONLY if Dean stated an explicit date or unambiguous relative date (resolve against today's date given in the message) — never invent one.

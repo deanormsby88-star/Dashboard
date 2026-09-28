@@ -11,7 +11,7 @@ import DisplayApiCard from "@/components/DisplayApiCard";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Settings — DeanOS" };
+export const metadata = { title: "Settings — Second" };
 
 /**
  * Settings shows active connections and data flows (brief §21) plus the
@@ -41,7 +41,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
     {
       name: "Circleback (via Zapier)",
       configured: status.ZAPIER_WEBHOOK_SECRET,
-      detail: `Inbound: POST ${appUrl}/api/webhooks/zapier/circleback — meeting notes, transcripts and action items flow from Circleback → Zapier → DeanOS → OpenAI.`,
+      detail: `Inbound: POST ${appUrl}/api/webhooks/zapier/circleback — meeting notes, transcripts and action items flow from Circleback → Zapier → Second → OpenAI.`,
     },
     {
       name: "OpenAI",
@@ -68,7 +68,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
     {
       name: "Outlook calendar + email (Microsoft Graph)",
       configured: status.MS_CLIENT_ID && status.MS_CLIENT_SECRET,
-      detail: "Two-way: DeanOS reads and schedules meetings, and reads/replies/sends email, across the Heya and JIC Outlook accounts. Connect each below.",
+      detail: "Two-way: Second reads and schedules meetings, and reads/replies/sends email, across the Heya and JIC Outlook accounts. Connect each below.",
     },
   ];
 
@@ -150,7 +150,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           })}
         </div>
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Sign in with each Outlook account to let DeanOS read and manage that mailbox's calendar and email (read, reply, send), and — for Heya — read Teams chats and message teammates. If you connected before a capability was added (email, Teams), click Reconnect to grant it; Teams messaging needs tenant admin consent (tick “consent on behalf of your organization” if you're an admin). Tokens are stored encrypted.
+          Sign in with each Outlook account to let Second read and manage that mailbox's calendar and email (read, reply, send), and — for Heya — read Teams chats and message teammates. If you connected before a capability was added (email, Teams), click Reconnect to grant it; Teams messaging needs tenant admin consent (tick “consent on behalf of your organization” if you're an admin). Tokens are stored encrypted.
         </p>
         <div className="flex flex-col gap-1.5 pt-1">
           <ImportJicSignatureButton />
@@ -167,7 +167,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
         <div className="card p-4">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium">Chat with DeanOS on Telegram</p>
+              <p className="text-sm font-medium">Chat with Second on Telegram</p>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 Two-way: message the bot to run any Assistant command, and receive the daily brief.
                 Locked to your chat only. Bot token, secret and chat ID live in environment variables.
@@ -186,7 +186,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { c
           <div className="mt-3">
             <p className="mb-1 text-sm font-medium">Connect your Telegram</p>
             <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Link your own Telegram chat so DeanOS messages you — briefs, reminders and nudges — and you can chat back.
+              Link your own Telegram chat so Second messages you — briefs, reminders and nudges — and you can chat back.
             </p>
             <ConnectTelegramButton linked={Boolean(owner.user.telegram_chat_id)} />
           </div>

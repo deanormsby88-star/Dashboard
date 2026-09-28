@@ -104,12 +104,12 @@ async function gatherSignals(userId: string, now: Date): Promise<Signal[]> {
   }
 
   // Never nudge Dean about consumer-platform login spam (Facebook et al.) or
-  // DeanOS's own infrastructure (Supabase/RLS/Vercel) — both are pure noise.
+  // Second's own infrastructure (Supabase/RLS/Vercel) — both are pure noise.
   const kept = signals.filter((s) => !isNoiseSignal(s.text));
   return kept.slice(0, MAX_SIGNALS);
 }
 
-const JUDGE_SYSTEM = `You are DeanOS, Dean Ormsby's chief of staff. You are running a background "watch" pass — deciding whether anything below is worth interrupting Dean RIGHT NOW with a Telegram nudge.
+const JUDGE_SYSTEM = `You are Second, Dean Ormsby's chief of staff. You are running a background "watch" pass — deciding whether anything below is worth interrupting Dean RIGHT NOW with a Telegram nudge.
 
 Be extremely selective. Dean trusts these pings precisely because they are rare and always worth it. Silence is the correct, common answer. Only raise items that genuinely need his attention today and that he'd thank you for surfacing. Drop anything low-stakes, routine, or that can wait for the 9am brief.
 

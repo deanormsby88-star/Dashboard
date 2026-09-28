@@ -1,7 +1,7 @@
 import AuthShell from "@/components/AuthShell";
 import LoginForm from "@/components/LoginForm";
 
-export const metadata = { title: "Sign in — DeanOS" };
+export const metadata = { title: "Sign in — Second" };
 
 export default function LoginPage() {
   return (

@@ -32,7 +32,7 @@ export default function ForgotPasswordForm() {
   return (
     <form onSubmit={onSubmit} className="card space-y-4 p-6">
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Enter your DeanOS email and we&apos;ll send a reset link to your Telegram.
+        Enter your Second email and we&apos;ll send a reset link to your Telegram.
       </p>
       <div>
         <label htmlFor="email" className="form-label">

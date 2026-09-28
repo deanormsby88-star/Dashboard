@@ -1,5 +1,5 @@
 /**
- * People Dean has explicitly removed from DeanOS. They must not surface
+ * People Dean has explicitly removed from Second. They must not surface
  * anywhere — directory, meeting prep, motivations, snapshots, reminders — even
  * if a stale row lingers in the `people` table. Read-layer functions consult
  * this so removal is immediate and complete without a database migration.

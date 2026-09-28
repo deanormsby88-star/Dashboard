@@ -129,7 +129,7 @@ export async function buildDisplayData(owner: Owner, now: Date = new Date(), opt
 
   // One pre-formatted block so a single text widget shows the whole panel.
   const display = [
-    `DeanOS · ${dateLabel(now)} · ${timeLabel(now)}`,
+    `Second · ${dateLabel(now)} · ${timeLabel(now)}`,
     ...(weatherStr ? [`${weather!.place}: ${weatherStr}`] : []),
     ``,
     `📅 TODAY (${sorted.length})`,

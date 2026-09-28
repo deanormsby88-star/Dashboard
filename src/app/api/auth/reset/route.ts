@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   const claimedId = peekResetUserId(token);
   const owner = claimedId ? await getUserById(claimedId).catch(() => null) : null;
-  // Only the DeanOS owner account can be reset.
+  // Only the Second owner account can be reset.
   if (!owner || owner.user.email.toLowerCase() !== env.DEANOS_EMAIL.toLowerCase()) return expired();
 
   const currentHash = (await getUserPasswordHash(owner.user.id)) ?? env.DEANOS_PASSWORD_HASH;
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
   recordSuccess(ip);
 
-  await sendSecurityMessage(owner.user.id, "✅ Your DeanOS password was just changed.").catch(() => false);
+  await sendSecurityMessage(owner.user.id, "✅ Your Second password was just changed.").catch(() => false);
 
   const session = await createSessionToken(owner.user.id, owner.user.email, env.SESSION_SECRET);
   const response = NextResponse.json({ ok: true });

@@ -7,7 +7,7 @@ import CommitmentCard, { type CommitmentView } from "@/components/CommitmentCard
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Commitments — DeanOS" };
+export const metadata = { title: "Commitments — Second" };
 
 function toView(c: Awaited<ReturnType<typeof listCommitments>>[number], now: Date): CommitmentView {
   return {

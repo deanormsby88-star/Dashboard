@@ -38,7 +38,7 @@ export const maxDuration = 60;
 
 const ENDPOINT = "telegram";
 
-/** Resolve the DeanOS user for an incoming Telegram chat, or null if unlinked. */
+/** Resolve the Second user for an incoming Telegram chat, or null if unlinked. */
 async function resolveTelegramUser(chatId: string): Promise<Owner | null> {
   const byChat = await getUserByTelegramChatId(chatId).catch(() => null);
   if (byChat) return getUserById(byChat.id);
@@ -111,20 +111,20 @@ export async function POST(request: NextRequest) {
   });
   if (event.duplicate) return NextResponse.json({ ok: true, duplicate: true });
 
-  // Account linking: `/start <code>` binds this chat to a DeanOS user.
+  // Account linking: `/start <code>` binds this chat to a Second user.
   if (text?.startsWith("/start")) {
     const code = text.slice("/start".length).trim();
     const linkedUserId = code ? verifyLinkCode(code) : null;
     if (linkedUserId) {
       await setUserTelegramChat(linkedUserId, String(chatId)).catch(() => {});
-      await sendMessage(String(chatId), "✅ Linked — your DeanOS assistant will message you here. Try “what’s on today”.");
+      await sendMessage(String(chatId), "✅ Linked — your Second assistant will message you here. Try “what’s on today”.");
     } else {
       const already = await resolveTelegramUser(String(chatId));
       await sendMessage(
         String(chatId),
         already
           ? "You’re already linked. Try “what’s on today” or send a voice note."
-          : "To connect your account, open DeanOS → Settings → Connect Telegram and tap the link there."
+          : "To connect your account, open Second → Settings → Connect Telegram and tap the link there."
       );
     }
     await updateWebhookEvent(event.id, "processed");
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
   if (!owner) {
     await sendMessage(
       String(chatId),
-      "This chat isn’t linked to a DeanOS account. Open DeanOS → Settings → Connect Telegram to link it."
+      "This chat isn’t linked to a Second account. Open Second → Settings → Connect Telegram to link it."
     ).catch(() => {});
     await updateWebhookEvent(event.id, "processed");
     return NextResponse.json({ ok: true });
@@ -223,7 +223,7 @@ async function handleCallback(
   // Only a linked user's chat may act on buttons.
   const owner = await resolveTelegramUser(String(cbChat));
   if (!owner) {
-    await answerCallbackQuery(cb.id, "Link your DeanOS account first").catch(() => {});
+    await answerCallbackQuery(cb.id, "Link your Second account first").catch(() => {});
     return NextResponse.json({ ok: true });
   }
 

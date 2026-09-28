@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DeanOS",
-  description: "Dean Ormsby's executive operating system",
+  title: "Second — Your AI 2IC",
+  description: "Second — Dean Ormsby's AI 2IC (second-in-command)",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

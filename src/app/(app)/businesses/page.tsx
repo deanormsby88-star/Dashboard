@@ -1,7 +1,7 @@
 import { pageUser } from "@/lib/auth/current-user";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Businesses — DeanOS" };
+export const metadata = { title: "Businesses — Second" };
 
 const SCOPE: Record<string, string> = {
   heya: "Operations, clients, recruitment, HR, finance, IT, and facilities.",
@@ -17,7 +17,7 @@ export default async function BusinessesPage() {
       <div>
         <h1 className="text-xl font-bold">Businesses</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Every record in DeanOS is scoped to one of these contexts. Heya and JIC records are
+          Every record in Second is scoped to one of these contexts. Heya and JIC records are
           never mixed.
         </p>
       </div>

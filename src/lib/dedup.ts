@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 /**
  * Deduplication utilities. The rule from the brief: never create more than
  * one task for the same underlying commitment — across Circleback formal
- * action items, transcript-derived commitments, existing DeanOS tasks, and
+ * action items, transcript-derived commitments, existing Second tasks, and
  * Todoist titles.
  */
 

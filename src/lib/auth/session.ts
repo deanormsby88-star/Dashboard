@@ -1,5 +1,5 @@
 /**
- * Stateless signed-cookie sessions for the single DeanOS user.
+ * Stateless signed-cookie sessions for the single Second user.
  * Uses Web Crypto (not node:crypto) so verification also works in
  * Next.js middleware (edge runtime).
  *

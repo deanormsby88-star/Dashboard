@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/auth/current-user";
 import SetupWizard from "@/components/SetupWizard";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Set up — DeanOS" };
+export const metadata = { title: "Set up — Second" };
 
 export default async function SetupPage() {
   const owner = await getSessionUser();
@@ -14,9 +14,9 @@ export default async function SetupPage() {
     <div className="mx-auto min-h-screen max-w-xl px-4 py-12">
       <div className="mb-8 flex flex-col items-center text-center">
         <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-3xl bg-slate-900 text-lg font-bold text-white dark:bg-white dark:text-slate-900">
-          D
+          S
         </div>
-        <h1 className="text-2xl font-bold tracking-tight">Welcome to DeanOS</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Welcome to Second</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           A couple of quick steps and your assistant is ready.
         </p>

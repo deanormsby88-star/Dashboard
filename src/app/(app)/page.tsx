@@ -17,7 +17,7 @@ import RefreshBriefButton from "@/components/RefreshBriefButton";
 import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Today — DeanOS" };
+export const metadata = { title: "Today — Second" };
 
 export default async function TodayPage() {
   const now = new Date();

@@ -1,6 +1,6 @@
 /**
  * Dean's writing voice, from his sent-email analysis (communication profile,
- * July 2026). Single source of truth for anything DeanOS drafts *as* Dean —
+ * July 2026). Single source of truth for anything Second drafts *as* Dean —
  * emails, replies, messages. Imported by the email drafter and the agent.
  */
 export const DEAN_VOICE = `Write in Dean Ormsby's voice — match it closely:

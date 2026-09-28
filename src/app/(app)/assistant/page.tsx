@@ -1,6 +1,6 @@
 import AssistantChat from "@/components/AssistantChat";
 
-export const metadata = { title: "Assistant — DeanOS" };
+export const metadata = { title: "Assistant — Second" };
 
 export default function AssistantPage() {
   return (
@@ -8,7 +8,7 @@ export default function AssistantPage() {
       <div className="mb-4">
         <h1 className="text-xl font-bold">Assistant</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Your chief of staff. Everything DeanOS knows, one question away.
+          Your AI 2IC. Everything Second knows, one question away.
         </p>
       </div>
       <AssistantChat />

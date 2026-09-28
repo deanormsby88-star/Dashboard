@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   if (resolving && commitment.linked_task_id) {
     const task = await getTask(owner.user.id, commitment.linked_task_id);
     if (task?.status === "suggested" || task?.status === "approved") {
-      await setTaskStatus(owner.user.id, task.id, "rejected", "Commitment resolved in DeanOS — follow-up no longer needed.");
+      await setTaskStatus(owner.user.id, task.id, "rejected", "Commitment resolved in Second — follow-up no longer needed.");
     } else if (task?.status === "created" && task.todoist_task_id) {
       const done = await executeComplete(task.todoist_task_id);
       if (done.ok) await completeTaskByTodoistId(task.todoist_task_id);

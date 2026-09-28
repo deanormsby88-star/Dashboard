@@ -6,7 +6,7 @@ import RiskCard, { type RiskView } from "@/components/RiskCard";
 import EmptyState from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Risks — DeanOS" };
+export const metadata = { title: "Risks — Second" };
 
 const SEVERITY_ORDER = { high: 0, medium: 1, low: 2 } as Record<string, number>;
 

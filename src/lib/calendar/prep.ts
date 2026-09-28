@@ -62,7 +62,7 @@ export async function attendeeMotivations(userId: string, event: CalendarEventRo
 }
 
 /**
- * Assemble the internal context DeanOS holds on a meeting's attendees:
+ * Assemble the internal context Second holds on a meeting's attendees:
  * who they are, what each owes whom, when they last met, recent email.
  * Returns null when there's genuinely nothing on file (caller falls back to a
  * plain nudge).
@@ -96,7 +96,7 @@ async function gatherContext(userId: string, event: CalendarEventRow): Promise<{
   return { text: blocks.join("\n"), known };
 }
 
-const PREP_SYSTEM = `You are DeanOS, Dean Ormsby's chief of staff, writing a quick pre-meeting prep for a Telegram message. Be concise and practical — Dean reads this walking into the room.
+const PREP_SYSTEM = `You are Second, Dean Ormsby's chief of staff, writing a quick pre-meeting prep for a Telegram message. Be concise and practical — Dean reads this walking into the room.
 
 Anchor the prep on what THIS meeting is actually about — read the title and the agenda/notes first and let them drive everything. The attendee background is only supporting colour: use a person's open item or history ONLY if it clearly relates to this meeting's topic. Do NOT turn unrelated recent threads about the attendees into the agenda — if something isn't obviously on-topic, leave it out.
 

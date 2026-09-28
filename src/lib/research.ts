@@ -3,11 +3,11 @@ import { callStructured, callWebSearch } from "@/lib/ai/openai";
 import { ensureOwner, insertAiRun } from "@/lib/db/repo";
 
 const RESEARCH_SYSTEM =
-  "You are DeanOS's public-research assistant. Use web search to answer with current, publicly available information only. Be concise and factual: lead with what matters, group into a few short points, and note the source or date where useful. If you can't find solid public information, say so plainly rather than guessing. This is PUBLIC research — never present it as internal knowledge.";
+  "You are Second's public-research assistant. Use web search to answer with current, publicly available information only. Be concise and factual: lead with what matters, group into a few short points, and note the source or date where useful. If you can't find solid public information, say so plainly rather than guessing. This is PUBLIC research — never present it as internal knowledge.";
 
 /**
  * Public web research via OpenAI's built-in search. Only ever receives
- * public identifiers (names, companies, topics) — never internal DeanOS
+ * public identifiers (names, companies, topics) — never internal Second
  * context — so nothing confidential leaves in the query.
  */
 export async function research(query: string, label = "research"): Promise<{ ok: boolean; text: string }> {
@@ -34,7 +34,7 @@ export async function research(query: string, label = "research"): Promise<{ ok:
 // ── Recommendations with deep links ────────────────────────────────────────
 
 const RECS_SEARCH_SYSTEM =
-  "You are DeanOS's recommendations researcher. Use web search to find real, currently-operating options for the user's request — services, providers, restaurants, products, places. For EACH option capture: exact name, a one-line reason it's a good pick, official website URL, phone number, and street address or area. When the request is local, prioritise Johannesburg / Randburg, South Africa (Dean is in Pierneef Park). Return 4–6 solid options using only real details from the search results — never invent names, numbers, or URLs.";
+  "You are Second's recommendations researcher. Use web search to find real, currently-operating options for the user's request — services, providers, restaurants, products, places. For EACH option capture: exact name, a one-line reason it's a good pick, official website URL, phone number, and street address or area. When the request is local, prioritise Johannesburg / Randburg, South Africa (Dean is in Pierneef Park). Return 4–6 solid options using only real details from the search results — never invent names, numbers, or URLs.";
 
 const RECS_SCHEMA = {
   type: "object",

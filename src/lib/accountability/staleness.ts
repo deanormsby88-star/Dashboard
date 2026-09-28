@@ -2,7 +2,7 @@ import { businessDaysBetween } from "@/lib/dates";
 import type { Commitment } from "@/lib/types";
 
 /**
- * Accountability thresholds — how long an open loop may sit before DeanOS
+ * Accountability thresholds — how long an open loop may sit before Second
  * nudges. "Assertive" (Dean's chosen setting): chase things you owe fast, and
  * things owed to you a little slower before prodding others.
  */

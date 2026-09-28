@@ -9,7 +9,7 @@ import { executeCreate } from "@/lib/todoist/execute";
 export const runtime = "nodejs";
 
 /**
- * Generic Todoist-create action endpoint (brief §19). Creates a DeanOS task
+ * Generic Todoist-create action endpoint (brief §19). Creates a Second task
  * record (manual origin, pre-approved) and forwards it to the Zapier create
  * hook. Structured per the brief: title, project via business, description,
  * priority, explicit due date only, labels, source fields, dedup key.

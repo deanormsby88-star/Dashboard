@@ -7,7 +7,7 @@ import { formatDateTime } from "@/lib/format";
 import type { ZohoTask } from "@/lib/zoho/client";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Team — DeanOS" };
+export const metadata = { title: "Team — Second" };
 
 function dueLabel(t: ZohoTask): string | null {
   if (!t.dueDate) return null;

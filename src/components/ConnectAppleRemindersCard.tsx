@@ -9,7 +9,7 @@ interface List {
 
 /**
  * Connect Apple Reminders (iCloud CalDAV): enter an Apple ID + app-specific
- * password, verify, then pick the single list DeanOS reads/writes.
+ * password, verify, then pick the single list Second reads/writes.
  */
 export default function ConnectAppleRemindersCard({
   connected,
@@ -79,7 +79,7 @@ export default function ConnectAppleRemindersCard({
         <div>
           <p className="text-sm font-medium">Apple Reminders</p>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Connect iCloud so DeanOS can use one Reminders list as your task home. Context (Heya / JIC / Personal) rides
+            Connect iCloud so Second can use one Reminders list as your task home. Context (Heya / JIC / Personal) rides
             along as a #tag on each reminder. Uses an <strong>app-specific password</strong>, stored encrypted — never your
             main Apple password.
           </p>

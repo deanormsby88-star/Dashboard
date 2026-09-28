@@ -4,7 +4,7 @@ import { useState } from "react";
 
 /**
  * Connect Telegram: fetches a personal deep link and opens it, so tapping in
- * Telegram links the user's chat to their DeanOS account.
+ * Telegram links the user's chat to their Second account.
  */
 export default function ConnectTelegramButton({ linked }: { linked: boolean }) {
   const [busy, setBusy] = useState(false);

@@ -35,7 +35,7 @@ export interface Owner {
 }
 
 /**
- * Get-or-create the single DeanOS user (from DEANOS_EMAIL) and the three
+ * Get-or-create the single Second user (from DEANOS_EMAIL) and the three
  * business contexts. Called from webhooks too, since events can arrive
  * before Dean ever logs in.
  */
@@ -1340,7 +1340,7 @@ export interface PersonBundle {
   emails: Array<{ subject: string; summary: string | null; email_date: Date | null }>;
 }
 
-/** Everything DeanOS knows about a person, for `people` and `prep`. */
+/** Everything Second knows about a person, for `people` and `prep`. */
 export async function getPersonBundle(userId: string, name: string): Promise<PersonBundle> {
   // A removed person surfaces nothing, even on an explicit lookup by name.
   if (isRemovedPerson({ full_name: name, email: name })) {
@@ -1530,7 +1530,7 @@ export async function upsertReminderConnection(params: {
   );
 }
 
-/** Save which single Reminders list DeanOS reads/writes for this user. */
+/** Save which single Reminders list Second reads/writes for this user. */
 export async function setReminderList(userId: string, listUrl: string, listName: string): Promise<void> {
   await getPool().query(
     `update reminder_connections set list_url = $2, list_name = $3, updated_at = now() where user_id = $1`,

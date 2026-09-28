@@ -20,11 +20,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       >
         <div className="mb-2 flex items-center gap-3 px-3 md:mb-6 md:py-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white dark:bg-white dark:text-slate-900">
-            D
+            S
           </div>
           <div>
-            <div className="text-sm font-bold leading-tight tracking-tight">DeanOS</div>
-            <div className="text-xs text-slate-400 dark:text-slate-500">Executive OS</div>
+            <div className="text-sm font-bold leading-tight tracking-tight">Second</div>
+            <div className="text-xs text-slate-400 dark:text-slate-500">Your AI 2IC</div>
           </div>
         </div>
         <NavLinks />

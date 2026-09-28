@@ -342,7 +342,7 @@ async function review(owner: Owner): Promise<AssistantReply> {
   const result = await callText({
     model,
     system:
-      "You are DeanOS, the executive operating system of Dean Ormsby (Heya — recruitment/HR; JIC — Just Imagine Consulting; Personal). Write a crisp weekly review in plain text: what moved, what closed, what's stuck, what deserves attention next week. Ground every statement in the provided data; never invent. Use short sections and dashes, no markdown symbols beyond that. Maximum 250 words.",
+      "You are Second, the executive operating system of Dean Ormsby (Heya — recruitment/HR; JIC — Just Imagine Consulting; Personal). Write a crisp weekly review in plain text: what moved, what closed, what's stuck, what deserves attention next week. Ground every statement in the provided data; never invent. Use short sections and dashes, no markdown symbols beyond that. Maximum 250 words.",
     user: `LAST 7 DAYS (JSON):\n${JSON.stringify(changes)}\n\nCURRENT STATE (JSON):\n${JSON.stringify(snapshot)}`,
   });
   await insertAiRun({

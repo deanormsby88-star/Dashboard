@@ -34,7 +34,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
   const result = await callText({
     model,
     system:
-      "You are DeanOS, Dean Ormsby's chief of staff. Given the internal context about one person, recommend the single most valuable next action Dean should take with them, in one or two sentences. Ground it strictly in the context; if there's nothing pressing, say so plainly. No preamble, no markdown.",
+      "You are Second, Dean Ormsby's chief of staff. Given the internal context about one person, recommend the single most valuable next action Dean should take with them, in one or two sentences. Ground it strictly in the context; if there's nothing pressing, say so plainly. No preamble, no markdown.",
     user: JSON.stringify(context),
   });
   await insertAiRun({
